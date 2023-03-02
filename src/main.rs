@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+mod cartridge;
 mod nes;
 mod ops;
 #[cfg(test)]
