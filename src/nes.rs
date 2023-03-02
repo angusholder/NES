@@ -1,3 +1,5 @@
+use crate::ppu;
+use crate::ppu::PPU;
 
 #[allow(non_snake_case)]
 pub struct NES {
@@ -15,6 +17,7 @@ pub struct NES {
     pub PC: u16,
 
     pub ram: [u8; 2048],
+    pub ppu: PPU,
 }
 
 /// https://www.nesdev.org/wiki/Status_flags
@@ -75,9 +78,12 @@ impl StatusRegister {
 
 impl NES {
     pub fn read8(&mut self, addr: u16) -> u8 {
-        self.cycles += 1;
         if addr < 0x2000 {
+            self.cycles += 1;
             return self.ram[addr as usize % 0x800];
+        }
+        if addr < 0x4000 {
+            return ppu::ppu_read_register(self, addr);
         }
         println!("out of bounds read from {:04X}", addr);
         0
@@ -102,12 +108,16 @@ impl NES {
     }
 
     pub fn write8(&mut self, addr: u16, val: u8) {
-        self.cycles += 1;
         if addr < 0x2000 {
+            self.cycles += 1;
             self.ram[addr as usize % 0x800] = val;
-        } else {
-            println!("out of bounds write to {:04X} = {:02X}", addr, val);
+            return;
         }
+        if addr < 0x4000 {
+            ppu::ppu_write_register(self, addr, val);
+            return;
+        }
+        println!("out of bounds write to {:04X} = {:02X}", addr, val);
     }
 
     pub fn reset_state(&mut self) {

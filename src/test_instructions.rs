@@ -1,5 +1,6 @@
 use crate::ops::*;
 use crate::nes::{ NES, StatusRegister };
+use crate::ppu::PPU;
 
 fn new_nes() -> NES {
     NES {
@@ -11,6 +12,7 @@ fn new_nes() -> NES {
         SR: StatusRegister::from_byte(0),
         ram: [0; 0x800],
         cycles: 0,
+        ppu: PPU::new(),
     }
 }
 

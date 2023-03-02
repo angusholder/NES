@@ -6,6 +6,7 @@ mod ops;
 #[cfg(test)]
 mod test_instructions;
 mod instructions;
+mod ppu;
 
 use std::path::PathBuf;
 use std::time::Instant;
