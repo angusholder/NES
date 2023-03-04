@@ -19,6 +19,8 @@ use imgui_winit_support::WinitPlatform;
 type Window = WindowedContext<glutin::PossiblyCurrent>;
 
 fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     // Common setup for creating a winit window and imgui context, not specifc
     // to this renderer at all except that glutin is used to create the window
     // since it will give us access to a GL context
@@ -69,6 +71,9 @@ fn main() {
                 ..
             } => {
                 *control_flow = glutin::event_loop::ControlFlow::Exit;
+            }
+            glutin::event::Event::WindowEvent { event: glutin::event::WindowEvent::DroppedFile(path), .. } => {
+                cartridge::parse_rom(&path).unwrap();
             }
             event => {
                 imgui_platform.handle_event(imgui.io_mut(), window.window(), &event);
