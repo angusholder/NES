@@ -3,13 +3,13 @@ use std::io::Read;
 use std::path::Path;
 use log::{info, warn};
 
-pub fn parse_rom(filename: &Path) -> Result<(), Box<dyn Error>> {
+pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     info!("Reading file: {}", filename.display());
     let mut file = std::fs::File::open(filename)?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
 
-    let header = &buffer[0..16];
+    let header: [u8; 16] = buffer[0..16].try_into().unwrap();
     let mut rest = &buffer[16..];
     let prg_rom_size = header[4] as usize;
     info!("Header: {:?}", header);
@@ -39,7 +39,34 @@ pub fn parse_rom(filename: &Path) -> Result<(), Box<dyn Error>> {
     info!("CHR ROM size: {}", chr_rom.len());
     info!("Rest size: {}", rest.len());
 
-    Ok(())
+    if header[6] & 0b1000 != 0 {
+        warn!("Four-screen mirroring not supported");
+    }
+    let mirroring = if header[6] & 0x01 == 0 {
+        NametableMirroring::Horizontal
+    } else {
+        NametableMirroring::Vertical
+    };
+
+    Ok(Cartridge {
+        mapper_num,
+        prg_rom: prg_rom.to_vec(),
+        chr_rom: chr_rom.to_vec(),
+        mirroring,
+    })
+}
+
+pub struct Cartridge {
+    pub mapper_num: u8,
+    pub prg_rom: Vec<u8>,
+    pub chr_rom: Vec<u8>,
+    pub mirroring: NametableMirroring,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum NametableMirroring {
+    Horizontal,
+    Vertical,
 }
 
 #[test]

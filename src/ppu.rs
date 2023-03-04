@@ -1,3 +1,4 @@
+use crate::mapper::Mapper;
 use crate::nes::NES;
 
 const PPUCTRL: u16 = 0x2000;
@@ -15,12 +16,11 @@ pub struct PPU {
 
     ppu_addr: u16,
 
-    nametables: [u8; 0x1000],
-
     universal_bg_color: u8,
     bg_palettes: [Palette; 4],
     sprite_palettes: [Palette; 4],
     palette_to_rgb: Palette2RGB,
+    mapper: Mapper,
 }
 
 type Palette2RGB = [u32; 64];
@@ -28,67 +28,60 @@ type Palette2RGB = [u32; 64];
 type Palette = [u8; 4];
 
 impl PPU {
-    pub fn new() -> PPU {
+    pub fn new(mapper: Mapper) -> PPU {
         PPU {
             control: PPUControl::from_bits(0),
             mask: PPUMask::from_bits(0),
 
             ppu_addr: 0,
 
-            nametables: [0; 0x1000],
-
             universal_bg_color: 0,
             bg_palettes: [Palette::default(); 4],
             sprite_palettes: [Palette::default(); 4],
             palette_to_rgb: get_palette_to_rgb(),
+            mapper,
         }
     }
 
     fn write_mem(&mut self, addr: u16, val: u8) {
-        if addr < 0x2000 {
-            println!("Cannot write to pattern tables: {:04X} = {:02X}", addr, val);
-        } else if addr < 0x3F00 {
-            self.nametables[addr as usize & 0xFFF] = val;
-        } else if addr < 0x4000 {
-            match addr & 0x3F1F {
-                0x3F00 | 0x3F10 => {
-                    self.universal_bg_color = val;
-                }
-                0x3F01..=0x3F0F => {
-                    self.bg_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize] = val;
-                }
-                0x3F11..=0x3F1F => {
-                    self.sprite_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize] = val;
-                }
-                _ => unreachable!(),
-            }
-        } else {
-            unimplemented!("PPU write to {:04X} = {:02X}", addr, val);
-        }
+        self.access_mem::<true>(addr, val);
     }
 
     fn read_mem(&mut self, addr: u16) -> u8 {
-        if addr < 0x2000 {
-            println!("Unimplemented cartridge read for pattern tables: {:04X}", addr);
-            0
-        } else if addr < 0x3F00 {
-            self.nametables[addr as usize & 0xFFF]
-        } else if addr < 0x4000 {
-            match addr & 0x3F1F {
-                0x3F00 | 0x3F10 => {
-                    self.universal_bg_color
-                }
-                0x3F01..=0x3F0F => {
-                    self.bg_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize]
-                }
-                0x3F11..=0x3F1F => {
-                    self.sprite_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize]
-                }
-                _ => unreachable!(),
-            }
+        self.access_mem::<false>(addr, 0)
+    }
+
+    fn access_mem<const WRITE: bool>(&mut self, addr: u16, val: u8) -> u8 {
+        if addr >= 0x3F00 && addr < 0x4000 {
+            self.access_palette(&addr, val, WRITE)
         } else {
-            unimplemented!("PPU read from {:04X}", addr);
+            if WRITE {
+                self.mapper.write_ppu_bus(addr, val);
+                0
+            } else {
+                self.mapper.read_ppu_bus(addr)
+            }
         }
+    }
+
+    fn access_palette(&mut self, addr: &u16, val: u8, write: bool) -> u8 {
+        let ptr: &mut u8 = match addr & 0x3F1F {
+            0x3F00 | 0x3F10 => {
+                &mut self.universal_bg_color
+            }
+            0x3F01..=0x3F0F => {
+                &mut self.bg_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize]
+            }
+            0x3F11..=0x3F1F => {
+                &mut self.sprite_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize]
+            }
+            _ => unreachable!(),
+        };
+
+        if write {
+            *ptr = val;
+        }
+        *ptr
     }
 }
 

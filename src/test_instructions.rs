@@ -1,19 +1,25 @@
+use crate::mapper::Mapper;
 use crate::ops::*;
 use crate::nes::{ NES, StatusRegister };
 use crate::ppu::PPU;
 
 fn new_nes() -> NES {
-    NES {
-        A: 0,
-        X: 0,
-        Y: 0,
-        SP: 0xFD,
-        PC: 0,
-        SR: StatusRegister::from_byte(0),
-        ram: [0; 0x800],
-        cycles: 0,
-        ppu: PPU::new(),
-    }
+    let mapper: Mapper = Mapper::new(crate::cartridge::Cartridge {
+        prg_rom: vec![0; 0x4000],
+        chr_rom: vec![0; 0x2000],
+        mapper_num: 0,
+        mirroring: crate::cartridge::Mirror::Horizontal,
+    }).unwrap();
+
+    let mut nes = NES::new(mapper);
+    nes.A = 0;
+    nes.X = 0;
+    nes.Y = 0;
+    nes.SP = 0xFD;
+    nes.PC = 0;
+    nes.SR = StatusRegister::from_byte(0);
+
+    nes
 }
 
 fn push8(nes: &mut NES, value: u8) {

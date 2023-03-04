@@ -1,9 +1,10 @@
+use crate::mapper::{Mapper};
 use crate::ppu;
 use crate::ppu::PPU;
 
 #[allow(non_snake_case)]
 pub struct NES {
-    pub cycles: u64,
+    cycles: u64,
 
     pub A: u8,
     pub X: u8,
@@ -18,6 +19,8 @@ pub struct NES {
 
     pub ram: [u8; 2048],
     pub ppu: PPU,
+
+    pub mapper: Mapper,
 }
 
 /// https://www.nesdev.org/wiki/Status_flags
@@ -77,16 +80,33 @@ impl StatusRegister {
 }
 
 impl NES {
+    pub fn new(mapper: Mapper) -> NES {
+        NES {
+            A: 0,
+            X: 0,
+            Y: 0,
+            SP: 0xFD,
+            PC: 0,
+            SR: StatusRegister::from_byte(0),
+            ram: [0; 0x800],
+            cycles: 0,
+            ppu: PPU::new(mapper.clone()),
+            mapper,
+        }
+    }
+
     pub fn read8(&mut self, addr: u16) -> u8 {
         self.tick();
         if addr < 0x2000 {
             return self.ram[addr as usize % 0x800];
-        }
-        if addr < 0x4000 {
+        } else if addr < 0x4000 {
             return ppu::ppu_read_register(self, addr);
+        } else if addr < 0x4020 {
+            println!("Unimplemented APU mem read");
+            return 0;
+        } else {
+            return self.mapper.read_main_bus(addr);
         }
-        println!("out of bounds read from {:04X}", addr);
-        0
     }
 
     pub fn read_addr(&mut self, addr: u16) -> u16 {
@@ -111,13 +131,13 @@ impl NES {
         self.tick();
         if addr < 0x2000 {
             self.ram[addr as usize % 0x800] = val;
-            return;
-        }
-        if addr < 0x4000 {
+        } else if addr < 0x4000 {
             ppu::ppu_write_register(self, addr, val);
-            return;
+        } else if addr < 0x4020 {
+            println!("Unimplemented APU mem write {addr:04X} of {val:02X}");
+        } else {
+            self.mapper.write_main_bus(addr, val);
         }
-        println!("out of bounds write to {:04X} = {:02X}", addr, val);
     }
 
     pub fn reset_state(&mut self) {

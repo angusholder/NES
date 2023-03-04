@@ -7,6 +7,7 @@ mod ops;
 mod test_instructions;
 mod instructions;
 mod ppu;
+mod mapper;
 
 use std::path::Path;
 use sdl2::pixels::Color;
@@ -24,7 +25,7 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let window = video_subsystem.window("rust-sdl2 demo", SCREEN_WIDTH, SCREEN_HEIGHT)
+    let window = video_subsystem.window("NES Emulator", SCREEN_WIDTH, SCREEN_HEIGHT)
         .position_centered()
         .build()
         .unwrap();
