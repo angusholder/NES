@@ -78,8 +78,8 @@ impl StatusRegister {
 
 impl NES {
     pub fn read8(&mut self, addr: u16) -> u8 {
+        self.tick();
         if addr < 0x2000 {
-            self.cycles += 1;
             return self.ram[addr as usize % 0x800];
         }
         if addr < 0x4000 {
@@ -108,8 +108,8 @@ impl NES {
     }
 
     pub fn write8(&mut self, addr: u16, val: u8) {
+        self.tick();
         if addr < 0x2000 {
-            self.cycles += 1;
             self.ram[addr as usize % 0x800] = val;
             return;
         }
@@ -151,5 +151,14 @@ impl NES {
         let low = self.pop8();
         let high = self.pop8();
         (high as u16) << 8 | (low as u16)
+    }
+
+    pub fn tick(&mut self) {
+        self.cycles += 1;
+        // TODO: Tick the PPU three times
+    }
+
+    pub fn get_cycles(&self) -> u64 {
+        self.cycles
     }
 }

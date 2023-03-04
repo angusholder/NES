@@ -291,7 +291,7 @@ fn addressing_absolute_x(nes: &mut NES) -> u16 {
     let base = nes.read_code_addr();
     let addr = base.wrapping_add(nes.X as u16);
     if pages_differ(base, addr) {
-        nes.cycles += 1;
+        nes.tick();
     }
     addr
 }
@@ -300,7 +300,7 @@ fn addressing_absolute_y(nes: &mut NES) -> u16 {
     let base = nes.read_code_addr();
     let addr = base.wrapping_add(nes.Y as u16);
     if pages_differ(base, addr) {
-        nes.cycles += 1;
+        nes.tick();
     }
     addr
 }
@@ -316,7 +316,7 @@ fn addressing_indirect_y(nes: &mut NES) -> u16 {
     let base = nes.read_addr(zp_addr as u16);
     let addr = base.wrapping_add(nes.Y as u16);
     if pages_differ(base, addr) {
-        nes.cycles += 1;
+        nes.tick();
     }
     addr
 }
@@ -488,10 +488,9 @@ fn op_branch_cond(nes: &mut NES, cond: bool) {
     if cond {
         let old_pc = nes.PC;
         nes.PC = old_pc.wrapping_add_signed(offset);
+        nes.tick();
         if pages_differ(old_pc, nes.PC) {
-            nes.cycles += 2;
-        } else {
-            nes.cycles += 1;
+            nes.tick();
         }
     }
 }
@@ -511,5 +510,5 @@ fn pages_differ(addr_a: u16, addr_b: u16) -> bool {
 }
 
 fn alu_cycle(nes: &mut NES) {
-    nes.cycles += 1;
+    nes.tick();
 }
