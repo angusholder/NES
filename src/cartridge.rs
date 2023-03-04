@@ -27,6 +27,8 @@ pub fn parse_rom(filename: &Path) -> Result<(), Box<dyn Error>> {
     if header[8] != 0 {
         warn!("Mapper not supported: {:02X}", header[8]);
     }
+    let mapper_num = (header[6] >> 4) | (header[7] & 0xF0);
+    info!("Mapper: {}", mapper_num);
 
     let prg_rom = &rest[..prg_rom_size * 16 * 1024];
     rest = &rest[prg_rom.len()..];
