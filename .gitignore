@@ -2,3 +2,4 @@
 .idea/
 *.iml
 imgui.ini
+*.o
