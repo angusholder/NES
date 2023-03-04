@@ -3,3 +3,8 @@
 *.iml
 imgui.ini
 *.o
+ROMS/
+old_cpp_src/
+NES/
+fceux*/
+cc65/
