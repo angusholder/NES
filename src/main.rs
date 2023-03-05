@@ -8,6 +8,7 @@ mod test_instructions;
 mod instructions;
 mod ppu;
 mod mapper;
+mod disassemble;
 
 use std::path::Path;
 use sdl2::pixels::Color;
@@ -35,10 +36,13 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
 
     let texture_creator = canvas.texture_creator();
-    let mut tex: sdl2::render::Texture = texture_creator.create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap();
+    let mut tex: sdl2::render::Texture = texture_creator.create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGBA32, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap();
     canvas.set_draw_color(Color::RGB(0, 255, 255));
     canvas.clear();
     canvas.present();
+
+    let mut trace_file = std::fs::File::create("trace.txt").unwrap();
+
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut i = 0;
     let mut nes: Option<NES> = None;
@@ -56,13 +60,14 @@ fn main() {
                     let cart = cartridge::parse_rom(Path::new(&filename)).unwrap();
                     let mapper = Mapper::new(cart).unwrap();
                     nes = Some(NES::new(mapper));
+                    nes.as_mut().unwrap().power_on();
                 }
                 _ => {}
             }
         }
 
         if let Some(nes) = &mut nes {
-            nes.simulate_frame();
+            nes.simulate_frame(Some(&mut trace_file));
             tex.with_lock(None, |pixels, pitch| {
                 nes.ppu.output_display_buffer(pixels, pitch);
             }).unwrap();

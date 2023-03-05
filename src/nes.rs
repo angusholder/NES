@@ -1,10 +1,13 @@
+use std::fmt::{Display, Formatter};
+use std::io::Write;
 use crate::mapper::{Mapper};
-use crate::{instructions, ppu};
+use crate::{disassemble, instructions, ppu};
 use crate::ppu::PPU;
 
 #[allow(non_snake_case)]
 pub struct NES {
-    remaining_cycles: u64,
+    remaining_cycles: i64,
+    total_cycles: u64,
 
     pub A: u8,
     pub X: u8,
@@ -30,6 +33,7 @@ pub const CYCLES_PER_FRAME: u64 = 29781;
 
 /// https://www.nesdev.org/wiki/Status_flags
 #[allow(non_snake_case)]
+#[derive(Clone, Copy, Debug)]
 pub struct StatusRegister {
     /// Carry
     pub C: bool,
@@ -43,6 +47,19 @@ pub struct StatusRegister {
     pub V: bool,
     /// Negative
     pub N: bool,
+}
+
+impl Display for StatusRegister {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Write;
+        f.write_char(if self.C { 'C' } else { 'c' })?;
+        f.write_char(if self.Z { 'Z' } else { 'z' })?;
+        f.write_char(if self.I { 'I' } else { 'i' })?;
+        f.write_char(if self.D { 'D' } else { 'd' })?;
+        f.write_char(if self.V { 'V' } else { 'v' })?;
+        f.write_char(if self.N { 'N' } else { 'n' })?;
+        Ok(())
+    }
 }
 
 impl StatusRegister {
@@ -110,6 +127,7 @@ impl NES {
             SR: StatusRegister::from_byte(0),
             ram: [0; 0x800],
             remaining_cycles: 0,
+            total_cycles: 0,
             ppu: PPU::new(mapper.clone()),
             mapper,
             trigger_nmi: false,
@@ -131,14 +149,17 @@ impl NES {
         self.interrupt(Interrupt::RESET);
     }
 
-    pub fn simulate_frame(&mut self) {
-        self.remaining_cycles += CYCLES_PER_FRAME;
+    pub fn simulate_frame(&mut self, mut trace_output: Option<&mut dyn Write>) {
+        self.remaining_cycles += CYCLES_PER_FRAME as i64;
         while self.remaining_cycles > 0 {
             if self.trigger_nmi {
                 self.interrupt(Interrupt::NMI);
                 self.trigger_nmi = false;
             } else if self.trigger_irq && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
+            }
+            if let Some(trace_output) = trace_output.as_mut() {
+                disassemble::disassemble(self, trace_output);
             }
             instructions::emulate_instruction(self);
         }
@@ -241,6 +262,27 @@ impl NES {
 
     pub fn tick(&mut self) {
         self.remaining_cycles -= 1;
-        // TODO: Tick the PPU three times
+        self.total_cycles += 1;
+        ppu::ppu_step(self);
+        ppu::ppu_step(self);
+        ppu::ppu_step(self);
     }
+
+    pub fn get_cycles(&self) -> u64 {
+        self.total_cycles
+    }
+
+    pub fn save_cycles(&self) -> CycleSavepoint {
+        CycleSavepoint {
+            remaining_cycles: self.remaining_cycles,
+        }
+    }
+
+    pub fn restore_cycles(&mut self, savepoint: CycleSavepoint) {
+        self.remaining_cycles = savepoint.remaining_cycles;
+    }
+}
+
+pub struct CycleSavepoint {
+    remaining_cycles: i64,
 }

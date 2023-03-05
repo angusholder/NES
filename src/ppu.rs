@@ -1,3 +1,4 @@
+use log::warn;
 use crate::mapper::Mapper;
 use crate::nes::{NES};
 
@@ -265,7 +266,9 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
         PPUSTATUS => unimplemented!(),
         OAMADDR => unimplemented!(),
         OAMDATA => unimplemented!(),
-        PPUSCROLL => unimplemented!(),
+        PPUSCROLL => {
+            warn!("Ignoring PPUSCROLL = {:#x}", val);
+        }
         PPUADDR => {
             nes.ppu.ppu_addr = nes.ppu.ppu_addr << 8 | val as u16;
         }
