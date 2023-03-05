@@ -11,6 +11,7 @@ mod mapper;
 mod disassemble;
 mod input;
 
+use std::fs::File;
 use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::event::Event;
@@ -40,7 +41,7 @@ fn main() {
     display_buffer_paletted.set_palette(&load_nes_palette()).unwrap();
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888).unwrap();
 
-    let mut trace_file = std::fs::File::create("trace.txt").unwrap();
+    let mut trace_file: Option<File> = None; // Some(File::create("trace.txt").unwrap());
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut nes: Option<NES> = None;
@@ -64,7 +65,7 @@ fn main() {
         if let Some(nes) = &mut nes {
             nes.input.update_key_state(&event_pump);
 
-            nes.simulate_frame(None);
+            nes.simulate_frame(trace_file.as_mut().map(|f| f as &mut dyn std::io::Write));
 
             nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
             display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
