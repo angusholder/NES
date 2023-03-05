@@ -122,11 +122,11 @@ pub fn disassemble(nes: &mut NES, output_writer: &mut dyn std::io::Write) {
         }
         ADDR_ABSOLUTE_X => {
             let addr = nes.read_addr(PC+1);
-            write!(output, "{op_name},X ${addr:04X}").unwrap();
+            write!(output, "{op_name} ${addr:04X},X").unwrap();
         }
         ADDR_ABSOLUTE_Y => {
             let addr = nes.read_addr(PC+1);
-            write!(output, "{op_name},Y ${addr:04X}").unwrap();
+            write!(output, "{op_name} ${addr:04X},Y").unwrap();
         }
         ADDR_ACCUMULATOR => {
             write!(output, "{op_name}").unwrap();
@@ -162,11 +162,11 @@ pub fn disassemble(nes: &mut NES, output_writer: &mut dyn std::io::Write) {
         }
         ADDR_ZERO_PAGE_X => {
             let addr = nes.read8(PC+1) as u16;
-            write!(output, "{op_name},X ${addr:04X}").unwrap();
+            write!(output, "{op_name} ${addr:04X},X").unwrap();
         }
         ADDR_ZERO_PAGE_Y => {
             let addr = nes.read8(PC+1) as u16;
-            write!(output, "{op_name},Y ${addr:04X}").unwrap();
+            write!(output, "{op_name} ${addr:04X},Y").unwrap();
         }
         _ => unreachable!(),
     }
