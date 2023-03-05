@@ -34,8 +34,8 @@ fn main() {
 
     let mut canvas = window.into_canvas().build().unwrap();
 
-    // let texture_creator = canvas.texture_creator();
-    // let tex = texture_creator.create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap();
+    let texture_creator = canvas.texture_creator();
+    let mut tex: sdl2::render::Texture = texture_creator.create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap();
     canvas.set_draw_color(Color::RGB(0, 255, 255));
     canvas.clear();
     canvas.present();
@@ -63,7 +63,11 @@ fn main() {
 
         if let Some(nes) = &mut nes {
             nes.simulate_frame();
+            tex.with_lock(None, |pixels, pitch| {
+                nes.ppu.output_display_buffer(pixels, pitch);
+            }).unwrap();
         }
+        canvas.copy(&tex, None, None).unwrap();
 
         canvas.present();
         thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));

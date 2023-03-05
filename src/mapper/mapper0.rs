@@ -6,10 +6,10 @@ use crate::mapper::RawMapper;
 /// https://www.nesdev.org/wiki/NROM
 pub struct NROMMapper {
     /// 8KiB
-    chr_rom: [u8; 8096],
+    chr_rom: [u8; 8192],
     /// 16KiB or 32KiB
-    prg_rom0: [u8; 16_192],
-    prg_rom1: Option<[u8; 16_192]>,
+    prg_rom0: [u8; 16_384],
+    prg_rom1: Option<[u8; 16_384]>,
     mirroring: NametableMirroring,
     nametables: [u8; 0x800],
 }

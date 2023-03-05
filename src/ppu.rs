@@ -1,5 +1,5 @@
 use crate::mapper::Mapper;
-use crate::nes::NES;
+use crate::nes::{NES};
 
 const PPUCTRL: u16 = 0x2000;
 const PPUMASK: u16 = 0x2001;
@@ -23,6 +23,21 @@ pub struct PPU {
     mapper: Mapper,
 
     vblank_started: bool,
+
+    cur_display_buffer: [u8; 256 * 240],
+    finished_display_buffer: [u8; 256 * 240],
+    frame_num: u64,
+
+    dot: u32, // 0-340
+    scanline: u32, // 0-261
+    attribute_byte: u8,
+    low_tile_byte: u8,
+    high_tile_byte: u8,
+
+    next_nametable_byte: u8,
+    next_attribute_byte: u8,
+    next_low_tile_byte: u8,
+    next_high_tile_byte: u8,
 }
 
 type Palette2RGB = [u32; 64];
@@ -44,6 +59,20 @@ impl PPU {
             mapper,
 
             vblank_started: true,
+
+            cur_display_buffer: [0; 256 * 240],
+            finished_display_buffer: [0; 256 * 240],
+            frame_num: 0,
+
+            dot: 0,
+            scanline: 0,
+            attribute_byte: 0,
+            low_tile_byte: 0,
+            high_tile_byte: 0,
+            next_nametable_byte: 0,
+            next_attribute_byte: 0,
+            next_low_tile_byte: 0,
+            next_high_tile_byte: 0,
         }
     }
 
@@ -89,6 +118,20 @@ impl PPU {
         }
         *ptr
     }
+
+    fn flip_frame(&mut self) {
+        self.finished_display_buffer.copy_from_slice(&self.cur_display_buffer)
+    }
+
+    pub fn output_display_buffer(&self, output: &mut [u8], pitch: usize) {
+        assert_eq!(pitch, 256 * 4);
+        assert_eq!(output.len(), self.finished_display_buffer.len() * 4);
+        for (i, pixel) in self.finished_display_buffer.iter().enumerate() {
+            let color = self.palette_to_rgb[*pixel as usize];
+            let offset = i * 4;
+            output[offset..offset+4].copy_from_slice(&color.to_le_bytes());
+        }
+    }
 }
 
 fn get_palette_to_rgb() -> Palette2RGB {
@@ -118,7 +161,7 @@ struct PPUControl {
     background_pattern_table: u16,
     sprite_pattern_table: u16,
     // add 1 (going across), or add 32 (going down)
-    vram_increment: u8,
+    vram_increment: u16,
     base_nametable_addr: u16,
 }
 
@@ -201,7 +244,9 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
         PPUSCROLL => unimplemented!(),
         PPUADDR => unimplemented!(),
         PPUDATA => {
-            nes.ppu.read_mem(nes.ppu.ppu_addr)
+            let res = nes.ppu.read_mem(nes.ppu.ppu_addr);
+            nes.ppu.ppu_addr += nes.ppu.control.vram_increment as u16;
+            res
         }
         _ => unreachable!(),
     }
@@ -226,8 +271,217 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
         }
         PPUDATA => {
             nes.ppu.write_mem(nes.ppu.ppu_addr, val);
+            nes.ppu.ppu_addr += nes.ppu.control.vram_increment as u16;
         }
         _ => unreachable!(),
     }
 }
 
+const FIRST_SCANLINE: u32 = 0;
+const LAST_SCANLINE: u32 = 261;
+const DOTS_PER_SCANLINE: u32 = 341;
+
+pub fn ppu_step(nes: &mut NES) {
+    match nes.ppu.scanline {
+        // Visible scanlines
+        0..=239 => {
+            ppu_step_scanline(nes);
+        }
+        240 => {
+            if nes.ppu.dot == 0 {
+                // A full frame has been rendered, make it visible
+                nes.ppu.flip_frame();
+            }
+        }
+        241 => {
+            if nes.ppu.dot == 1 {
+                nes.ppu.vblank_started = true;
+                if nes.ppu.control.enable_nmi {
+                    nes.trigger_nmi = true;
+                }
+            }
+        }
+        // Pre-render line - a dummy scanline to fill the shift registers ready for line 0
+        261 => {
+            if nes.ppu.dot == 1 {
+                nes.ppu.vblank_started = false;
+            }
+            ppu_step_scanline(nes);
+        }
+        _ => {}
+    }
+
+    let ppu = &mut nes.ppu;
+    ppu.dot += 1;
+    if ppu.dot >= DOTS_PER_SCANLINE {
+        ppu.dot = 0;
+        ppu.scanline += 1;
+        if ppu.scanline > LAST_SCANLINE {
+            ppu.scanline = FIRST_SCANLINE;
+            ppu.frame_num += 1;
+        }
+    }
+}
+
+fn ppu_step_scanline(nes: &mut NES) {
+    let ppu: &mut PPU = &mut nes.ppu;
+
+    let dot = ppu.dot;
+    let scanline = ppu.scanline;
+    let y_offset = scanline; // TODO: Apply PPUSCROLL
+
+    // See the cycles here https://www.nesdev.org/wiki/PPU_rendering#Visible_scanlines_(0-239)
+    match dot {
+        1..=256 | 321..=336 => {
+            render_pixel(ppu);
+            // Background fetches - https://www.nesdev.org/wiki/File:Ppu.svg
+            match dot % 8 {
+                0 => {
+                    ppu.attribute_byte = ppu.next_attribute_byte;
+                    ppu.low_tile_byte = ppu.next_low_tile_byte;
+                    ppu.high_tile_byte = ppu.next_high_tile_byte;
+                }
+                1  => {
+                    ppu.next_nametable_byte = ppu.read_mem(pixel_to_nametable_addr(dot, scanline));
+                }
+                3 => {
+                    ppu.next_attribute_byte = ppu.read_mem(pixel_to_attribute_addr(dot, scanline));
+                }
+                5 => {
+                    ppu.next_low_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, y_offset % 8, false))
+                }
+                7 => {
+                    ppu.next_high_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, y_offset % 8, true));
+                }
+                _ => {}
+            }
+        }
+        _ => {}
+    }
+}
+
+fn render_pixel(ppu: &mut PPU) {
+    let x = ppu.dot.wrapping_sub(2);
+    if ppu.scanline < 240 && x < 256 {
+        let color_index = ppu.low_tile_byte & 1 | (ppu.high_tile_byte & 1) << 1;
+        ppu.low_tile_byte >>= 1;
+        ppu.high_tile_byte >>= 1;
+        let palette_index = read_attribute_byte(ppu.attribute_byte, ppu.dot, ppu.scanline);
+        let color = if color_index == 0 {
+            ppu.universal_bg_color
+        } else {
+            ppu.bg_palettes[palette_index as usize][color_index as usize]
+        };
+        ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = color;
+    }
+}
+
+fn pixel_to_nametable_addr(x: u32, y: u32) -> u16 {
+    let mut tile_x = (x / 8) as u16;
+    let mut tile_y = (y / 8) as u16;
+    let base_addr: u16 = match (tile_x, tile_y) {
+        (0..=31, 0..=29) => 0x2000,
+        (32..=63, 0..=29) => 0x2400,
+        (0..=31, 30..=59) => 0x2800,
+        (32..=63, 30..=59) => 0x2C00,
+        _ => unreachable!(),
+    };
+    if tile_y > 29 {
+        tile_y -= 30;
+    }
+    if tile_x > 31 {
+        tile_x -= 32;
+    }
+    tile_y * 32 + tile_x + base_addr
+}
+
+fn pixel_to_attribute_addr(x: u32, y: u32) -> u16 {
+    let mut tile_x = (x / 8) as u16;
+    let mut tile_y = (y / 8) as u16;
+    let base_addr: u16 = match (tile_x, tile_y) {
+        (0..=31, 0..=29) => 0x23C0,
+        (32..=63, 0..=29) => 0x27C0,
+        (0..=31, 30..=59) => 0x2BC0,
+        (32..=63, 30..=59) => 0x2FC0,
+        _ => unreachable!(),
+    };
+    if tile_y > 29 {
+        tile_y -= 30;
+    }
+    if tile_x > 31 {
+        tile_x -= 32;
+    }
+    (tile_y / 4) * 8 + (tile_x / 4) + base_addr
+}
+
+fn get_tile_address(base_addr: u16, tile_no: u8, y_offset: u32, high: bool) -> u16 {
+    assert!(y_offset < 8);
+    let mut tile_addr = base_addr + (tile_no as u16) * 16 + (y_offset as u16);
+    if high {
+        tile_addr += 8;
+    }
+    tile_addr
+}
+
+fn read_attribute_byte(attribute: u8, x: u32, y: u32) -> u8 {
+    let mut shift: u32 = 0;
+    if x & 16 != 0 {
+        shift += 2;
+    }
+    if y & 16 != 0 {
+        shift += 4;
+    }
+    attribute >> shift & 0b11
+}
+
+#[test]
+fn test_pixel_to_nametable_addr() {
+    for y in 0..30 {
+        println!("{} = {:04X}", y, pixel_to_nametable_addr(0, y * 8));
+    }
+    assert_eq!(pixel_to_nametable_addr(0, 0), 0x2000);
+    assert_eq!(pixel_to_nametable_addr(1, 0), 0x2000);
+    assert_eq!(pixel_to_nametable_addr(8, 0), 0x2001);
+    assert_eq!(pixel_to_nametable_addr(248, 0), 0x2000 + 31);
+    assert_eq!(pixel_to_nametable_addr(255, 0), 0x2000 + 31);
+    assert_eq!(pixel_to_nametable_addr(0, 1), 0x2000);
+    assert_eq!(pixel_to_nametable_addr(0, 8), 0x2000 + 32);
+    assert_eq!(pixel_to_nametable_addr(0, 232), 0x23A0);
+    assert_eq!(pixel_to_nametable_addr(0, 239), 0x23A0);
+    assert_eq!(pixel_to_nametable_addr(255, 239), 0x23BF);
+    assert_eq!(pixel_to_nametable_addr(248, 239), 0x23BF);
+
+    assert_eq!(pixel_to_nametable_addr(256, 0), 0x2400);
+
+    assert_eq!(pixel_to_nametable_addr(0, 240), 0x2800);
+
+    assert_eq!(pixel_to_nametable_addr(256, 240), 0x2C00);
+}
+
+#[test]
+fn test_pixel_to_attribute_table_addr() {
+    assert_eq!(pixel_to_attribute_addr(0, 0), 0x23C0);
+    assert_eq!(pixel_to_attribute_addr(256-32, 0), 0x23C7);
+    assert_eq!(pixel_to_attribute_addr(255, 0), 0x23C7);
+    assert_eq!(pixel_to_attribute_addr(0, 32), 0x23C8);
+    assert_eq!(pixel_to_attribute_addr(0, 64), 0x23D0);
+}
+
+#[test]
+fn test_tile_address() {
+    assert_eq!(get_tile_address(0x0000, 0, 0, false), 0x0000);
+    assert_eq!(get_tile_address(0x0000, 0, 0, true ), 0x0008);
+    assert_eq!(get_tile_address(0x0000, 0, 1, false), 0x0001);
+    assert_eq!(get_tile_address(0x0000, 0, 1, true ), 0x0009);
+    assert_eq!(get_tile_address(0x0000, 0, 7, false), 0x0007);
+    assert_eq!(get_tile_address(0x0000, 0, 7, true ), 0x000F);
+
+    assert_eq!(get_tile_address(0x1000, 0, 0, false), 0x1000);
+    assert_eq!(get_tile_address(0x1000, 0, 0, true ), 0x1008);
+    assert_eq!(get_tile_address(0x1000, 0, 1, false), 0x1001);
+    assert_eq!(get_tile_address(0x1000, 0, 1, true ), 0x1009);
+    assert_eq!(get_tile_address(0x1000, 0, 7, false), 0x1007);
+    assert_eq!(get_tile_address(0x1000, 0, 7, true ), 0x100F);
+
+    assert_eq!(get_tile_address(0x0000, 1, 0, false), 0x0010);
+}

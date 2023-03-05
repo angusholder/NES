@@ -22,7 +22,7 @@ pub struct NES {
 
     pub mapper: Mapper,
 
-    trigger_nmi: bool,
+    pub trigger_nmi: bool,
     trigger_irq: bool,
 }
 
@@ -136,6 +136,7 @@ impl NES {
         while self.remaining_cycles > 0 {
             if self.trigger_nmi {
                 self.interrupt(Interrupt::NMI);
+                self.trigger_nmi = false;
             } else if self.trigger_irq && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
             }
@@ -158,9 +159,6 @@ impl NES {
 
         self.SR.I = true;
         self.PC = self.read_addr(interrupt.get_vector_address());
-        if interrupt == Interrupt::NMI {
-            self.trigger_nmi = false;
-        }
     }
 
     pub fn read8(&mut self, addr: u16) -> u8 {

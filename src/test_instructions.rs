@@ -1,14 +1,13 @@
 use crate::mapper::Mapper;
 use crate::ops::*;
 use crate::nes::{ NES, StatusRegister };
-use crate::ppu::PPU;
 
 fn new_nes() -> NES {
     let mapper: Mapper = Mapper::new(crate::cartridge::Cartridge {
         prg_rom: vec![0; 0x4000],
         chr_rom: vec![0; 0x2000],
         mapper_num: 0,
-        mirroring: crate::cartridge::Mirror::Horizontal,
+        mirroring: crate::cartridge::NametableMirroring::Horizontal,
     }).unwrap();
 
     let mut nes = NES::new(mapper);
