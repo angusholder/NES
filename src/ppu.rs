@@ -318,8 +318,8 @@ fn ppu_step_scanline(nes: &mut NES) {
             match dot % 8 {
                 0 => {
                     ppu.attribute_byte = ppu.next_attribute_byte;
-                    ppu.low_tile_byte = ppu.next_low_tile_byte;
-                    ppu.high_tile_byte = ppu.next_high_tile_byte;
+                    ppu.low_tile_byte = ppu.next_low_tile_byte.reverse_bits();
+                    ppu.high_tile_byte = ppu.next_high_tile_byte.reverse_bits();
                 }
                 1  => {
                     ppu.next_nametable_byte = ppu.read_mem(pixel_to_nametable_addr(dot, scanline));
