@@ -189,7 +189,7 @@ impl NES {
         } else if addr < 0x4000 {
             return ppu::ppu_read_register(self, addr);
         } else if addr < 0x4020 {
-            println!("Unimplemented APU mem read");
+            println!("Unimplemented APU mem read at ${addr:04X}");
             return 0;
         } else {
             return self.mapper.read_main_bus(addr);

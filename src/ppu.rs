@@ -1,6 +1,7 @@
-use log::warn;
+use log::{info, warn};
 use crate::mapper::Mapper;
 use crate::nes::{NES};
+use crate::{SCREEN_PIXELS};
 
 const PPUCTRL: u16 = 0x2000;
 const PPUMASK: u16 = 0x2001;
@@ -20,13 +21,16 @@ pub struct PPU {
     universal_bg_color: u8,
     bg_palettes: [Palette; 4],
     sprite_palettes: [Palette; 4],
-    palette_to_rgb: Palette2RGB,
     mapper: Mapper,
 
     vblank_started: bool,
 
-    cur_display_buffer: [u8; 256 * 240],
-    finished_display_buffer: [u8; 256 * 240],
+    /// Filled with values 0-63, which are indices into "ntscpalette_24bpp.pal".
+    /// This is the in-progress frame that is being drawn.
+    cur_display_buffer: [u8; SCREEN_PIXELS],
+    /// Filled with values 0-63, which are indices into "ntscpalette_24bpp.pal".
+    /// This is the finished frame, ready to be displayed.
+    finished_display_buffer: [u8; SCREEN_PIXELS],
     frame_num: u64,
 
     dot: u32, // 0-340
@@ -41,7 +45,6 @@ pub struct PPU {
     next_high_tile_byte: u8,
 }
 
-type Palette2RGB = [u32; 64];
 /// The 0th element in this array is not used.
 type Palette = [u8; 4];
 
@@ -56,7 +59,6 @@ impl PPU {
             universal_bg_color: 0,
             bg_palettes: [Palette::default(); 4],
             sprite_palettes: [Palette::default(); 4],
-            palette_to_rgb: get_palette_to_rgb(),
             mapper,
 
             vblank_started: true,
@@ -124,34 +126,9 @@ impl PPU {
         self.finished_display_buffer.copy_from_slice(&self.cur_display_buffer)
     }
 
-    pub fn output_display_buffer(&self, output: &mut [u8], pitch: usize) {
-        assert_eq!(pitch, 256 * 4);
-        assert_eq!(output.len(), self.finished_display_buffer.len() * 4);
-        for (i, pixel) in self.finished_display_buffer.iter().enumerate() {
-            let color = self.palette_to_rgb[*pixel as usize];
-            let offset = i * 4;
-            output[offset..offset+4].copy_from_slice(&color.to_le_bytes());
-        }
+    pub fn output_display_buffer(&self, output: &mut [u8]) {
+        output.copy_from_slice(&self.finished_display_buffer);
     }
-}
-
-fn get_palette_to_rgb() -> Palette2RGB {
-    // From https://www.nesdev.org/wiki/PPU_palettes - 2C03 and 2C05
-    static LOOKUP: [u16; 64] = [
-        0o333,0o014,0o006,0o326,0o403,0o503,0o510,0o420,0o320,0o120,0o031,0o040,0o022,0o000,0o000,0o000,
-        0o555,0o036,0o027,0o407,0o507,0o704,0o700,0o630,0o430,0o140,0o040,0o053,0o044,0o000,0o000,0o000,
-        0o777,0o357,0o447,0o637,0o707,0o737,0o740,0o750,0o660,0o360,0o070,0o276,0o077,0o000,0o000,0o000,
-        0o777,0o567,0o657,0o757,0o747,0o755,0o764,0o772,0o773,0o572,0o473,0o276,0o467,0o000,0o000,0o000,
-    ];
-    let mut result: Palette2RGB = [0; 64];
-    for i in 0..64 {
-        let color = LOOKUP[i] as u32;
-        let r = (color >> 6) & 0b111;
-        let g = (color >> 3) & 0b111;
-        let b = (color >> 0) & 0b111;
-        result[i] = (r << 16) | (g << 8) | b;
-    }
-    result
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -257,11 +234,11 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
     match mask_ppu_addr(addr) {
         PPUCTRL => {
             nes.ppu.control = PPUControl::from_bits(val);
-            println!("PPUCTRL = {:#?}", nes.ppu.control)
+            info!("PPUCTRL = {:#?}", nes.ppu.control)
         }
         PPUMASK => {
             nes.ppu.mask = PPUMask::from_bits(val);
-            println!("PPUMASK = {:#?}", nes.ppu.mask)
+            info!("PPUMASK = {:#?}", nes.ppu.mask)
         }
         PPUSTATUS => unimplemented!(),
         OAMADDR => unimplemented!(),
