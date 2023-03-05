@@ -61,16 +61,17 @@ fn main() {
             }
         }
 
-        display_buffer_paletted.fill_rect(None, Color::BLACK).unwrap();
         if let Some(nes) = &mut nes {
             nes.input.update_key_state(&event_pump);
 
             nes.simulate_frame(None);
 
             nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
+            display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
+        } else {
+            display_buffer_rgb.fill_rect(None, Color::BLACK).unwrap();
         }
         let mut window_surf = window.surface(&event_pump).unwrap();
-        display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
         display_buffer_rgb.blit_scaled(None, &mut window_surf, None).unwrap();
         window_surf.finish().unwrap();
 
