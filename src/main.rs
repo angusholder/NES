@@ -12,7 +12,7 @@ mod disassemble;
 mod input;
 
 use std::error::Error;
-use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::event::Event;
@@ -49,8 +49,6 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     display_buffer_paletted.set_palette(&load_nes_palette())?;
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
-    let mut trace_file: Option<File> = None; // Some(File::create("trace.txt").unwrap());
-
     let mut event_pump = sdl_context.event_pump()?;
     let mut nes: Option<NES> = None;
     'running: loop {
@@ -61,7 +59,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                     break 'running
                 }
                 Event::DropFile { filename, .. } => {
-                    let result = load_nes_system(&mut nes, &filename);
+                    let trace_output: Option<Box<dyn Write>> = None; // Some(File::create("trace.txt").unwrap());
+                    let result = load_nes_system(&mut nes, &filename, trace_output);
                     if let Err(e) = result {
                         display_error_dialog("Failed to load the ROM", &e.to_string());
                     }
@@ -74,7 +73,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
         if let Some(nes) = &mut nes {
             nes.input.update_key_state(&event_pump);
 
-            nes.simulate_frame(trace_file.as_mut().map(|f| f as &mut dyn std::io::Write));
+            nes.simulate_frame();
 
             nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
             display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
@@ -89,10 +88,14 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_nes_system(nes_out: &mut Option<NES>, filename: &String) -> Result<(), Box<dyn Error>> {
+fn load_nes_system(
+    nes_out: &mut Option<NES>,
+    filename: &String,
+    trace_output: Option<Box<dyn Write>>,
+) -> Result<(), Box<dyn Error>> {
     let cart = cartridge::parse_rom(Path::new(&filename))?;
     let mapper = Mapper::new(cart)?;
-    let mut nes = NES::new(mapper);
+    let mut nes = NES::new(mapper, trace_output);
     nes.power_on();
     *nes_out = Some(nes);
     Ok(())

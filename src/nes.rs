@@ -29,6 +29,8 @@ pub struct NES {
     pub trigger_nmi: bool,
     trigger_irq: bool,
 
+    pub trace_output: Option<Box<dyn Write>>,
+
     pub input: InputState,
 }
 
@@ -120,7 +122,7 @@ impl Interrupt {
 }
 
 impl NES {
-    pub fn new(mapper: Mapper) -> NES {
+    pub fn new(mapper: Mapper, trace_output: Option<Box<dyn Write>>) -> NES {
         NES {
             A: 0,
             X: 0,
@@ -135,6 +137,7 @@ impl NES {
             mapper,
             trigger_nmi: false,
             trigger_irq: false,
+            trace_output,
 
             input: InputState::new(),
         }
@@ -154,7 +157,7 @@ impl NES {
         self.interrupt(Interrupt::RESET);
     }
 
-    pub fn simulate_frame(&mut self, mut trace_output: Option<&mut dyn Write>) {
+    pub fn simulate_frame(&mut self) {
         self.remaining_cycles += CYCLES_PER_FRAME as i64;
         while self.remaining_cycles > 0 {
             if self.trigger_nmi {
@@ -163,8 +166,8 @@ impl NES {
             } else if self.trigger_irq && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
             }
-            if let Some(trace_output) = trace_output.as_mut() {
-                disassemble::disassemble(self, trace_output);
+            if self.trace_output.is_some() {
+                disassemble::disassemble(self);
             }
             cpu::emulate_instruction(self);
         }

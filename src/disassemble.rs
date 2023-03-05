@@ -83,7 +83,7 @@ c226879712   A:FC X:01 Y:FC S:F5 P:nvUbdIzc           $BED8: AD 01 03  LDA $0301
 c226879716   A:00 X:01 Y:FC S:F5 P:nvUbdIZc           $BEDB: D0 21     BNE $BEFE
 */
 #[allow(non_snake_case)]
-pub fn disassemble(nes: &mut NES, output_writer: &mut dyn std::io::Write) {
+pub fn disassemble(nes: &mut NES) {
     let savepoint = nes.save_cycles();
     let mut output = String::with_capacity(100);
 
@@ -173,7 +173,9 @@ pub fn disassemble(nes: &mut NES, output_writer: &mut dyn std::io::Write) {
     assert_eq!(nes.PC, PC);
 
     output.push('\n');
-    output_writer.write(output.as_bytes()).unwrap();
+    if let Some(output_writer) = nes.trace_output.as_mut() {
+        output_writer.write(output.as_bytes()).unwrap();
+    }
 
     nes.restore_cycles(savepoint);
 }
