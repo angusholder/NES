@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::cartridge::Cartridge;
 
 mod mapper0;
+mod mapper1;
 
 /// The mapper covers two address spaces - the CPU memory map, and the PPU memory map.
 /// The CPU memory map is 16-bit, and the PPU memory map is 14-bit.
@@ -24,6 +25,7 @@ impl Mapper {
     pub fn new(cart: Cartridge) -> Result<Mapper, String> {
         Ok(match cart.mapper_num {
             0 => Mapper::wrap(mapper0::NROMMapper::new(cart)),
+            1 => Mapper::wrap(mapper1::MMC1Mapper::new(cart)),
             _ => {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }

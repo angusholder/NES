@@ -70,7 +70,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                     break 'running
                 }
                 Event::DropFile { filename, .. } => {
-                    let trace_output: Option<Box<dyn Write>> = None; // Some(File::create("trace.txt").unwrap());
+                    let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
                     let result = load_nes_system(&mut nes, &filename, trace_output);
                     if let Err(e) = result {
                         display_error_dialog("Failed to load the ROM", &e.to_string());

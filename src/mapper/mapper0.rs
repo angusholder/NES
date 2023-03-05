@@ -81,7 +81,7 @@ impl RawMapper for NROMMapper {
 }
 
 /// See https://www.nesdev.org/wiki/Mirroring#Nametable_Mirroring
-fn access_nametable(storage: &mut [u8; 0x800], mirroring: NametableMirroring, addr: u16) -> &mut u8 {
+pub fn access_nametable(storage: &mut [u8; 0x800], mirroring: NametableMirroring, addr: u16) -> &mut u8 {
     let range = match mirroring {
         NametableMirroring::Horizontal => match addr {
             0x2000..=0x27FF => &mut storage[..0x400],
