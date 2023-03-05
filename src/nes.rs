@@ -1,10 +1,10 @@
 use crate::mapper::{Mapper};
-use crate::ppu;
+use crate::{instructions, ppu};
 use crate::ppu::PPU;
 
 #[allow(non_snake_case)]
 pub struct NES {
-    cycles: u64,
+    remaining_cycles: u64,
 
     pub A: u8,
     pub X: u8,
@@ -21,7 +21,12 @@ pub struct NES {
     pub ppu: PPU,
 
     pub mapper: Mapper,
+
+    trigger_nmi: bool,
+    trigger_irq: bool,
 }
+
+pub const CYCLES_PER_FRAME: u64 = 29781;
 
 /// https://www.nesdev.org/wiki/Status_flags
 #[allow(non_snake_case)]
@@ -51,10 +56,6 @@ impl StatusRegister {
     pub const FLAG_N: u8 = 0b10000000;
 }
 
-pub const NES_NMI_VECTOR: u16 = 0xFFFA;
-pub const NES_RESET_VECTOR: u16 = 0xFFFC;
-pub const NES_IRQ_VECTOR: u16 = 0xFFFE;
-
 impl StatusRegister {
     pub fn to_byte(&self) -> u8 {
         return
@@ -79,6 +80,25 @@ impl StatusRegister {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Interrupt {
+    RESET,
+    NMI,
+    IRQ,
+    BRK,
+}
+
+impl Interrupt {
+    pub fn get_vector_address(self) -> u16 {
+        match self {
+            Interrupt::RESET => 0xFFFC,
+            Interrupt::NMI => 0xFFFA,
+            Interrupt::IRQ => 0xFFFE,
+            Interrupt::BRK => 0xFFFE,
+        }
+    }
+}
+
 impl NES {
     pub fn new(mapper: Mapper) -> NES {
         NES {
@@ -89,9 +109,57 @@ impl NES {
             PC: 0,
             SR: StatusRegister::from_byte(0),
             ram: [0; 0x800],
-            cycles: 0,
+            remaining_cycles: 0,
             ppu: PPU::new(mapper.clone()),
             mapper,
+            trigger_nmi: false,
+            trigger_irq: false,
+        }
+    }
+
+    pub fn power_on(&mut self) {
+        self.remaining_cycles = 0;
+
+        self.SR = StatusRegister::from_byte(0);
+        self.A = 0;
+        self.X = 0;
+        self.Y = 0;
+        self.SP = 0;
+
+        self.ram.fill(0xCC);
+
+        self.interrupt(Interrupt::RESET);
+    }
+
+    pub fn simulate_frame(&mut self) {
+        self.remaining_cycles += CYCLES_PER_FRAME;
+        while self.remaining_cycles > 0 {
+            if self.trigger_nmi {
+                self.interrupt(Interrupt::NMI);
+            } else if self.trigger_irq && !self.SR.I {
+                self.interrupt(Interrupt::IRQ);
+            }
+            instructions::emulate_instruction(self);
+        }
+    }
+
+    pub fn interrupt(&mut self, interrupt: Interrupt) {
+        if interrupt != Interrupt::RESET {
+            self.push16(self.PC);
+            let mut sr = self.SR.to_byte();
+            if interrupt == Interrupt::BRK {
+                sr |= StatusRegister::FLAG_B; // B flag set to indicate software IRQ
+            }
+            self.push8(sr);
+        } else {
+            self.SP = self.SP.wrapping_sub(3);
+            self.tick(); self.tick(); self.tick();
+        }
+
+        self.SR.I = true;
+        self.PC = self.read_addr(interrupt.get_vector_address());
+        if interrupt == Interrupt::NMI {
+            self.trigger_nmi = false;
         }
     }
 
@@ -174,11 +242,7 @@ impl NES {
     }
 
     pub fn tick(&mut self) {
-        self.cycles += 1;
+        self.remaining_cycles -= 1;
         // TODO: Tick the PPU three times
-    }
-
-    pub fn get_cycles(&self) -> u64 {
-        self.cycles
     }
 }

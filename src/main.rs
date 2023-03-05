@@ -15,6 +15,8 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::thread;
 use std::time::Duration;
+use crate::mapper::Mapper;
+use crate::nes::NES;
 
 pub const SCREEN_WIDTH: u32 = 256;
 pub const SCREEN_HEIGHT: u32 = 240;
@@ -39,6 +41,7 @@ fn main() {
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut i = 0;
+    let mut nes: Option<NES> = None;
     'running: loop {
         i = (i + 1) % 255;
         canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
@@ -50,12 +53,17 @@ fn main() {
                     break 'running
                 }
                 Event::DropFile { filename, .. } => {
-                    cartridge::parse_rom(Path::new(&filename)).unwrap();
+                    let cart = cartridge::parse_rom(Path::new(&filename)).unwrap();
+                    let mapper = Mapper::new(cart).unwrap();
+                    nes = Some(NES::new(mapper));
                 }
                 _ => {}
             }
         }
-        // The rest of the game loop goes here...
+
+        if let Some(nes) = &mut nes {
+            nes.simulate_frame();
+        }
 
         canvas.present();
         thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));

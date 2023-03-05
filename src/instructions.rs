@@ -215,14 +215,7 @@ pub fn emulate_instruction(nes: &mut NES) {
         BVC_REL => op_branch_cond(nes, nes.SR.V == false),
         BVS_REL => op_branch_cond(nes, nes.SR.V == true),
 
-        BRK_IMPLIED => {
-            let mut sr = nes.get_status_register();
-            sr |= 0x10; // B flag set to indicate software IRQ
-            nes.SR.I = true;
-            nes.push16(nes.PC);
-            nes.push8(sr);
-            nes.PC = nes.read_addr(crate::nes::NES_IRQ_VECTOR);
-        }
+        BRK_IMPLIED => nes.interrupt(crate::nes::Interrupt::BRK),
 
         PHA_IMPLIED => {
             nes.push8(nes.A);
