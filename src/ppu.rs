@@ -21,6 +21,8 @@ pub struct PPU {
     sprite_palettes: [Palette; 4],
     palette_to_rgb: Palette2RGB,
     mapper: Mapper,
+
+    vblank_started: bool,
 }
 
 type Palette2RGB = [u32; 64];
@@ -40,6 +42,8 @@ impl PPU {
             sprite_palettes: [Palette::default(); 4],
             palette_to_rgb: get_palette_to_rgb(),
             mapper,
+
+            vblank_started: true,
         }
     }
 
@@ -183,8 +187,14 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
         PPUMASK => unimplemented!(),
         PPUSTATUS => {
             // TODO: Reset PPUADDR
-            // VBlank set
-            0x80
+            let mut status = 0u8;
+
+            if nes.ppu.vblank_started {
+                status |= 0b1000_0000;
+                nes.ppu.vblank_started = false;
+            }
+
+            status
         }
         OAMADDR => unimplemented!(),
         OAMDATA => unimplemented!(),
