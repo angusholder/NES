@@ -1,7 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use crate::mapper::{Mapper};
-use crate::{disassemble, instructions, ppu};
+use crate::{disassemble, input, instructions, ppu};
+use crate::input::InputState;
 use crate::ppu::PPU;
 
 #[allow(non_snake_case)]
@@ -27,6 +28,8 @@ pub struct NES {
 
     pub trigger_nmi: bool,
     trigger_irq: bool,
+
+    pub input: InputState,
 }
 
 pub const CYCLES_PER_FRAME: u64 = 29781;
@@ -132,6 +135,8 @@ impl NES {
             mapper,
             trigger_nmi: false,
             trigger_irq: false,
+
+            input: InputState::new(),
         }
     }
 
@@ -188,6 +193,8 @@ impl NES {
             return self.ram[addr as usize % 0x800];
         } else if addr < 0x4000 {
             return ppu::ppu_read_register(self, addr);
+        } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
+            return self.input.handle_register_access(addr, 0, false);
         } else if addr < 0x4020 {
             println!("Unimplemented APU mem read at ${addr:04X}");
             return 0;
@@ -220,6 +227,8 @@ impl NES {
             self.ram[addr as usize % 0x800] = val;
         } else if addr < 0x4000 {
             ppu::ppu_write_register(self, addr, val);
+        } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
+            self.input.handle_register_access(addr, val, true);
         } else if addr < 0x4020 {
             println!("Unimplemented APU mem write {addr:04X} of {val:02X}");
         } else {

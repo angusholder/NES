@@ -9,6 +9,7 @@ mod instructions;
 mod ppu;
 mod mapper;
 mod disassemble;
+mod input;
 
 use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
@@ -62,6 +63,8 @@ fn main() {
 
         display_buffer_paletted.fill_rect(None, Color::BLACK).unwrap();
         if let Some(nes) = &mut nes {
+            nes.input.update_key_state(&event_pump);
+
             nes.simulate_frame(None);
 
             nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
