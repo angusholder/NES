@@ -9,30 +9,25 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
 
-    let header: [u8; 16] = buffer[0..16].try_into().unwrap();
+    let Ok(header): Result<[u8; 16], _> = buffer[0..16].try_into() else {
+        return Err("This doesn't appear to be a NES ROM".into());
+    };
+    if &header[..4] != b"NES\x1A" {
+        return Err("This doesn't appear to be a NES ROM".into());
+    }
     let mut rest = &buffer[16..];
-    let prg_rom_size = header[4] as usize;
+    let prg_rom_size = header[4] as usize * 16 * 1024;
     info!("Header: {:?}", header);
-    info!("PRG ROM size: {} x 16K", prg_rom_size);
-    let chr_rom_size = header[5] as usize;
-    info!("CHR ROM size: {} x 8K", chr_rom_size);
-    let flags_6 = header[6];
-    if flags_6 != 0 {
-        warn!("flags_6 not supported: {:02X}", flags_6);
-    }
-    let flags_7 = header[7];
-    if flags_7 != 0 {
-        warn!("flags_7 not supported: {:02X}", flags_7);
-    }
-    if header[8] != 0 {
-        warn!("Mapper not supported: {:02X}", header[8]);
-    }
+    let chr_rom_size = header[5] as usize * 8 * 1024;
     let mapper_num = (header[6] >> 4) | (header[7] & 0xF0);
     info!("Mapper: {}", mapper_num);
 
-    let prg_rom = &rest[..prg_rom_size * 16 * 1024];
+    if rest.len() < prg_rom_size + chr_rom_size {
+        return Err("This NES ROM appears to be invalid (too short)".into());
+    }
+    let prg_rom = &rest[..prg_rom_size];
     rest = &rest[prg_rom.len()..];
-    let chr_rom = &rest[..chr_rom_size * 8 * 1024];
+    let chr_rom = &rest[..chr_rom_size];
     rest = &rest[chr_rom.len()..];
 
     info!("PRG ROM size: {}", prg_rom.len());
