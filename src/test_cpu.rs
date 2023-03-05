@@ -1,5 +1,5 @@
 use crate::mapper::Mapper;
-use crate::ops::*;
+use crate::cpu_ops::*;
 use crate::nes::{ NES, StatusRegister };
 
 fn new_nes() -> NES {
@@ -31,7 +31,7 @@ fn pop8(nes: &mut NES) -> u8 {
 
 fn emulate_instructions(nes: &mut NES, num: usize) {
     for _ in 0..num {
-        crate::instructions::emulate_instruction(nes);
+        crate::cpu::emulate_instruction(nes);
     }
 }
 

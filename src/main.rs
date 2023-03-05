@@ -2,10 +2,10 @@
 
 mod cartridge;
 mod nes;
-mod ops;
+mod cpu_ops;
 #[cfg(test)]
-mod test_instructions;
-mod instructions;
+mod test_cpu;
+mod cpu;
 mod ppu;
 mod mapper;
 mod disassemble;

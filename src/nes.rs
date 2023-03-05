@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use crate::mapper::{Mapper};
-use crate::{disassemble, input, instructions, ppu};
+use crate::{disassemble, input, cpu, ppu};
 use crate::input::InputState;
 use crate::ppu::PPU;
 
@@ -166,7 +166,7 @@ impl NES {
             if let Some(trace_output) = trace_output.as_mut() {
                 disassemble::disassemble(self, trace_output);
             }
-            instructions::emulate_instruction(self);
+            cpu::emulate_instruction(self);
         }
     }
 

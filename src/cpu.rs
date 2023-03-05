@@ -1,5 +1,5 @@
 use crate::nes::{NES, StatusRegister};
-use crate::ops::*;
+use crate::cpu_ops::*;
 
 pub fn emulate_instruction(nes: &mut NES) {
     let op = nes.read_code();
