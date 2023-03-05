@@ -8,9 +8,14 @@ fn new_nes() -> NES {
         chr_rom: vec![0; 0x2000],
         mapper_num: 0,
         mirroring: crate::cartridge::NametableMirroring::Horizontal,
+        prg_ram_size: 0,
+        prg_nvram_size: 0,
+        chr_ram_size: 0,
+        chr_nvram_size: 0,
+        submapper_num: None,
     }).unwrap();
 
-    let mut nes = NES::new(mapper);
+    let mut nes = NES::new(mapper, None);
     nes.A = 0;
     nes.X = 0;
     nes.Y = 0;

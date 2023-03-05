@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::io::Read;
 use std::path::Path;
-use log::{info, warn};
+use log::{info};
 
 pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     info!("Reading file: {}", filename.display());
