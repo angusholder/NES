@@ -25,7 +25,7 @@ impl Mapper {
         Ok(match cart.mapper_num {
             0 => Mapper::wrap(mapper0::NROMMapper::new(cart)),
             _ => {
-                return Err(format!("Unsupported mapper: {}", cart.mapper_num))
+                return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }
         })
     }

@@ -204,8 +204,8 @@ fn mask_ppu_addr(addr: u16) -> u16 { addr & 0x2007 }
 
 pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
     match mask_ppu_addr(addr) {
-        PPUCTRL => unimplemented!(),
-        PPUMASK => unimplemented!(),
+        PPUCTRL => unimplemented!("reading PPUCTRL"),
+        PPUMASK => unimplemented!("reading PPUMASK"),
         PPUSTATUS => {
             // TODO: Reset PPUADDR
             let mut status = 0u8;
@@ -217,10 +217,10 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
 
             status
         }
-        OAMADDR => unimplemented!(),
-        OAMDATA => unimplemented!(),
-        PPUSCROLL => unimplemented!(),
-        PPUADDR => unimplemented!(),
+        OAMADDR => unimplemented!("reading OAMADDR"),
+        OAMDATA => unimplemented!("reading OAMDATA"),
+        PPUSCROLL => unimplemented!("reading PPUSCROLL"),
+        PPUADDR => unimplemented!("reading PPUADDR"),
         PPUDATA => {
             let res = nes.ppu.read_mem(nes.ppu.ppu_addr);
             nes.ppu.ppu_addr += nes.ppu.control.vram_increment as u16;
@@ -240,9 +240,9 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
             nes.ppu.mask = PPUMask::from_bits(val);
             info!("PPUMASK = {:#?}", nes.ppu.mask)
         }
-        PPUSTATUS => unimplemented!(),
-        OAMADDR => unimplemented!(),
-        OAMDATA => unimplemented!(),
+        PPUSTATUS => unimplemented!("writing PPUSTATUS"),
+        OAMADDR => unimplemented!("writing OAMADDR"),
+        OAMDATA => unimplemented!("writing OAMDATA"),
         PPUSCROLL => {
             warn!("Ignoring PPUSCROLL = {:#x}", val);
         }

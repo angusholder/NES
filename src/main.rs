@@ -13,6 +13,7 @@ mod input;
 
 use std::error::Error;
 use std::io::Write;
+use std::panic::catch_unwind;
 use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::event::Event;
@@ -29,9 +30,19 @@ pub const SCREEN_HEIGHT: u32 = 240;
 pub const SCREEN_PIXELS: usize = (SCREEN_WIDTH * SCREEN_HEIGHT) as usize;
 
 fn main() {
-    let result = main_loop();
-    if let Err(e) = result {
-        display_error_dialog("Unexpected error", &e.to_string());
+    let result = catch_unwind(main_loop);
+    match result {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            // An explicit error returned
+            display_error_dialog("Unexpected error", &e.to_string());
+        }
+        Err(e) => {
+            // The NES code panicked - probably an instruction/system not implemented yet, or a bug
+            let placeholder = "Unknown error".to_string();
+            let err_msg = e.downcast_ref::<String>().unwrap_or(&placeholder);
+            display_error_dialog("Unexpected runtime error", &err_msg);
+        }
     }
 }
 

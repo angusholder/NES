@@ -2,7 +2,7 @@ use crate::nes::NES;
 
 use std::fmt::Write;
 
-static INSTRUCTION_NAMES: [&str; 256] = [
+pub static INSTRUCTION_NAMES: [&str; 256] = [
     "BRK", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO",
     "PHP", "ORA", "ASL", "ANC", "NOP", "ORA", "ASL", "SLO",
     "BPL", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO",

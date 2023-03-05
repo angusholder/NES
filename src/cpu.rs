@@ -1,5 +1,6 @@
 use crate::nes::{NES, StatusRegister};
 use crate::cpu_ops::*;
+use crate::disassemble;
 
 pub fn emulate_instruction(nes: &mut NES) {
     let op = nes.read_code();
@@ -251,7 +252,7 @@ pub fn emulate_instruction(nes: &mut NES) {
         NOP_24 => {}
 
         _ => {
-            unimplemented!("Unimplemented opcode: {:02X}", op)
+            unimplemented!("instruction {} (0x{op:02X})", disassemble::INSTRUCTION_NAMES[op as usize]);
         }
     }
 }
