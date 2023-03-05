@@ -247,6 +247,9 @@ pub fn emulate_instruction(nes: &mut NES) {
             nes.PC = nes.pop16();
         }
 
+        // This is the only official NOP instruction
+        NOP_24 => {}
+
         _ => {
             unimplemented!("Unimplemented opcode: {:02X}", op)
         }
