@@ -30,13 +30,14 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let window = video_subsystem.window("NES Emulator", SCREEN_WIDTH, SCREEN_HEIGHT)
+    let window = video_subsystem.window("NES Emulator", SCREEN_WIDTH*2, SCREEN_HEIGHT*2)
         .position_centered()
         .build()
         .unwrap();
 
-    let mut nes_display_surface = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::Index8).unwrap();
-    nes_display_surface.set_palette(&load_nes_palette()).unwrap();
+    let mut display_buffer_paletted = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::Index8).unwrap();
+    display_buffer_paletted.set_palette(&load_nes_palette()).unwrap();
+    let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888).unwrap();
 
     let mut trace_file = std::fs::File::create("trace.txt").unwrap();
 
@@ -59,15 +60,15 @@ fn main() {
             }
         }
 
+        display_buffer_paletted.fill_rect(None, Color::BLACK).unwrap();
         if let Some(nes) = &mut nes {
             nes.simulate_frame(None);
 
-            nes_display_surface.with_lock_mut(|pixels: &mut [u8]| {
-                nes.ppu.output_display_buffer(pixels);
-            })
+            nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
         }
         let mut window_surf = window.surface(&event_pump).unwrap();
-        nes_display_surface.blit(None, &mut window_surf, None).unwrap();
+        display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
+        display_buffer_rgb.blit_scaled(None, &mut window_surf, None).unwrap();
         window_surf.finish().unwrap();
 
         thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
