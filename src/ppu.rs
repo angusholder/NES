@@ -241,8 +241,12 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
             info!("PPUMASK = {:#?}", nes.ppu.mask)
         }
         PPUSTATUS => unimplemented!("writing PPUSTATUS"),
-        OAMADDR => unimplemented!("writing OAMADDR"),
-        OAMDATA => unimplemented!("writing OAMDATA"),
+        OAMADDR => {
+            warn!("Ignoring OAMADDR = {:#x}", val);
+        }
+        OAMDATA => {
+            warn!("Ignoring OAMDATA = {:#x}", val);
+        }
         PPUSCROLL => {
             warn!("Ignoring PPUSCROLL = {:#x}", val);
         }
