@@ -50,7 +50,7 @@ impl InputState {
             return next_bit;
         }
         if !write && addr == JOYPAD_2 {
-            warn!("Controller 2 not implemented!");
+            // Controller 2 is not implemented, always return 0
             return 0;
         }
 
