@@ -51,7 +51,9 @@ impl PPU {
         self.access_mem::<false>(addr, 0)
     }
 
-    fn access_mem<const WRITE: bool>(&mut self, addr: u16, val: u8) -> u8 {
+    fn access_mem<const WRITE: bool>(&mut self, mut addr: u16, val: u8) -> u8 {
+        addr &= 0x3FFF; // "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
+
         if addr >= 0x3F00 && addr < 0x4000 {
             self.access_palette(&addr, val, WRITE)
         } else {
