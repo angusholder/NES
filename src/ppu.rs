@@ -320,11 +320,6 @@ fn ppu_step_scanline(nes: &mut NES) {
             render_pixel(ppu);
             // Background fetches - https://www.nesdev.org/wiki/File:Ppu.svg
             match dot % 8 {
-                0 => {
-                    ppu.attribute_byte = ppu.next_attribute_byte;
-                    ppu.low_tile_byte = ppu.next_low_tile_byte.reverse_bits();
-                    ppu.high_tile_byte = ppu.next_high_tile_byte.reverse_bits();
-                }
                 1  => {
                     ppu.next_nametable_byte = ppu.read_mem(pixel_to_nametable_addr(dot, scanline));
                 }
@@ -336,6 +331,11 @@ fn ppu_step_scanline(nes: &mut NES) {
                 }
                 7 => {
                     ppu.next_high_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, y_offset % 8, true));
+                }
+                0 => {
+                    ppu.attribute_byte = ppu.next_attribute_byte;
+                    ppu.low_tile_byte = ppu.next_low_tile_byte.reverse_bits();
+                    ppu.high_tile_byte = ppu.next_high_tile_byte.reverse_bits();
                 }
                 _ => {}
             }
