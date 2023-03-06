@@ -17,6 +17,10 @@ pub struct PPU {
     mask: PPUMask,
 
     ppu_addr: u16,
+    address_latch: bool,
+
+    scroll_x: u8,
+    scroll_y: u8,
 
     universal_bg_color: u8,
     bg_palettes: [Palette; 4],
@@ -55,6 +59,10 @@ impl PPU {
             mask: PPUMask::from_bits(0),
 
             ppu_addr: 0,
+            address_latch: false,
+
+            scroll_x: 0,
+            scroll_y: 0,
 
             universal_bg_color: 0,
             bg_palettes: [Palette::default(); 4],
@@ -208,7 +216,8 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
         PPUCTRL => unimplemented!("reading PPUCTRL"),
         PPUMASK => unimplemented!("reading PPUMASK"),
         PPUSTATUS => {
-            // TODO: Reset PPUADDR
+            ppu.address_latch = false;
+
             let mut status = 0u8;
 
             if ppu.vblank_started {
@@ -250,10 +259,22 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
             warn!("Ignoring OAMDATA = {:#x}", val);
         }
         PPUSCROLL => {
-            warn!("Ignoring PPUSCROLL = {:#x}", val);
+            if !ppu.address_latch {
+                ppu.scroll_x = val;
+            } else {
+                ppu.scroll_y = val;
+            }
+            ppu.address_latch = !ppu.address_latch;
         }
         PPUADDR => {
-            ppu.ppu_addr = ppu.ppu_addr << 8 | val as u16;
+            if !ppu.address_latch {
+                // Write upper byte first
+                ppu.ppu_addr = (ppu.ppu_addr & 0x00FF) | ((val as u16) << 8);
+            } else {
+                // Then lower byte
+                ppu.ppu_addr = (ppu.ppu_addr & 0xFF00) | (val as u16);
+            }
+            ppu.address_latch = !ppu.address_latch;
         }
         PPUDATA => {
             ppu.write_mem(ppu.ppu_addr, val);
