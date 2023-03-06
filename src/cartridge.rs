@@ -118,6 +118,8 @@ pub struct Cartridge {
 pub enum NametableMirroring {
     Horizontal,
     Vertical,
+    SingleScreenLowerBank,
+    SingleScreenUpperBank,
 }
 
 #[test]

@@ -93,6 +93,14 @@ pub fn access_nametable(storage: &mut [u8; 0x800], mirroring: NametableMirroring
             0x2400..=0x27FF | 0x2C00..=0x2FFF => &mut storage[0x400..0x800],
             _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
         },
+        NametableMirroring::SingleScreenLowerBank => match addr {
+            0x2000..=0x2FFF => &mut storage[..0x400],
+            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
+        },
+        NametableMirroring::SingleScreenUpperBank => match addr {
+            0x2000..=0x2FFF => &mut storage[0x400..0x800],
+            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
+        },
     };
     &mut range[(addr & 0x3FF) as usize]
 }

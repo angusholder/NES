@@ -17,7 +17,7 @@ pub struct MMC1Mapper {
 
     shift_register: u8,
 
-    mirroring: MMC1Mirroring,
+    mirroring: NametableMirroring,
     nametables: [u8; 0x800],
 }
 
@@ -32,14 +32,6 @@ enum PRGMode {
     FixedLastSwitchFirst,
 }
 
-#[derive(Debug)]
-enum MMC1Mirroring {
-    OneScreenLowerBank = 0,
-    OneScreenUpperBank = 1,
-    Vertical = 2,
-    Horizontal = 3,
-}
-
 impl MMC1Mapper {
     pub fn new(cart: Cartridge) -> Self {
         Self {
@@ -50,7 +42,7 @@ impl MMC1Mapper {
             chr_bank_1: 0,
             prg_bank: 0,
             shift_register: 0,
-            mirroring: MMC1Mirroring::OneScreenLowerBank,
+            mirroring: NametableMirroring::SingleScreenLowerBank,
             nametables: [0; 0x800],
         }
     }
@@ -92,10 +84,10 @@ impl MMC1Mapper {
 
     fn write_control_register(&mut self, byte: u8) {
         self.mirroring = match byte & 0b11 {
-            0 => MMC1Mirroring::OneScreenLowerBank,
-            1 => MMC1Mirroring::OneScreenUpperBank,
-            2 => MMC1Mirroring::Vertical,
-            3 => MMC1Mirroring::Horizontal,
+            0 => NametableMirroring::SingleScreenLowerBank,
+            1 => NametableMirroring::SingleScreenUpperBank,
+            2 => NametableMirroring::Vertical,
+            3 => NametableMirroring::Horizontal,
             _ => unreachable!(),
         };
         self.prg_mode = match byte >> 2 & 0b11 {
@@ -167,15 +159,7 @@ impl RawMapper for MMC1Mapper {
                 }
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                let nt_mirroring = match self.mirroring {
-                    MMC1Mirroring::Horizontal => NametableMirroring::Horizontal,
-                    MMC1Mirroring::Vertical => NametableMirroring::Vertical,
-                    _ => {
-                        warn!("Unimplemented mirroring mode {:?}, defaulting to horizontal", self.mirroring);
-                        NametableMirroring::Horizontal
-                    }
-                };
-                let ptr = access_nametable(&mut self.nametables, nt_mirroring, addr & 0x2FFF);
+                let ptr = access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF);
                 if write {
                     *ptr = value;
                 }
