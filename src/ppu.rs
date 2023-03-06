@@ -203,6 +203,7 @@ impl PPUMask {
 fn mask_ppu_addr(addr: u16) -> u16 { addr & 0x2007 }
 
 pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
+    let ppu = &mut nes.ppu;
     match mask_ppu_addr(addr) {
         PPUCTRL => unimplemented!("reading PPUCTRL"),
         PPUMASK => unimplemented!("reading PPUMASK"),
@@ -210,9 +211,9 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
             // TODO: Reset PPUADDR
             let mut status = 0u8;
 
-            if nes.ppu.vblank_started {
+            if ppu.vblank_started {
                 status |= 0b1000_0000;
-                nes.ppu.vblank_started = false;
+                ppu.vblank_started = false;
             }
 
             status
@@ -222,8 +223,8 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
         PPUSCROLL => unimplemented!("reading PPUSCROLL"),
         PPUADDR => unimplemented!("reading PPUADDR"),
         PPUDATA => {
-            let res = nes.ppu.read_mem(nes.ppu.ppu_addr);
-            nes.ppu.ppu_addr += nes.ppu.control.vram_increment as u16;
+            let res = ppu.read_mem(ppu.ppu_addr);
+            ppu.ppu_addr += ppu.control.vram_increment as u16;
             res
         }
         _ => unreachable!(),
@@ -231,14 +232,15 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
 }
 
 pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
+    let ppu = &mut nes.ppu;
     match mask_ppu_addr(addr) {
         PPUCTRL => {
-            nes.ppu.control = PPUControl::from_bits(val);
-            info!("PPUCTRL = {:#?}", nes.ppu.control)
+            ppu.control = PPUControl::from_bits(val);
+            info!("PPUCTRL = {:#?}", ppu.control)
         }
         PPUMASK => {
-            nes.ppu.mask = PPUMask::from_bits(val);
-            info!("PPUMASK = {:#?}", nes.ppu.mask)
+            ppu.mask = PPUMask::from_bits(val);
+            info!("PPUMASK = {:#?}", ppu.mask)
         }
         PPUSTATUS => unimplemented!("writing PPUSTATUS"),
         OAMADDR => {
@@ -251,11 +253,11 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
             warn!("Ignoring PPUSCROLL = {:#x}", val);
         }
         PPUADDR => {
-            nes.ppu.ppu_addr = nes.ppu.ppu_addr << 8 | val as u16;
+            ppu.ppu_addr = ppu.ppu_addr << 8 | val as u16;
         }
         PPUDATA => {
-            nes.ppu.write_mem(nes.ppu.ppu_addr, val);
-            nes.ppu.ppu_addr += nes.ppu.control.vram_increment as u16;
+            ppu.write_mem(ppu.ppu_addr, val);
+            ppu.ppu_addr += ppu.control.vram_increment as u16;
         }
         _ => unreachable!(),
     }
@@ -269,7 +271,7 @@ pub fn ppu_step(nes: &mut NES) {
     match nes.ppu.scanline {
         // Visible scanlines
         0..=239 => {
-            ppu_step_scanline(nes);
+            ppu_step_scanline(&mut nes.ppu);
         }
         240 => {
             if nes.ppu.dot == 0 {
@@ -290,7 +292,7 @@ pub fn ppu_step(nes: &mut NES) {
             if nes.ppu.dot == 1 {
                 nes.ppu.vblank_started = false;
             }
-            ppu_step_scanline(nes);
+            ppu_step_scanline(&mut nes.ppu);
         }
         _ => {}
     }
@@ -307,9 +309,7 @@ pub fn ppu_step(nes: &mut NES) {
     }
 }
 
-fn ppu_step_scanline(nes: &mut NES) {
-    let ppu: &mut PPU = &mut nes.ppu;
-
+fn ppu_step_scanline(ppu: &mut PPU) {
     let dot = ppu.dot;
     let scanline = ppu.scanline;
     let y_offset = scanline; // TODO: Apply PPUSCROLL
