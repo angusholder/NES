@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::{info};
 use crate::mapper::Mapper;
 use crate::nes::{NES};
 use crate::{SCREEN_PIXELS};
@@ -21,6 +21,9 @@ pub struct PPU {
 
     scroll_x: u8,
     scroll_y: u8,
+
+    oam_addr: u8,
+    oam: [u8; NUM_SPRITES * 4],
 
     universal_bg_color: u8,
     bg_palettes: [Palette; 4],
@@ -52,6 +55,8 @@ pub struct PPU {
 /// The 0th element in this array is not used.
 type Palette = [u8; 4];
 
+const NUM_SPRITES: usize = 64;
+
 impl PPU {
     pub fn new(mapper: Mapper) -> PPU {
         PPU {
@@ -63,6 +68,9 @@ impl PPU {
 
             scroll_x: 0,
             scroll_y: 0,
+
+            oam_addr: 0,
+            oam: [0; NUM_SPRITES * 4],
 
             universal_bg_color: 0,
             bg_palettes: [Palette::default(); 4],
@@ -228,7 +236,9 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
             status
         }
         OAMADDR => unimplemented!("reading OAMADDR"),
-        OAMDATA => unimplemented!("reading OAMDATA"),
+        OAMDATA => {
+            ppu.oam[ppu.oam_addr as usize]
+        }
         PPUSCROLL => unimplemented!("reading PPUSCROLL"),
         PPUADDR => unimplemented!("reading PPUADDR"),
         PPUDATA => {
@@ -253,10 +263,11 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
         }
         PPUSTATUS => unimplemented!("writing PPUSTATUS"),
         OAMADDR => {
-            warn!("Ignoring OAMADDR = {:#x}", val);
+            ppu.oam_addr = val;
         }
         OAMDATA => {
-            warn!("Ignoring OAMDATA = {:#x}", val);
+            ppu.oam[ppu.oam_addr as usize] = val;
+            ppu.oam_addr = ppu.oam_addr.wrapping_add(1);
         }
         PPUSCROLL => {
             if !ppu.address_latch {
@@ -281,6 +292,20 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
             ppu.ppu_addr += ppu.control.vram_increment as u16;
         }
         _ => unreachable!(),
+    }
+}
+
+/// https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_($4014)_%3E_write
+pub fn do_oam_dma(nes: &mut NES, source_upper_addr: u8) {
+    info!("OAM DMA from ${source_upper_addr:02X}00");
+    let oam_addr = nes.ppu.oam_addr as usize;
+    for i in 0..256 {
+        nes.ppu.oam[oam_addr.wrapping_add(i) as usize] = nes.read8(((source_upper_addr as u16) << 8) + i as u16);
+        nes.tick(); // PPU write cycle
+    }
+    nes.tick(); // 1 wait-state while waiting for writes to complete
+    if nes.get_cycles() % 2 == 1 {
+        nes.tick(); // 1 more cycle if odd
     }
 }
 
@@ -360,6 +385,10 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 }
                 _ => {}
             }
+        }
+        // Sprite-loading interval
+        257..=320 => {
+            ppu.oam_addr = 0;
         }
         _ => {}
     }

@@ -233,6 +233,8 @@ impl NES {
             ppu::ppu_write_register(self, addr, val);
         } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
             self.input.handle_register_access(addr, val, true);
+        } else if addr == 0x4014 {
+            ppu::do_oam_dma(self, val);
         } else if addr < 0x4020 {
             warn!("Unimplemented APU mem write {addr:04X} of {val:02X}");
         } else {
