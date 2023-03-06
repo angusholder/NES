@@ -1,4 +1,3 @@
-use log::{info};
 use crate::mapper::Mapper;
 use crate::nes::{NES};
 use crate::{SCREEN_PIXELS};
@@ -279,11 +278,9 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
     match mask_ppu_addr(addr) {
         PPUCTRL => {
             ppu.control = PPUControl::from_bits(val);
-            info!("PPUCTRL = {:#?}", ppu.control)
         }
         PPUMASK => {
             ppu.mask = PPUMask::from_bits(val);
-            info!("PPUMASK = {:#?}", ppu.mask)
         }
         PPUSTATUS => {
             // Do nothing, the only effect of writing PPUSTATUS is that of filling data_bus_latch.
@@ -323,7 +320,6 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
 
 /// https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_($4014)_%3E_write
 pub fn do_oam_dma(nes: &mut NES, source_upper_addr: u8) {
-    info!("OAM DMA from ${source_upper_addr:02X}00");
     let oam_addr = nes.ppu.oam_addr as usize;
     for i in 0..256 {
         nes.ppu.oam[oam_addr.wrapping_add(i) as usize] = nes.read8(((source_upper_addr as u16) << 8) + i as u16);

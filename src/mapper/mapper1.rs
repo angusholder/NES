@@ -1,5 +1,4 @@
 use std::ops::Range;
-use log::{info};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper::mapper0::access_nametable;
 use crate::mapper::RawMapper;
@@ -71,15 +70,12 @@ impl MMC1Mapper {
                 0 => self.write_control_register(self.shift_register),
                 1 => {
                     self.chr_bank_0 = self.shift_register;
-                    info!("MMC1 chr_bank_0 = {}", self.chr_bank_0);
                 }
                 2 => {
                     self.chr_bank_1 = self.shift_register;
-                    info!("MMC1 chr_bank_1 = {}", self.chr_bank_1);
                 }
                 3 => {
                     self.prg_bank = self.shift_register;
-                    info!("MMC1 prg_bank = {}", self.prg_bank);
                 }
                 _ => unreachable!(),
             }
@@ -117,7 +113,6 @@ impl MMC1Mapper {
             1 => CHRMode::SwitchTwo4KiB,
             _ => unreachable!(),
         };
-        info!("MMC1 mirroring={:?}, prg_mode={:?}, chr_mode={:?}", self.mirroring, self.prg_mode, self.chr_mode);
     }
 }
 
