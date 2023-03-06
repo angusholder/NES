@@ -30,6 +30,8 @@ pub const SCREEN_HEIGHT: u32 = 240;
 pub const SCREEN_PIXELS: usize = (SCREEN_WIDTH * SCREEN_HEIGHT) as usize;
 
 fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let result = catch_unwind(main_loop);
     match result {
         Ok(Ok(())) => {}
@@ -47,8 +49,6 @@ fn main() {
 }
 
 fn main_loop() -> Result<(), Box<dyn Error>> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
