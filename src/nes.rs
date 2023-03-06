@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use log::warn;
 use crate::mapper::{Mapper};
 use crate::{disassemble, input, cpu, ppu};
 use crate::input::InputState;
@@ -200,7 +199,7 @@ impl NES {
         } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
             return self.input.handle_register_access(addr, 0, false);
         } else if addr < 0x4020 {
-            warn!("Unimplemented APU mem read at ${addr:04X}");
+            // TODO: Implement APU memory reads
             return 0;
         } else {
             return self.mapper.read_main_bus(addr);
@@ -236,7 +235,7 @@ impl NES {
         } else if addr == 0x4014 {
             ppu::do_oam_dma(self, val);
         } else if addr < 0x4020 {
-            warn!("Unimplemented APU mem write {addr:04X} of {val:02X}");
+            // TODO: Implement APU memory writes
         } else {
             self.mapper.write_main_bus(addr, val);
         }

@@ -67,9 +67,18 @@ impl MMC1Mapper {
         if self.shift_counter >= 5 {
             match addr & 0xE000 {
                 0x8000 => self.write_control_register(self.shift_register),
-                0xA000 => self.chr_bank_0 = self.shift_register,
-                0xC000 => self.chr_bank_1 = self.shift_register,
-                0xE000 => self.prg_bank = self.shift_register,
+                0xA000 => {
+                    self.chr_bank_0 = self.shift_register;
+                    info!("MMC1 chr_bank_0 = {}", self.chr_bank_0);
+                }
+                0xC000 => {
+                    self.chr_bank_1 = self.shift_register;
+                    info!("MMC1 chr_bank_1 = {}", self.chr_bank_1);
+                }
+                0xE000 => {
+                    self.prg_bank = self.shift_register;
+                    info!("MMC1 prg_bank = {}", self.prg_bank);
+                }
                 _ => unreachable!(),
             }
             self.reset_shift_register();
