@@ -1,12 +1,13 @@
 use std::ops::Range;
-use log::{info, warn};
+use log::{info};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper::mapper0::access_nametable;
 use crate::mapper::RawMapper;
 
 /// https://www.nesdev.org/wiki/MMC1
 pub struct MMC1Mapper {
-    rom: Vec<u8>,
+    prg_rom: Box<[u8; 256 * 1024]>,
+    chr_ram: [u8; 8192],
 
     // See https://www.nesdev.org/wiki/MMC1#Registers
     prg_mode: PRGMode,
@@ -38,7 +39,8 @@ enum PRGMode {
 impl MMC1Mapper {
     pub fn new(cart: Cartridge) -> Self {
         Self {
-            rom: cart.prg_rom,
+            prg_rom: cart.prg_rom.try_into().unwrap(),
+            chr_ram: [0; 8192],
             prg_mode: PRGMode::FixedLastSwitchFirst,
             chr_mode: CHRMode::Switch8KiB,
             chr_bank_0: 0,
@@ -65,17 +67,17 @@ impl MMC1Mapper {
         self.shift_counter += 1;
 
         if self.shift_counter >= 5 {
-            match addr & 0xE000 {
-                0x8000 => self.write_control_register(self.shift_register),
-                0xA000 => {
+            match addr >> 13 & 0b11 {
+                0 => self.write_control_register(self.shift_register),
+                1 => {
                     self.chr_bank_0 = self.shift_register;
                     info!("MMC1 chr_bank_0 = {}", self.chr_bank_0);
                 }
-                0xC000 => {
+                2 => {
                     self.chr_bank_1 = self.shift_register;
                     info!("MMC1 chr_bank_1 = {}", self.chr_bank_1);
                 }
-                0xE000 => {
+                3 => {
                     self.prg_bank = self.shift_register;
                     info!("MMC1 prg_bank = {}", self.prg_bank);
                 }
@@ -141,37 +143,38 @@ impl RawMapper for MMC1Mapper {
             PRGMode::FixedLastSwitchFirst => {
                 let base_addr = self.prg_bank as usize * 16*1024;
                 low_bank = base_addr..base_addr + 16*1024;
-                high_bank = self.rom.len() - 16*1024..self.rom.len();
+                high_bank = self.prg_rom.len() - 16*1024..self.prg_rom.len();
             }
         }
 
         if addr < 0xC000 {
-            self.rom[low_bank][addr as usize - 0x8000]
+            self.prg_rom[low_bank][addr as usize - 0x8000]
         } else {
-            self.rom[high_bank][addr as usize - 0xC000]
+            self.prg_rom[high_bank][addr as usize - 0xC000]
         }
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
             0x0000..=0x1FFF => {
-                if write {
-                    warn!("Attempted to write to CHR ROM: {addr:04X} = {value:02X}");
-                }
-                match self.chr_mode {
+                let ptr = match self.chr_mode {
                     CHRMode::Switch8KiB => {
-                        let base_addr = (self.chr_bank_0 >> 1) as usize * 8 * 1024;
-                        self.rom[base_addr + addr as usize]
+                        let base_addr = ((self.chr_bank_0 >> 1) as usize * 8 * 1024) % self.chr_ram.len();
+                        &mut self.chr_ram[base_addr + addr as usize]
                     }
                     CHRMode::SwitchTwo4KiB => {
                         let base_addr = if addr < 0x1000 {
                             self.chr_bank_0 as usize * 4 * 1024
                         } else {
                             self.chr_bank_1 as usize * 4 * 1024
-                        };
-                        self.rom[base_addr + addr as usize]
+                        } % self.chr_ram.len();
+                        &mut self.chr_ram[base_addr + (addr&0x0FFF) as usize]
                     }
+                };
+                if write {
+                    *ptr = value;
                 }
+                *ptr
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
                 let ptr = access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF);
