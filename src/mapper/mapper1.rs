@@ -1,5 +1,5 @@
 use std::ops::Range;
-use log::warn;
+use log::{info, warn};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper::mapper0::access_nametable;
 use crate::mapper::RawMapper;
@@ -16,16 +16,19 @@ pub struct MMC1Mapper {
     prg_bank: u8,
 
     shift_register: u8,
+    shift_counter: u32,
 
     mirroring: NametableMirroring,
     nametables: [u8; 0x800],
 }
 
+#[derive(Debug)]
 enum CHRMode {
     Switch8KiB,
     SwitchTwo4KiB,
 }
 
+#[derive(Debug)]
 enum PRGMode {
     Switch32KiB,
     FixedFirstSwitchLast,
@@ -42,6 +45,7 @@ impl MMC1Mapper {
             chr_bank_1: 0,
             prg_bank: 0,
             shift_register: 0,
+            shift_counter: 0,
             mirroring: NametableMirroring::SingleScreenLowerBank,
             nametables: [0; 0x800],
         }
@@ -53,14 +57,14 @@ impl MMC1Mapper {
             return;
         }
 
-        let is_done = self.shift_register & 1 != 0;
         let mut new_sr = self.shift_register >> 1;
         if value & 1 != 0 {
             new_sr |= 0b1_0000;
         }
         self.shift_register = new_sr;
+        self.shift_counter += 1;
 
-        if is_done {
+        if self.shift_counter >= 5 {
             match addr & 0xE000 {
                 0x8000 => self.write_control_register(self.shift_register),
                 0xA000 => self.chr_bank_0 = self.shift_register,
@@ -79,7 +83,8 @@ impl MMC1Mapper {
     }
 
     fn reset_shift_register(&mut self) {
-        self.shift_register = 0b10000;
+        self.shift_register = 0;
+        self.shift_counter = 0;
     }
 
     fn write_control_register(&mut self, byte: u8) {
@@ -101,6 +106,7 @@ impl MMC1Mapper {
             1 => CHRMode::SwitchTwo4KiB,
             _ => unreachable!(),
         };
+        info!("MMC1 mirroring={:?}, prg_mode={:?}, chr_mode={:?}", self.mirroring, self.prg_mode, self.chr_mode);
     }
 }
 
@@ -145,7 +151,7 @@ impl RawMapper for MMC1Mapper {
                 }
                 match self.chr_mode {
                     CHRMode::Switch8KiB => {
-                        let base_addr = (self.chr_bank_0 & !1) as usize  * 4 * 1024;
+                        let base_addr = (self.chr_bank_0 >> 1) as usize * 8 * 1024;
                         self.rom[base_addr + addr as usize]
                     }
                     CHRMode::SwitchTwo4KiB => {
