@@ -18,6 +18,7 @@ pub struct PPU {
 
     ppu_addr: u16,
     address_latch: bool,
+    data_bus_latch: u8,
 
     scroll_x: u8,
     scroll_y: u8,
@@ -65,6 +66,7 @@ impl PPU {
 
             ppu_addr: 0,
             address_latch: false,
+            data_bus_latch: 0,
 
             scroll_x: 0,
             scroll_y: 0,
@@ -221,30 +223,48 @@ fn mask_ppu_addr(addr: u16) -> u16 { addr & 0x2007 }
 pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
     let ppu = &mut nes.ppu;
     match mask_ppu_addr(addr) {
-        PPUCTRL => unimplemented!("reading PPUCTRL"),
-        PPUMASK => unimplemented!("reading PPUMASK"),
         PPUSTATUS => {
             ppu.address_latch = false;
 
             let mut status = 0u8;
+            // TODO: Sprite overflow and sprite 0 hit not implemented
 
             if ppu.vblank_started {
                 status |= 0b1000_0000;
                 ppu.vblank_started = false;
             }
 
+            // PPU open bus. Returns stale PPU bus contents
+            status |= ppu.data_bus_latch & 0b0001_1111;
+
+            // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
+            ppu.data_bus_latch = status;
             status
         }
-        OAMADDR => unimplemented!("reading OAMADDR"),
         OAMDATA => {
-            ppu.oam[ppu.oam_addr as usize]
+            let res = ppu.oam[ppu.oam_addr as usize];
+
+            // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
+            ppu.data_bus_latch = res;
+
+            res
         }
-        PPUSCROLL => unimplemented!("reading PPUSCROLL"),
-        PPUADDR => unimplemented!("reading PPUADDR"),
         PPUDATA => {
             let res = ppu.read_mem(ppu.ppu_addr);
             ppu.ppu_addr += ppu.control.vram_increment as u16;
+
+            // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
+            ppu.data_bus_latch = res;
+
             res
+        }
+        PPUCTRL |
+        PPUMASK |
+        OAMADDR |
+        PPUSCROLL |
+        PPUADDR => {
+            // Reading a nominally "write-only" register returns the latch's current value, as do the unused bits of PPUSTATUS. - https://www.nesdev.org/wiki/PPU_registers#Ports
+            ppu.data_bus_latch
         }
         _ => unreachable!(),
     }
@@ -252,6 +272,10 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
 
 pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
     let ppu = &mut nes.ppu;
+
+    // "Writing any value to any PPU port, even to the nominally read-only PPUSTATUS, will fill this latch" - https://www.nesdev.org/wiki/PPU_registers#Ports
+    ppu.data_bus_latch = val;
+
     match mask_ppu_addr(addr) {
         PPUCTRL => {
             ppu.control = PPUControl::from_bits(val);
@@ -261,7 +285,9 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
             ppu.mask = PPUMask::from_bits(val);
             info!("PPUMASK = {:#?}", ppu.mask)
         }
-        PPUSTATUS => unimplemented!("writing PPUSTATUS"),
+        PPUSTATUS => {
+            // Do nothing, the only effect of writing PPUSTATUS is that of filling data_bus_latch.
+        }
         OAMADDR => {
             ppu.oam_addr = val;
         }
