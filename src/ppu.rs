@@ -378,21 +378,29 @@ pub fn ppu_step(nes: &mut NES) {
 }
 
 fn ppu_step_scanline(ppu: &mut PPU) {
-    let dot = ppu.dot;
+    let mut dot = ppu.dot;
     let scanline = ppu.scanline;
-    let y_offset = scanline; // TODO: Apply PPUSCROLL
+    let mut y_offset = scanline; // TODO: Apply PPUSCROLL
 
     // See the cycles here https://www.nesdev.org/wiki/PPU_rendering#Visible_scanlines_(0-239)
     match dot {
         1..=256 | 321..=336 => {
             render_pixel(ppu);
+            // TODO(HACK): Implement the PPU rendering cycle properly! https://www.nesdev.org/wiki/PPU_rendering
+            if matches!(dot, 321..=336) {
+                y_offset += 1;
+                dot -= 320;
+            } else {
+                // Fetch for the next tile over
+                dot += 8;
+            }
             // Background fetches - https://www.nesdev.org/wiki/File:Ppu.svg
             match dot % 8 {
                 1  => {
-                    ppu.next_nametable_byte = ppu.read_mem(pixel_to_nametable_addr(dot, scanline));
+                    ppu.next_nametable_byte = ppu.read_mem(pixel_to_nametable_addr(dot + 8, y_offset));
                 }
                 3 => {
-                    ppu.next_attribute_byte = ppu.read_mem(pixel_to_attribute_addr(dot, scanline));
+                    ppu.next_attribute_byte = ppu.read_mem(pixel_to_attribute_addr(dot + 8, y_offset));
                 }
                 5 => {
                     ppu.next_low_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, y_offset % 8, false))
