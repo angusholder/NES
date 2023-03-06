@@ -57,7 +57,7 @@ impl MMC1Mapper {
 
     fn write_register(&mut self, addr: u16, value: u8) {
         if value & 0x80 != 0 {
-            self.reset_shift_register();
+            self.reset();
             return;
         }
 
