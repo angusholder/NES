@@ -34,10 +34,9 @@ pub struct PPU {
 
     oam_addr: u8,
     oam: [u8; NUM_SPRITES * 4],
+    cur_line_sprites: [SpriteRowSlice; 8],
 
-    universal_bg_color: u8,
-    bg_palettes: [Palette; 4],
-    sprite_palettes: [Palette; 4],
+    palettes: [u8; 2 * 4 * 4],
     mapper: Mapper,
 
     vblank_started: bool,
@@ -65,8 +64,6 @@ pub struct PPU {
 /// The 0th element in this array is not used.
 type Palette = [u8; 4];
 
-const NUM_SPRITES: usize = 64;
-
 impl PPU {
     pub fn new(mapper: Mapper) -> PPU {
         PPU {
@@ -81,10 +78,9 @@ impl PPU {
 
             oam_addr: 0,
             oam: [0; NUM_SPRITES * 4],
+            cur_line_sprites: [SpriteRowSlice::hidden(); 8],
 
-            universal_bg_color: 0,
-            bg_palettes: [Palette::default(); 4],
-            sprite_palettes: [Palette::default(); 4],
+            palettes: [0; 2 * 4 * 4],
             mapper,
 
             vblank_started: true,
@@ -121,7 +117,7 @@ impl PPU {
         addr &= 0x3FFF; // "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
 
         if addr >= 0x3F00 && addr < 0x4000 {
-            self.access_palette(&addr, val, WRITE)
+            self.access_palette(addr, val, WRITE)
         } else {
             if WRITE {
                 self.mapper.write_ppu_bus(addr, val);
@@ -132,19 +128,12 @@ impl PPU {
         }
     }
 
-    fn access_palette(&mut self, addr: &u16, val: u8, write: bool) -> u8 {
-        let ptr: &mut u8 = match addr & 0x3F1F {
-            0x3F00 | 0x3F10 => {
-                &mut self.universal_bg_color
-            }
-            0x3F01..=0x3F0F => {
-                &mut self.bg_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize]
-            }
-            0x3F11..=0x3F1F => {
-                &mut self.sprite_palettes[(addr >> 2 & 0b11) as usize][(addr & 0b11) as usize]
-            }
-            _ => unreachable!(),
-        };
+    fn access_palette(&mut self, mut addr: u16, val: u8, write: bool) -> u8 {
+        if addr == 0x3F10 {
+            addr = 0x3F00;
+        }
+        addr &= 0x001F;
+        let ptr: &mut u8 = &mut self.palettes[addr as usize];
 
         if write {
             *ptr = val;
@@ -170,6 +159,7 @@ struct PPUControl {
     sprite_pattern_table: u16,
     // add 1 (going across), or add 32 (going down)
     vram_increment: u16,
+    // TODO: Where to use this?
     base_nametable_addr: u16,
 }
 
@@ -177,6 +167,15 @@ struct PPUControl {
 enum SpriteSize {
     Size8x8,
     Size8x16,
+}
+
+impl SpriteSize {
+    fn height(self) -> u32 {
+        match self {
+            SpriteSize::Size8x8 => 8,
+            SpriteSize::Size8x16 => 16,
+        }
+    }
 }
 
 impl PPUControl {
@@ -432,6 +431,13 @@ fn ppu_step_scanline(ppu: &mut PPU) {
         257..=320 => {
             if ppu.rendering_enabled() {
                 ppu.oam_addr = 0;
+
+                // We totally ignore the real cycles here, & just do all evaluation in one cycle.
+                // I don't think there's an observable difference between this and the real thing.
+                // https://www.nesdev.org/wiki/PPU_sprite_evaluation
+                if dot == 257 {
+                    ppu.cur_line_sprites = evaluate_sprites_for_line(ppu, scanline + 1);
+                }
             }
         }
         _ => {}
@@ -493,20 +499,40 @@ fn scroll_next_y(ppu: &mut PPU) {
 fn render_pixel(ppu: &mut PPU) {
     let x = ppu.dot.wrapping_sub(2);
     if ppu.scanline < 240 && x < 256 {
-        let color_index = ppu.low_tile_byte & 1 | (ppu.high_tile_byte & 1) << 1;
-        ppu.low_tile_byte >>= 1;
-        ppu.high_tile_byte >>= 1;
-        let palette_index = read_attribute_byte(ppu.attribute_byte, ppu.dot, ppu.scanline);
-
-        ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = if ppu.rendering_enabled() {
-            if color_index == 0 {
-                ppu.universal_bg_color
-            } else {
-                ppu.bg_palettes[palette_index as usize][color_index as usize]
-            }
-        } else {
-            ppu.universal_bg_color
+        let mut bg_color_index = 0;
+        if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
+            let palette_index = read_attribute_byte(ppu.attribute_byte, ppu.dot, ppu.scanline);
+            bg_color_index = (palette_index << 2) | (ppu.low_tile_byte & 1) | ((ppu.high_tile_byte & 1) << 1);
+            ppu.low_tile_byte >>= 1;
+            ppu.high_tile_byte >>= 1;
         }
+
+        let mut sprite_color_index: u8 = 0;
+        let mut sprite_behind_bg: bool = true;
+        if ppu.mask.show_sprites && (ppu.mask.show_sprites_left || x > 8) && ppu.scanline > 0 {
+            for sprite in ppu.cur_line_sprites.iter() {
+                let sx = sprite.x as u32;
+                if sx <= x && x < sx + 8 {
+                    let dx = x - sx;
+                    sprite_color_index =(sprite.palette_index << 2) | ((sprite.pattern2 >> (dx*2)) as u8 & 0b11);
+                    sprite_behind_bg = sprite.behind_bg;
+                    break;
+                    // TODO: Use sprite.is_sprite_0
+                }
+            }
+        }
+
+        // Choose a pixel based on priority
+        let mut pixel_index = bg_color_index;
+        if sprite_color_index != 0 {
+            if bg_color_index == 0 {
+                pixel_index = 0x10 | sprite_color_index;
+            } else if !sprite_behind_bg {
+                pixel_index = 0x10 | sprite_color_index;
+            }
+        }
+
+        ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = ppu.palettes[pixel_index as usize];
     }
 }
 
@@ -528,6 +554,124 @@ fn read_attribute_byte(attribute: u8, x: u32, y: u32) -> u8 {
         shift += 4;
     }
     attribute >> shift & 0b11
+}
+
+const NUM_SPRITES: usize = 64;
+
+#[derive(Clone, Copy, Debug)]
+struct SpriteRowSlice {
+    x: u8,
+    // two bits per pixel
+    pattern2: u16,
+    behind_bg: bool,
+    palette_index: u8,
+    is_sprite_0: bool,
+}
+
+impl SpriteRowSlice {
+    fn hidden() -> SpriteRowSlice {
+        SpriteRowSlice {
+            x: 0xFF,
+            pattern2: 0x0000,
+            behind_bg: true,
+            palette_index: 0,
+            is_sprite_0: false,
+        }
+    }
+}
+
+const SPRITE_Y: usize = 0;
+const SPRITE_TILE_INDEX: usize = 1;
+const SPRITE_ATTRIBUTES: usize = 2;
+const SPRITE_X: usize = 3;
+
+const SPRITE_ATTR_BEHIND_BG: u8 = 0b0010_0000;
+const SPRITE_ATTR_PALETTE: u8 = 0b0000_0011;
+const SPRITE_ATTR_FLIP_H: u8 = 0b0100_0000;
+const SPRITE_ATTR_FLIP_V: u8 = 0b1000_0000;
+
+fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) -> [SpriteRowSlice; 8] {
+    let mut sprites = [SpriteRowSlice::hidden(); 8];
+    let mut dest_index = 0usize;
+    let sprite_size = ppu.control.sprite_size;
+    let sprite_height = sprite_size.height();
+    for src_index in 0..NUM_SPRITES {
+        let sprite_data: [u8; 4] = ppu.oam[src_index * 4 .. (src_index + 1) * 4].try_into().unwrap();
+        let y = sprite_data[SPRITE_Y] as u32;
+        let y_range = y..y + sprite_height;
+        if !y_range.contains(&line) {
+            continue;
+        }
+
+        let attrs = sprite_data[SPRITE_ATTRIBUTES];
+        let tile_index = sprite_data[SPRITE_TILE_INDEX];
+        let pattern2: u16 = match sprite_size {
+            SpriteSize::Size8x8 => {
+                let mut y_offset = line - y;
+                if attrs & SPRITE_ATTR_FLIP_V != 0 {
+                    y_offset = 7 - y_offset;
+                }
+                let pattern_addr = get_tile_address(ppu.control.sprite_pattern_table, tile_index, y_offset, false);
+                let mut pat_lower = ppu.read_mem(pattern_addr);
+                let mut pat_upper = ppu.read_mem(pattern_addr + 8);
+                if attrs & SPRITE_ATTR_FLIP_H == 0 {
+                    pat_lower = pat_lower.reverse_bits();
+                    pat_upper = pat_upper.reverse_bits();
+                }
+                interleave_bits(pat_lower, pat_upper)
+            }
+            SpriteSize::Size8x16 => {
+                // TODO: Implement 8x16 sprites
+                0
+            }
+        };
+
+        sprites[dest_index] = SpriteRowSlice {
+            x: sprite_data[SPRITE_X],
+            pattern2,
+            behind_bg: (attrs & SPRITE_ATTR_BEHIND_BG) != 0,
+            palette_index: (attrs & SPRITE_ATTR_PALETTE),
+            is_sprite_0: src_index == 0,
+        };
+        dest_index += 1;
+        if dest_index >= sprites.len() {
+            break;
+        }
+    }
+    sprites
+}
+
+fn interleave_bits_slow(x: u8, y: u8) -> u16 {
+    let mut result = 0u16;
+    for i in 0..8 {
+        let bits = ((x >> i) & 1) as u16 | (((y >> i) & 1) as u16) << 1;
+        result |= bits << (i * 2);
+    }
+    result
+}
+
+/// Interleaves bits like so:
+/// interleave_bits(0b00, 0b11) == 0b1010
+/// interleave_bits(0b11, 0b00) == 0b0101
+fn interleave_bits(lower: u8, upper: u8) -> u16 {
+    let x = lower as u64;
+    let y = upper as u64;
+    let res = ((x.wrapping_mul(0x0101010101010101) & 0x8040201008040201).wrapping_mul(0x0102040810204081) >> 49) & 0x5555 |
+        ((y.wrapping_mul(0x0101010101010101) & 0x8040201008040201).wrapping_mul(0x0102040810204081) >> 48) & 0xAAAA;
+    res as u16
+}
+
+#[test]
+fn test_interleave_bits() {
+    assert_eq!(interleave_bits(0b00, 0b11), 0b1010);
+    assert_eq!(interleave_bits(0b11, 0b00), 0b0101);
+    for x in 0..=255 {
+        for y in 0..=255 {
+            let slow_res = interleave_bits_slow(x, y);
+            let fast_res = interleave_bits(x, y);
+            assert_eq!(slow_res, fast_res);
+        }
+    }
 }
 
 #[test]
