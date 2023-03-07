@@ -78,9 +78,13 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                 }
                 Event::DropFile { filename, .. } => {
                     let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
-                    let result = load_nes_system(&mut nes, &filename, trace_output);
-                    if let Err(e) = result {
-                        display_error_dialog("Failed to load the ROM", &e.to_string());
+                    match load_nes_system(&filename, trace_output) {
+                        Ok(new_nes) => {
+                            nes = Some(new_nes);
+                        }
+                        Err(e) => {
+                            display_error_dialog("Failed to load the ROM", &e.to_string());
+                        }
                     }
                 }
                 _ => {}
@@ -110,16 +114,14 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 }
 
 fn load_nes_system(
-    nes_out: &mut Option<NES>,
     filename: &String,
     trace_output: Option<Box<dyn Write>>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<NES, Box<dyn Error>> {
     let cart = cartridge::parse_rom(Path::new(&filename))?;
     let mapper = Mapper::new(cart)?;
     let mut nes = NES::new(mapper, trace_output);
     nes.power_on();
-    *nes_out = Some(nes);
-    Ok(())
+    Ok(nes)
 }
 
 fn load_nes_palette() -> Palette {
