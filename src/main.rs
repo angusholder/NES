@@ -41,8 +41,12 @@ fn main() {
         }
         Err(e) => {
             // The NES code panicked - probably an instruction/system not implemented yet, or a bug
-            let placeholder = "Unknown error".to_string();
-            let err_msg = e.downcast_ref::<String>().unwrap_or(&placeholder);
+            let mut err_msg: String = "Unknown error".to_string();
+            if let Some(msg) = e.downcast_ref::<String>() {
+                err_msg = msg.clone();
+            } else if let Some(msg) = e.downcast_ref::<&str>() {
+                err_msg = msg.to_string();
+            }
             display_error_dialog("Unexpected runtime error", &err_msg);
         }
     }
