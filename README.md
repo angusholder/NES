@@ -6,6 +6,10 @@ https://www.nesdev.org/wiki/NES_reference_guide
 https://fceux.com/web/download.html
 [CC65 Assembler/Compiler/Linker toolchain](https://cc65.github.io/)
 
+## Test ROMs
+https://www.nesdev.org/wiki/Emulator_tests (also mirrored [here](https://github.com/christopherpow/nes-test-roms/))
+
+
 ### Others
 https://github.com/qalle2/nes-homebrew
 https://www.patater.com/gbaguy/nesasm.htm
