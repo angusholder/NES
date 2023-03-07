@@ -497,12 +497,16 @@ fn render_pixel(ppu: &mut PPU) {
         ppu.low_tile_byte >>= 1;
         ppu.high_tile_byte >>= 1;
         let palette_index = read_attribute_byte(ppu.attribute_byte, ppu.dot, ppu.scanline);
-        let color = if color_index == 0 {
-            ppu.universal_bg_color
+
+        ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = if ppu.rendering_enabled() {
+            if color_index == 0 {
+                ppu.universal_bg_color
+            } else {
+                ppu.bg_palettes[palette_index as usize][color_index as usize]
+            }
         } else {
-            ppu.bg_palettes[palette_index as usize][color_index as usize]
-        };
-        ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = color;
+            ppu.universal_bg_color
+        }
     }
 }
 
