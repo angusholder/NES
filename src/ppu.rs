@@ -15,12 +15,22 @@ pub struct PPU {
     control: PPUControl,
     mask: PPUMask,
 
-    ppu_addr: u16,
-    address_latch: bool,
-    data_bus_latch: u8,
+    /*
+    During rendering:
 
-    scroll_x: u8,
-    scroll_y: u8,
+    yyy NN YYYYY XXXXX
+    ||| || ||||| +++++-- coarse X scroll
+    ||| || +++++-------- coarse Y scroll
+    ||| ++-------------- nametable select
+    +++----------------- fine Y scroll
+     */
+    v_addr: u16,
+    t_addr: u16,
+    // https://www.nesdev.org/wiki/PPU_scrolling
+    // TODO: Where does fine_x get used?
+    fine_x: u8,
+    write_toggle_w: bool,
+    data_bus_latch: u8,
 
     oam_addr: u8,
     oam: [u8; NUM_SPRITES * 4],
@@ -63,12 +73,11 @@ impl PPU {
             control: PPUControl::from_bits(0),
             mask: PPUMask::from_bits(0),
 
-            ppu_addr: 0,
-            address_latch: false,
+            v_addr: 0,
+            t_addr: 0,
+            fine_x: 0,
+            write_toggle_w: false,
             data_bus_latch: 0,
-
-            scroll_x: 0,
-            scroll_y: 0,
 
             oam_addr: 0,
             oam: [0; NUM_SPRITES * 4],
@@ -94,6 +103,10 @@ impl PPU {
             next_low_tile_byte: 0,
             next_high_tile_byte: 0,
         }
+    }
+
+    fn rendering_enabled(&self) -> bool {
+        self.mask.show_background || self.mask.show_sprites
     }
 
     fn write_mem(&mut self, addr: u16, val: u8) {
@@ -223,7 +236,7 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
     let ppu = &mut nes.ppu;
     match mask_ppu_addr(addr) {
         PPUSTATUS => {
-            ppu.address_latch = false;
+            ppu.write_toggle_w = false;
 
             let mut status = 0u8;
             // TODO: Sprite overflow and sprite 0 hit not implemented
@@ -249,8 +262,8 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
             res
         }
         PPUDATA => {
-            let res = ppu.read_mem(ppu.ppu_addr);
-            ppu.ppu_addr += ppu.control.vram_increment as u16;
+            let res = ppu.read_mem(ppu.v_addr);
+            ppu.v_addr += ppu.control.vram_increment as u16;
 
             // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
             ppu.data_bus_latch = res;
@@ -293,26 +306,28 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
             ppu.oam_addr = ppu.oam_addr.wrapping_add(1);
         }
         PPUSCROLL => {
-            if !ppu.address_latch {
-                ppu.scroll_x = val;
+            if !ppu.write_toggle_w {
+                ppu.fine_x = val & 0b111;
+                ppu.t_addr = (ppu.t_addr & !0x1F) | (val >> 3) as u16;
             } else {
-                ppu.scroll_y = val;
+                let val = val as u16;
+                ppu.t_addr = (ppu.t_addr & !0b0001100_00011111) | (val & 0b11111000 << 2) | (val & 0b111 << 12);
             }
-            ppu.address_latch = !ppu.address_latch;
+            ppu.write_toggle_w = !ppu.write_toggle_w;
         }
         PPUADDR => {
-            if !ppu.address_latch {
+            if !ppu.write_toggle_w {
                 // Write upper byte first
-                ppu.ppu_addr = (ppu.ppu_addr & 0x00FF) | ((val as u16) << 8);
+                ppu.v_addr = (ppu.v_addr & 0x00FF) | ((val as u16) << 8);
             } else {
                 // Then lower byte
-                ppu.ppu_addr = (ppu.ppu_addr & 0xFF00) | (val as u16);
+                ppu.v_addr = (ppu.v_addr & 0xFF00) | (val as u16);
             }
-            ppu.address_latch = !ppu.address_latch;
+            ppu.write_toggle_w = !ppu.write_toggle_w;
         }
         PPUDATA => {
-            ppu.write_mem(ppu.ppu_addr, val);
-            ppu.ppu_addr += ppu.control.vram_increment as u16;
+            ppu.write_mem(ppu.v_addr, val);
+            ppu.v_addr += ppu.control.vram_increment as u16;
         }
         _ => unreachable!(),
     }
@@ -378,49 +393,100 @@ pub fn ppu_step(nes: &mut NES) {
 }
 
 fn ppu_step_scanline(ppu: &mut PPU) {
-    let mut dot = ppu.dot;
+    let dot = ppu.dot;
     let scanline = ppu.scanline;
-    let mut y_offset = scanline; // TODO: Apply PPUSCROLL
 
     // See the cycles here https://www.nesdev.org/wiki/PPU_rendering#Visible_scanlines_(0-239)
     match dot {
         1..=256 | 321..=336 => {
             render_pixel(ppu);
-            // TODO(HACK): Implement the PPU rendering cycle properly! https://www.nesdev.org/wiki/PPU_rendering
-            if matches!(dot, 321..=336) {
-                y_offset += 1;
-                dot -= 320;
-            } else {
-                // Fetch for the next tile over
-                dot += 8;
-            }
             // Background fetches - https://www.nesdev.org/wiki/File:Ppu.svg
             match dot % 8 {
                 1  => {
-                    ppu.next_nametable_byte = ppu.read_mem(pixel_to_nametable_addr(dot + 8, y_offset));
+                    let tile_addr = 0x2000 | (ppu.v_addr & 0x0FFF);
+                    ppu.next_nametable_byte = ppu.read_mem(tile_addr);
                 }
                 3 => {
-                    ppu.next_attribute_byte = ppu.read_mem(pixel_to_attribute_addr(dot + 8, y_offset));
+                    let v = ppu.v_addr;
+                    let attr_addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
+                    ppu.next_attribute_byte = ppu.read_mem(attr_addr);
                 }
                 5 => {
-                    ppu.next_low_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, y_offset % 8, false))
+                    ppu.next_low_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, false))
                 }
                 7 => {
-                    ppu.next_high_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, y_offset % 8, true));
+                    ppu.next_high_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, true));
                 }
                 0 => {
                     ppu.attribute_byte = ppu.next_attribute_byte;
                     ppu.low_tile_byte = ppu.next_low_tile_byte.reverse_bits();
                     ppu.high_tile_byte = ppu.next_high_tile_byte.reverse_bits();
+                    if ppu.rendering_enabled() {
+                        scroll_next_x(ppu);
+                    }
                 }
                 _ => {}
             }
         }
         // Sprite-loading interval
         257..=320 => {
-            ppu.oam_addr = 0;
+            if ppu.rendering_enabled() {
+                ppu.oam_addr = 0;
+            }
         }
         _ => {}
+    }
+
+    if dot == 256 && ppu.rendering_enabled() {
+        scroll_next_y(ppu);
+    }
+    if dot == 257 && ppu.rendering_enabled() {
+        update_x_from_temp(ppu);
+    }
+    // Pre-render scanline, copy vertical bits from t to v
+    if scanline == 261 && matches!(dot, 280..=304) && ppu.rendering_enabled() {
+        update_y_from_temp(ppu);
+    }
+}
+
+fn update_x_from_temp(ppu: &mut PPU) {
+// If rendering is enabled, the PPU copies all bits related to horizontal position from t to v - https://www.nesdev.org/wiki/PPU_scrolling
+    let horizontal_mask = 0b100_00011111;
+    ppu.v_addr = (ppu.v_addr & !horizontal_mask) | (ppu.t_addr & horizontal_mask);
+}
+
+fn update_y_from_temp(ppu: &mut PPU) {
+    let vertical_mask = 0b1111011_11100000;
+    ppu.v_addr = (ppu.v_addr & !vertical_mask) | (ppu.t_addr & vertical_mask);
+}
+
+/// https://www.nesdev.org/wiki/PPU_scrolling#Between_dot_328_of_a_scanline,_and_256_of_the_next_scanline
+/// https://www.nesdev.org/wiki/PPU_scrolling#Coarse_X_increment
+fn scroll_next_x(ppu: &mut PPU) {
+    if ppu.v_addr & 0x001F == 31 { // Coarse X == 31
+        ppu.v_addr = (ppu.v_addr & !0x001F) // coarse X = 0
+            ^ 0x0400; // switch horizontal nametable
+    } else {
+        ppu.v_addr += 1;
+    }
+}
+
+/// https://www.nesdev.org/wiki/PPU_scrolling#Y_increment
+fn scroll_next_y(ppu: &mut PPU) {
+    if ppu.v_addr & 0x7000 != 0x7000 { // fine Y < 7
+        ppu.v_addr += 0x1000; // increment fine Y
+    } else {
+        ppu.v_addr &= !0x7000; // fine Y = 0
+        let mut y = (ppu.v_addr & 0x03E0) >> 5;
+        if y == 29 {
+            y = 0; // coarse Y = 0
+            ppu.v_addr ^= 0x0800; // switch vertical nametable
+        } else if y == 31 {
+            y = 0; // coarse Y = 0, nametable not switched
+        } else {
+            y += 1;
+        }
+        ppu.v_addr = (ppu.v_addr & !0x03E0) | (y << 5);
     }
 }
 
@@ -438,44 +504,6 @@ fn render_pixel(ppu: &mut PPU) {
         };
         ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = color;
     }
-}
-
-fn pixel_to_nametable_addr(x: u32, y: u32) -> u16 {
-    let mut tile_x = (x / 8) as u16;
-    let mut tile_y = (y / 8) as u16;
-    let base_addr: u16 = match (tile_x, tile_y) {
-        (0..=31, 0..=29) => 0x2000,
-        (32..=63, 0..=29) => 0x2400,
-        (0..=31, 30..=59) => 0x2800,
-        (32..=63, 30..=59) => 0x2C00,
-        _ => unreachable!(),
-    };
-    if tile_y > 29 {
-        tile_y -= 30;
-    }
-    if tile_x > 31 {
-        tile_x -= 32;
-    }
-    tile_y * 32 + tile_x + base_addr
-}
-
-fn pixel_to_attribute_addr(x: u32, y: u32) -> u16 {
-    let mut tile_x = (x / 8) as u16;
-    let mut tile_y = (y / 8) as u16;
-    let base_addr: u16 = match (tile_x, tile_y) {
-        (0..=31, 0..=29) => 0x23C0,
-        (32..=63, 0..=29) => 0x27C0,
-        (0..=31, 30..=59) => 0x2BC0,
-        (32..=63, 30..=59) => 0x2FC0,
-        _ => unreachable!(),
-    };
-    if tile_y > 29 {
-        tile_y -= 30;
-    }
-    if tile_x > 31 {
-        tile_x -= 32;
-    }
-    (tile_y / 4) * 8 + (tile_x / 4) + base_addr
 }
 
 fn get_tile_address(base_addr: u16, tile_no: u8, y_offset: u32, high: bool) -> u16 {
@@ -496,39 +524,6 @@ fn read_attribute_byte(attribute: u8, x: u32, y: u32) -> u8 {
         shift += 4;
     }
     attribute >> shift & 0b11
-}
-
-#[test]
-fn test_pixel_to_nametable_addr() {
-    for y in 0..30 {
-        println!("{} = {:04X}", y, pixel_to_nametable_addr(0, y * 8));
-    }
-    assert_eq!(pixel_to_nametable_addr(0, 0), 0x2000);
-    assert_eq!(pixel_to_nametable_addr(1, 0), 0x2000);
-    assert_eq!(pixel_to_nametable_addr(8, 0), 0x2001);
-    assert_eq!(pixel_to_nametable_addr(248, 0), 0x2000 + 31);
-    assert_eq!(pixel_to_nametable_addr(255, 0), 0x2000 + 31);
-    assert_eq!(pixel_to_nametable_addr(0, 1), 0x2000);
-    assert_eq!(pixel_to_nametable_addr(0, 8), 0x2000 + 32);
-    assert_eq!(pixel_to_nametable_addr(0, 232), 0x23A0);
-    assert_eq!(pixel_to_nametable_addr(0, 239), 0x23A0);
-    assert_eq!(pixel_to_nametable_addr(255, 239), 0x23BF);
-    assert_eq!(pixel_to_nametable_addr(248, 239), 0x23BF);
-
-    assert_eq!(pixel_to_nametable_addr(256, 0), 0x2400);
-
-    assert_eq!(pixel_to_nametable_addr(0, 240), 0x2800);
-
-    assert_eq!(pixel_to_nametable_addr(256, 240), 0x2C00);
-}
-
-#[test]
-fn test_pixel_to_attribute_table_addr() {
-    assert_eq!(pixel_to_attribute_addr(0, 0), 0x23C0);
-    assert_eq!(pixel_to_attribute_addr(256-32, 0), 0x23C7);
-    assert_eq!(pixel_to_attribute_addr(255, 0), 0x23C7);
-    assert_eq!(pixel_to_attribute_addr(0, 32), 0x23C8);
-    assert_eq!(pixel_to_attribute_addr(0, 64), 0x23D0);
 }
 
 #[test]
