@@ -67,7 +67,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
     let mut frame_stats = FrameStats::new();
     let mut event_pump = sdl_context.event_pump()?;
-    let mut nes: Option<NES> = None;
+    let mut nes: Option<Box<NES>> = None;
     'running: loop {
         let start_time = Instant::now();
         for event in event_pump.poll_iter() {
@@ -116,10 +116,10 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 fn load_nes_system(
     filename: &String,
     trace_output: Option<Box<dyn Write>>,
-) -> Result<NES, Box<dyn Error>> {
+) -> Result<Box<NES>, Box<dyn Error>> {
     let cart = cartridge::parse_rom(Path::new(&filename))?;
     let mapper = Mapper::new(cart)?;
-    let mut nes = NES::new(mapper, trace_output);
+    let mut nes = Box::new(NES::new(mapper, trace_output));
     nes.power_on();
     Ok(nes)
 }
