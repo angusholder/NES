@@ -10,6 +10,7 @@ mod ppu;
 mod mapper;
 mod disassemble;
 mod input;
+mod audio;
 
 use std::collections::VecDeque;
 use std::error::Error;
@@ -23,6 +24,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::surface::Surface;
+use crate::audio::Audio;
 use crate::mapper::Mapper;
 use crate::nes::NES;
 
@@ -65,6 +67,9 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     display_buffer_paletted.set_palette(&load_nes_palette())?;
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
+    let mut audio = Audio::new(&sdl_context.audio().unwrap());
+    audio.play();
+
     let mut frame_stats = FrameStats::new();
     let mut event_pump = sdl_context.event_pump()?;
     let mut nes: Option<Box<NES>> = None;
@@ -86,6 +91,17 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                             display_error_dialog("Failed to load the ROM", &e.to_string());
                         }
                     }
+                }
+                Event::KeyDown { keycode: Some(keycode), .. } => {
+                    match keycode {
+                        Keycode::Right => audio.adjust_frequency(1),
+                        Keycode::Left => audio.adjust_frequency(-1),
+                        Keycode::Num1 => audio.adjust_duty_cycle(0.125),
+                        Keycode::Num2 => audio.adjust_duty_cycle(0.25),
+                        Keycode::Num3 => audio.adjust_duty_cycle(0.5),
+                        Keycode::Num4 => audio.adjust_duty_cycle(0.75),
+                        _ => {},
+                    };
                 }
                 _ => {}
             }
