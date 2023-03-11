@@ -22,9 +22,10 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::thread;
 use std::time::{Duration, Instant};
+use sdl2::audio::AudioDevice;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::surface::Surface;
-use crate::audio::Audio;
+use crate::audio::{NesAudioCallback};
 use crate::mapper::Mapper;
 use crate::nes::NES;
 
@@ -67,8 +68,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     display_buffer_paletted.set_palette(&load_nes_palette())?;
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
-    let mut audio = Audio::new(&sdl_context.audio().unwrap());
-    audio.play();
+    let mut audio_device: AudioDevice<NesAudioCallback> = audio::create_audio_device(&sdl_context);
+    audio_device.resume();
 
     let mut frame_stats = FrameStats::new();
     let mut event_pump = sdl_context.event_pump()?;
@@ -84,24 +85,14 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                 Event::DropFile { filename, .. } => {
                     let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
                     match load_nes_system(&filename, trace_output) {
-                        Ok(new_nes) => {
+                        Ok(mut new_nes) => {
+                            new_nes.apu.set_output_buffer(audio_device.lock().get_output_buffer());
                             nes = Some(new_nes);
                         }
                         Err(e) => {
                             display_error_dialog("Failed to load the ROM", &e.to_string());
                         }
                     }
-                }
-                Event::KeyDown { keycode: Some(keycode), .. } => {
-                    match keycode {
-                        Keycode::Right => audio.adjust_frequency(1),
-                        Keycode::Left => audio.adjust_frequency(-1),
-                        Keycode::Num1 => audio.adjust_duty_cycle(0.125),
-                        Keycode::Num2 => audio.adjust_duty_cycle(0.25),
-                        Keycode::Num3 => audio.adjust_duty_cycle(0.5),
-                        Keycode::Num4 => audio.adjust_duty_cycle(0.75),
-                        _ => {},
-                    };
                 }
                 _ => {}
             }

@@ -1,95 +1,159 @@
-use std::cmp::{max, min};
-use log::info;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+use log::{warn};
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 
-pub struct Audio {
-    square_wave1: AudioDevice<SquareWave>,
-    lut_index: usize,
+pub struct APU {
+    output_buffer: SampleBuffer,
+    square_wave1: SquareWave,
+    last_cpu_cycles: u64,
 }
 
-impl Audio {
-    pub fn new(audio_subsystem: &sdl2::AudioSubsystem) -> Audio {
-        let audio_spec = AudioSpecDesired {
-            freq: Some(48_000),
-            channels: Some(1),
-            samples: None,
-        };
-        let audio_out: AudioDevice<SquareWave> = audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
-            println!("Got audio spec: {spec:?}");
-            SquareWave::new(&spec)
-        }).unwrap();
-        Audio {
-            square_wave1: audio_out,
-            lut_index: 10,
+pub struct SampleBuffer {
+    buffer: Arc<Mutex<VecDeque<f32>>>,
+}
+
+impl SampleBuffer {
+    pub fn new() -> SampleBuffer {
+        SampleBuffer {
+            buffer: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
-    pub fn play(&mut self) {
-        self.square_wave1.resume();
+    pub fn clone_ref(&self) -> SampleBuffer {
+        SampleBuffer {
+            buffer: self.buffer.clone(),
+        }
     }
 
-    pub fn adjust_frequency(&mut self, delta: i32) {
-        let mut generator = self.square_wave1.lock();
-        self.lut_index = max(min(self.lut_index as i32 + delta, (PULSE_FREQ_PERIODS_LUT.len() - 1) as i32), 0) as usize;
-        let (period, name) = PULSE_FREQ_PERIODS_LUT[self.lut_index];
-        generator.period = period;
-        info!("Period {period}, note = {name}, freq = {:.0}Hz", generator.get_pulse_tone_hz())
+    pub fn output_samples(&mut self, out: &mut [f32]) {
+        let mut buffer = self.buffer.lock().unwrap();
+        if buffer.len() < out.len() {
+            warn!("Not enough samples in buffer - needed {}, got {}", out.len(), buffer.len());
+        }
+        for x in out.iter_mut() {
+            *x = buffer.pop_front().unwrap_or(0.0);
+        }
     }
 
-    pub fn adjust_duty_cycle(&mut self, new_duty_cycle: f32) {
-        info!("Setting duty cycle to {}", new_duty_cycle);
-        self.square_wave1.lock().duty_cycle = new_duty_cycle;
+    pub fn write_samples(&mut self, samples: &[f32]) {
+        let mut buffer = self.buffer.lock().unwrap();
+        buffer.extend(samples);
+    }
+}
+
+pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
+    let audio_subsystem = sdl.audio().unwrap();
+    let audio_spec = AudioSpecDesired {
+        freq: Some(AUDIO_FREQUENCY as i32),
+        channels: Some(1),
+        samples: None,
+    };
+    audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
+        println!("Got audio spec: {spec:?}");
+        NesAudioCallback::new()
+    }).unwrap()
+}
+
+const AUDIO_FREQUENCY: u32 = 48_000;
+
+impl APU {
+    pub fn new() -> APU {
+        APU {
+            output_buffer: SampleBuffer::new(),
+            square_wave1: SquareWave::new(AUDIO_FREQUENCY),
+            last_cpu_cycles: 0,
+        }
+    }
+
+    pub fn set_output_buffer(&mut self, output_buffer: SampleBuffer) {
+        self.output_buffer = output_buffer;
+    }
+
+    pub fn run_until_cycle(&mut self, cpu_cycle: u64) {
+        let start_cycle = self.last_cpu_cycles;
+        let samples = self.square_wave1.output_samples(start_cycle, cpu_cycle);
+        self.output_buffer.write_samples(&samples);
+
+        self.last_cpu_cycles = cpu_cycle;
+    }
+
+    pub fn write_register(&mut self, addr: u16, value: u8, cpu_cycle: u64) {
+        self.run_until_cycle(cpu_cycle);
+
+        match addr {
+            0x4002 => {
+                self.square_wave1.period = self.square_wave1.period & 0xFF00 | value as u32;
+            }
+            0x4003 => {
+                self.square_wave1.phase = 0.0;
+                self.square_wave1.period = self.square_wave1.period & 0x00FF | ((value as u32 & 0x7) << 8);
+                // TODO: Reset length counter
+            }
+            _ => {}
+        }
     }
 }
 
 const CPU_FREQ: u32 = 1_789_773; // 1.789773 MHz
 
+pub struct NesAudioCallback {
+    output_buffer: SampleBuffer,
+}
+
+impl NesAudioCallback {
+    pub fn new() -> NesAudioCallback {
+        NesAudioCallback {
+            output_buffer: SampleBuffer::new(),
+        }
+    }
+
+    pub fn get_output_buffer(&self) -> SampleBuffer {
+        self.output_buffer.clone_ref()
+    }
+}
+
+impl AudioCallback for NesAudioCallback {
+    type Channel = f32;
+
+    fn callback(&mut self, out: &mut [f32]) {
+        self.output_buffer.output_samples(out);
+    }
+}
+
 struct SquareWave {
-    samples_per_second: f32,
+    samples_per_second: u32,
     phase: f32,
     volume: f32,
 
     duty_cycle: f32,
     period: u32,
-
-    samples_output: u64,
 }
 
 impl SquareWave {
-    fn new(spec: &AudioSpec) -> SquareWave {
+    fn new(samples_per_second: u32) -> SquareWave {
         SquareWave {
-            samples_per_second: spec.freq as f32,
+            samples_per_second,
             phase: 0.0,
             volume: 0.1,
             duty_cycle: 0.5,
             period: PULSE_FREQ_PERIODS_LUT[10].0, // Range: 0-0x7FF / 0-2047 / 12.428KHz-54Hz
-            samples_output: 0,
         }
     }
 
     fn get_pulse_tone_hz(&self) -> f32 {
         CPU_FREQ as f32 / (16.0 * (self.period as f32 + 1.0))
     }
-}
 
-impl AudioCallback for SquareWave {
-    type Channel = f32;
-
-    fn callback(&mut self, out: &mut [f32]) {
-        let time_secs = self.samples_output as f64 / self.samples_per_second as f64;
-        let cpu_start_cycle = (time_secs * CPU_FREQ as f64) as u64;
-        // We're simulating a whole second, then throwing some away. Could be better...
-        let cpu_end_cycle = cpu_start_cycle + 1*CPU_FREQ as u64;
-        let samples: Vec<f32> = step_square_wave(
+    fn output_samples(&mut self, cpu_start_cycle: u64, cpu_end_cycle: u64) -> Vec<f32> {
+        step_square_wave(
             cpu_start_cycle,
             cpu_end_cycle,
-            self.samples_per_second as u32,
+            self.samples_per_second,
             self.period,
             self.volume,
             self.duty_cycle,
-        );
-        out.copy_from_slice(&samples[..out.len()]);
-        self.samples_output += out.len() as u64;
+        )
     }
 }
 

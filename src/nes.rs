@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::io::Write;
 use crate::mapper::{Mapper};
 use crate::{disassemble, input, cpu, ppu};
+use crate::audio::APU;
 use crate::input::InputState;
 use crate::ppu::PPU;
 
@@ -32,6 +33,7 @@ pub struct NES {
     pub trace_output: Option<Box<dyn Write>>,
 
     pub input: InputState,
+    pub apu: APU,
 }
 
 pub const CYCLES_PER_FRAME: u64 = 29781;
@@ -140,6 +142,7 @@ impl NES {
             trace_output,
 
             input: InputState::new(),
+            apu: APU::new(),
         }
     }
 
@@ -235,7 +238,7 @@ impl NES {
         } else if addr == 0x4014 {
             ppu::do_oam_dma(self, val);
         } else if addr < 0x4020 {
-            // TODO: Implement APU memory writes
+            self.apu.write_register(addr, val, self.total_cycles);
         } else {
             self.mapper.write_main_bus(addr, val);
         }
