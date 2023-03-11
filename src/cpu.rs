@@ -68,22 +68,22 @@ pub fn emulate_instruction(nes: &mut NES) {
         CPY_ZP => cpy(nes, addressing_zeropage),
         CPY_ABS => cpy(nes, addressing_absolute),
 
-        DEX_IMPLIED => {
+        DEX => {
             nes.X = nes.X.wrapping_sub(1);
             update_zn(nes, nes.X);
         }
 
-        DEY_IMPLIED => {
+        DEY => {
             nes.Y = nes.Y.wrapping_sub(1);
             update_zn(nes, nes.Y);
         }
 
-        INX_IMPLIED => {
+        INX => {
             nes.X = nes.X.wrapping_add(1);
             update_zn(nes, nes.X);
         }
 
-        INY_IMPLIED => {
+        INY => {
             nes.Y = nes.Y.wrapping_add(1);
             update_zn(nes, nes.Y);
         }
@@ -135,20 +135,20 @@ pub fn emulate_instruction(nes: &mut NES) {
         STY_ZPX => sty(nes, addressing_zeropage_x),
         STY_ABS => sty(nes, addressing_absolute),
 
-        TAX_IMPLIED => { nes.X = nes.A;  update_zn(nes, nes.X) }
-        TAY_IMPLIED => { nes.Y = nes.A;  update_zn(nes, nes.Y) }
-        TSX_IMPLIED => { nes.X = nes.SP; update_zn(nes, nes.X) }
-        TXA_IMPLIED => { nes.A = nes.X;  update_zn(nes, nes.A) }
-        TXS_IMPLIED => { nes.SP = nes.X; }
-        TYA_IMPLIED => { nes.A = nes.Y;  update_zn(nes, nes.A) }
+        TAX => { nes.X = nes.A;  update_zn(nes, nes.X) }
+        TAY => { nes.Y = nes.A;  update_zn(nes, nes.Y) }
+        TSX => { nes.X = nes.SP; update_zn(nes, nes.X) }
+        TXA => { nes.A = nes.X;  update_zn(nes, nes.A) }
+        TXS => { nes.SP = nes.X; }
+        TYA => { nes.A = nes.Y;  update_zn(nes, nes.A) }
 
-        CLC_IMPLIED => nes.SR.C = false,
-        CLD_IMPLIED => nes.SR.D = false,
-        CLI_IMPLIED => nes.SR.I = false,
-        CLV_IMPLIED => nes.SR.V = false,
-        SEC_IMPLIED => nes.SR.C = true,
-        SED_IMPLIED => nes.SR.D = true,
-        SEI_IMPLIED => nes.SR.I = true,
+        CLC => nes.SR.C = false,
+        CLD => nes.SR.D = false,
+        CLI => nes.SR.I = false,
+        CLV => nes.SR.V = false,
+        SEC => nes.SR.C = true,
+        SED => nes.SR.D = true,
+        SEI => nes.SR.I = true,
 
         LSR_ZP => lsr(nes, addressing_zeropage),
         LSR_ZPX => lsr(nes, addressing_zeropage_x),
@@ -194,20 +194,20 @@ pub fn emulate_instruction(nes: &mut NES) {
         BVC_REL => branch_cond(nes, nes.SR.V == false),
         BVS_REL => branch_cond(nes, nes.SR.V == true),
 
-        BRK_IMPLIED => nes.interrupt(crate::nes::Interrupt::BRK),
+        BRK => nes.interrupt(crate::nes::Interrupt::BRK),
 
-        PHA_IMPLIED => {
+        PHA => {
             nes.push8(nes.A);
         }
-        PHP_IMPLIED => {
+        PHP => {
             let sr = nes.get_status_register() | StatusRegister::FLAG_B;
             nes.push8(sr);
         }
-        PLA_IMPLIED => {
+        PLA => {
             nes.A = nes.pop8();
             update_zn(nes, nes.A);
         }
-        PLP_IMPLIED => {
+        PLP => {
             pop_status_register(nes);
         }
 
@@ -217,11 +217,11 @@ pub fn emulate_instruction(nes: &mut NES) {
             nes.PC = addr;
         }
 
-        RTS_IMPLIED => {
+        RTS => {
             nes.PC = nes.pop16() + 1;
         }
 
-        RTI_IMPLIED => {
+        RTI => {
             pop_status_register(nes);
             nes.PC = nes.pop16();
         }
