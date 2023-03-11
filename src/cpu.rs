@@ -154,47 +154,25 @@ pub fn emulate_instruction(nes: &mut NES) {
         LSR_ZPX => op_lsr(nes, addressing_zeropage_x),
         LSR_ABS => op_lsr(nes, addressing_absolute),
         LSR_ABSX => op_lsr(nes, addressing_absolute_x),
-        LSR_ACC => {
-            nes.SR.C = nes.A & 0x01 != 0;
-            nes.A >>= 1;
-            update_zn(nes, nes.A);
-            alu_cycle(nes);
-        }
+        LSR_ACC => op_lsr_acc(nes),
 
         ASL_ZP => op_asl(nes, addressing_zeropage),
         ASL_ZPX => op_asl(nes, addressing_zeropage_x),
         ASL_ABS => op_asl(nes, addressing_absolute),
         ASL_ABSX => op_asl(nes, addressing_absolute_x),
-        ASL_ACC => {
-            nes.SR.C = nes.A & 0x80 != 0;
-            nes.A <<= 1;
-            update_zn(nes, nes.A);
-            alu_cycle(nes);
-        }
+        ASL_ACC => op_asl_acc(nes),
 
         ROL_ZP => op_rol(nes, addressing_zeropage),
         ROL_ZPX => op_rol(nes, addressing_zeropage_x),
         ROL_ABS => op_rol(nes, addressing_absolute),
         ROL_ABSX => op_rol(nes, addressing_absolute_x),
-        ROL_ACC => {
-            let new_bit_0 = nes.SR.C as u8;
-            nes.SR.C = nes.A & 0x80 != 0;
-            nes.A = (nes.A << 1) | new_bit_0;
-            update_zn(nes, nes.A);
-            alu_cycle(nes);
-        }
+        ROL_ACC => op_rol_acc(nes),
 
         ROR_ZP => op_ror(nes, addressing_zeropage),
         ROR_ZPX => op_ror(nes, addressing_zeropage_x),
         ROR_ABS => op_ror(nes, addressing_absolute),
         ROR_ABSX => op_ror(nes, addressing_absolute_x),
-        ROR_ACC => {
-            let new_bit_7 = (nes.SR.C as u8) << 7;
-            nes.SR.C = nes.A & 0x01 != 0;
-            nes.A = (nes.A >> 1) | new_bit_7;
-            update_zn(nes, nes.A);
-            alu_cycle(nes);
-        }
+        ROR_ACC => op_ror_acc(nes),
 
         BIT_ZP => op_bit(nes, addressing_zeropage),
         BIT_ABS => op_bit(nes, addressing_absolute),
@@ -440,6 +418,13 @@ fn op_lsr(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     alu_cycle(nes);
 }
 
+fn op_lsr_acc(nes: &mut NES) {
+    nes.SR.C = nes.A & 0x01 != 0;
+    nes.A >>= 1;
+    update_zn(nes, nes.A);
+    alu_cycle(nes);
+}
+
 fn op_asl(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let addr = addressing(nes);
     let mut val = nes.read8(addr);
@@ -447,6 +432,13 @@ fn op_asl(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     val <<= 1;
     nes.write8(addr, val);
     update_zn(nes, val);
+    alu_cycle(nes);
+}
+
+fn op_asl_acc(nes: &mut NES) {
+    nes.SR.C = nes.A & 0x80 != 0;
+    nes.A <<= 1;
+    update_zn(nes, nes.A);
     alu_cycle(nes);
 }
 
@@ -461,6 +453,14 @@ fn op_rol(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     alu_cycle(nes);
 }
 
+fn op_rol_acc(nes: &mut NES) {
+    let new_bit_0 = nes.SR.C as u8;
+    nes.SR.C = nes.A & 0x80 != 0;
+    nes.A = (nes.A << 1) | new_bit_0;
+    update_zn(nes, nes.A);
+    alu_cycle(nes);
+}
+
 fn op_ror(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let addr = addressing(nes);
     let mut val = nes.read8(addr);
@@ -469,6 +469,14 @@ fn op_ror(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     val = (val >> 1) | new_bit_7;
     nes.write8(addr, val);
     update_zn(nes, val);
+    alu_cycle(nes);
+}
+
+fn op_ror_acc(nes: &mut NES) {
+    let new_bit_7 = (nes.SR.C as u8) << 7;
+    nes.SR.C = nes.A & 0x01 != 0;
+    nes.A = (nes.A >> 1) | new_bit_7;
+    update_zn(nes, nes.A);
     alu_cycle(nes);
 }
 
