@@ -68,25 +68,11 @@ pub fn emulate_instruction(nes: &mut NES) {
         CPY_ZP => cpy(nes, addressing_zeropage),
         CPY_ABS => cpy(nes, addressing_absolute),
 
-        DEX => {
-            nes.X = nes.X.wrapping_sub(1);
-            update_zn(nes, nes.X);
-        }
+        DEX => dex(nes),
+        DEY => dey(nes),
 
-        DEY => {
-            nes.Y = nes.Y.wrapping_sub(1);
-            update_zn(nes, nes.Y);
-        }
-
-        INX => {
-            nes.X = nes.X.wrapping_add(1);
-            update_zn(nes, nes.X);
-        }
-
-        INY => {
-            nes.Y = nes.Y.wrapping_add(1);
-            update_zn(nes, nes.Y);
-        }
+        INX => inx(nes),
+        INY => iny(nes),
 
         DEC_ZP => dec(nes, addressing_zeropage),
         DEC_ZPX => dec(nes, addressing_zeropage_x),
@@ -369,6 +355,16 @@ fn dec(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     alu_cycle(nes);
 }
 
+fn dey(nes: &mut NES) {
+    nes.Y = nes.Y.wrapping_sub(1);
+    update_zn(nes, nes.Y);
+}
+
+fn dex(nes: &mut NES) {
+    nes.X = nes.X.wrapping_sub(1);
+    update_zn(nes, nes.X);
+}
+
 fn inc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let addr = addressing(nes);
     let arg = nes.read8(addr);
@@ -376,6 +372,16 @@ fn inc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     nes.write8(addr, result);
     update_zn(nes, result);
     alu_cycle(nes);
+}
+
+fn iny(nes: &mut NES) {
+    nes.Y = nes.Y.wrapping_add(1);
+    update_zn(nes, nes.Y);
+}
+
+fn inx(nes: &mut NES) {
+    nes.X = nes.X.wrapping_add(1);
+    update_zn(nes, nes.X);
 }
 
 fn lda(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
