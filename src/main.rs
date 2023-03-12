@@ -86,7 +86,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                     let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
                     match load_nes_system(&filename, trace_output) {
                         Ok(mut new_nes) => {
-                            new_nes.apu.set_output_buffer(audio_device.lock().get_output_buffer());
+                            new_nes.apu.attach_output_device(&mut audio_device);
                             nes = Some(new_nes);
                         }
                         Err(e) => {

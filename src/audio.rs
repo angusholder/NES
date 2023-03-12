@@ -4,7 +4,7 @@ use log::{warn};
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 
 pub struct APU {
-    output_buffer: SampleBuffer,
+    output_buffer: Option<SampleBuffer>,
     square_wave1: SquareWave,
     square_wave2: SquareWave,
 
@@ -23,18 +23,21 @@ pub struct APU {
 
 pub struct SampleBuffer {
     buffer: Arc<Mutex<VecDeque<f32>>>,
+    samples_per_second: u32,
 }
 
 impl SampleBuffer {
-    pub fn new() -> SampleBuffer {
+    pub fn new(spec: &AudioSpec) -> SampleBuffer {
         SampleBuffer {
             buffer: Arc::new(Mutex::new(VecDeque::new())),
+            samples_per_second: spec.freq as u32,
         }
     }
 
     pub fn clone_ref(&self) -> SampleBuffer {
         SampleBuffer {
             buffer: self.buffer.clone(),
+            samples_per_second: self.samples_per_second,
         }
     }
 
@@ -52,27 +55,32 @@ impl SampleBuffer {
         let mut buffer = self.buffer.lock().unwrap();
         buffer.extend(samples);
     }
+
+    pub fn clear(&mut self) {
+        let mut buffer = self.buffer.lock().unwrap();
+        buffer.clear();
+    }
 }
 
 pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
     let audio_subsystem = sdl.audio().unwrap();
     let audio_spec = AudioSpecDesired {
-        freq: Some(AUDIO_FREQUENCY as i32),
+        freq: Some(48_000),
         channels: Some(1),
         samples: None,
     };
     audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
         println!("Got audio spec: {spec:?}");
-        NesAudioCallback::new()
+        NesAudioCallback {
+            output_buffer: SampleBuffer::new(&spec),
+        }
     }).unwrap()
 }
-
-const AUDIO_FREQUENCY: u32 = 48_000;
 
 impl APU {
     pub fn new() -> APU {
         APU {
-            output_buffer: SampleBuffer::new(),
+            output_buffer: None,
             square_wave1: SquareWave::new(),
             square_wave2: SquareWave::new(),
 
@@ -90,13 +98,16 @@ impl APU {
         }
     }
 
-    pub fn set_output_buffer(&mut self, output_buffer: SampleBuffer) {
-        self.output_buffer = output_buffer;
+    pub fn attach_output_device(&mut self, device: &mut AudioDevice<NesAudioCallback>) {
+        let mut sample_buffer = device.lock().get_output_buffer();
+        sample_buffer.clear();
+        self.output_buffer = Some(sample_buffer);
     }
 
     pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {
         let start_cpu_cycle = self.last_cpu_cycles;
-        let samples_per_second = AUDIO_FREQUENCY;
+        // If we have no output, don't bother generating any samples
+        let samples_per_second = self.output_buffer.as_ref().map(|b| b.samples_per_second).unwrap_or(0);
 
         let start_time_s = start_cpu_cycle as f64 / CPU_FREQ as f64;
         let step_duration_s = (end_cpu_cycle - start_cpu_cycle) as f64 / CPU_FREQ as f64;
@@ -118,7 +129,9 @@ impl APU {
         }
 
         if !self.mixed_samples.is_empty() {
-            self.output_buffer.write_samples(&self.mixed_samples);
+            if let Some(output_buffer) = self.output_buffer.as_mut() {
+                output_buffer.write_samples(&self.mixed_samples);
+            }
         }
 
         self.last_cpu_cycles = end_cpu_cycle;
@@ -158,12 +171,6 @@ pub struct NesAudioCallback {
 }
 
 impl NesAudioCallback {
-    pub fn new() -> NesAudioCallback {
-        NesAudioCallback {
-            output_buffer: SampleBuffer::new(),
-        }
-    }
-
     pub fn get_output_buffer(&self) -> SampleBuffer {
         self.output_buffer.clone_ref()
     }
