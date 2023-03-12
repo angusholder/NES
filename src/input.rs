@@ -44,6 +44,10 @@ impl InputState {
             }
             return 0;
         }
+        if write && addr == JOYPAD_2 {
+            // Ignore
+            return 0;
+        }
         if !write && addr == JOYPAD_1 {
             let next_bit = self.joypad1_shift_register & 1;
             self.joypad1_shift_register >>= 1;
