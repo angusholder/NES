@@ -27,7 +27,6 @@ pub struct PPU {
     v_addr: u16,
     t_addr: u16,
     // https://www.nesdev.org/wiki/PPU_scrolling
-    // TODO: Where does fine_x get used?
     fine_x: u8,
     write_toggle_w: bool,
     data_bus_latch: u8,
@@ -53,13 +52,13 @@ pub struct PPU {
     dot: u32, // 0-340
     scanline: u32, // 0-261
     attribute_byte: u8,
-    low_tile_byte: u8,
-    high_tile_byte: u8,
+    tiles_lo: u16,
+    tiles_hi: u16,
 
     next_nametable_byte: u8,
     next_attribute_byte: u8,
-    next_low_tile_byte: u8,
-    next_high_tile_byte: u8,
+    next_tile_lo: u8,
+    next_tile_hi: u8,
 }
 
 /// The 0th element in this array is not used.
@@ -94,12 +93,12 @@ impl PPU {
             dot: 0,
             scanline: 0,
             attribute_byte: 0,
-            low_tile_byte: 0,
-            high_tile_byte: 0,
+            tiles_lo: 0,
+            tiles_hi: 0,
             next_nametable_byte: 0,
             next_attribute_byte: 0,
-            next_low_tile_byte: 0,
-            next_high_tile_byte: 0,
+            next_tile_lo: 0,
+            next_tile_hi: 0,
         }
     }
 
@@ -149,7 +148,6 @@ struct PPUControl {
     sprite_pattern_table: u16,
     // add 1 (going across), or add 32 (going down)
     vram_increment: u16,
-    // TODO: Where to use this?
     base_nametable_addr: u16,
 }
 
@@ -283,6 +281,7 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
     match mask_register_addr(addr) {
         PPUCTRL => {
             ppu.control = PPUControl::from_bits(val);
+            ppu.t_addr |= 0b11_00000_00000 & ppu.control.base_nametable_addr;
         }
         PPUMASK => {
             ppu.mask = PPUMask::from_bits(val);
@@ -405,15 +404,15 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                     ppu.next_attribute_byte = ppu.read_mem(attr_addr);
                 }
                 5 => {
-                    ppu.next_low_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, false))
+                    ppu.next_tile_lo = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, false))
                 }
                 7 => {
-                    ppu.next_high_tile_byte = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, true));
+                    ppu.next_tile_hi = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, true));
                 }
                 0 => {
                     ppu.attribute_byte = ppu.next_attribute_byte;
-                    ppu.low_tile_byte = ppu.next_low_tile_byte.reverse_bits();
-                    ppu.high_tile_byte = ppu.next_high_tile_byte.reverse_bits();
+                    ppu.tiles_lo |= (ppu.next_tile_lo.reverse_bits() as u16) << 8;
+                    ppu.tiles_hi |= (ppu.next_tile_hi.reverse_bits() as u16) << 8;
                     if ppu.rendering_enabled() {
                         scroll_next_x(ppu);
                     }
@@ -496,9 +495,9 @@ fn render_pixel(ppu: &mut PPU) {
         let mut bg_color_index = 0;
         if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
             let palette_index = read_attribute_byte(ppu.attribute_byte, ppu.dot, ppu.scanline);
-            bg_color_index = (palette_index << 2) | (ppu.low_tile_byte & 1) | ((ppu.high_tile_byte & 1) << 1);
-            ppu.low_tile_byte >>= 1;
-            ppu.high_tile_byte >>= 1;
+            bg_color_index = (palette_index << 2) | (ppu.tiles_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_hi >> ppu.fine_x & 1) << 1) as u8;
+            ppu.tiles_lo >>= 1;
+            ppu.tiles_hi >>= 1;
         }
 
         let mut sprite_color_index: u8 = 0;
