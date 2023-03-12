@@ -47,10 +47,17 @@ impl Mapper {
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
-        self.mapper.borrow_mut().access_ppu_bus(addr, 0, false)
+        self.mapper.borrow_mut().access_ppu_bus(mask_ppu_addr(addr), 0, false)
     }
 
     pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {
-        self.mapper.borrow_mut().access_ppu_bus(addr, value, true);
+        self.mapper.borrow_mut().access_ppu_bus(mask_ppu_addr(addr), value, true);
     }
+}
+
+/// The PPU address space is 14 bits, but the CPU address space is 16 bits.
+/// "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
+#[inline(always)]
+fn mask_ppu_addr(addr: u16) -> u16 {
+    addr & 0x3FFF
 }

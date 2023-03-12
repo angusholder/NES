@@ -105,40 +105,20 @@ impl PPU {
         self.mask.show_background || self.mask.show_sprites
     }
 
-    fn write_mem(&mut self, addr: u16, val: u8) {
-        self.access_mem::<true>(addr, val);
-    }
-
-    fn read_mem(&mut self, addr: u16) -> u8 {
-        self.access_mem::<false>(addr, 0)
-    }
-
-    fn access_mem<const WRITE: bool>(&mut self, mut addr: u16, val: u8) -> u8 {
-        addr &= 0x3FFF; // "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
-
+    fn write_mem(&mut self, mut addr: u16, val: u8) {
         if addr >= 0x3F00 && addr < 0x4000 {
-            self.access_palette(addr, val, WRITE)
+            self.palettes[mask_palette_addr(addr)] = val;
         } else {
-            if WRITE {
-                self.mapper.write_ppu_bus(addr, val);
-                0
-            } else {
-                self.mapper.read_ppu_bus(addr)
-            }
+            self.mapper.write_ppu_bus(addr, val);
         }
     }
 
-    fn access_palette(&mut self, mut addr: u16, val: u8, write: bool) -> u8 {
-        if addr == 0x3F10 {
-            addr = 0x3F00;
+    fn read_mem(&mut self, mut addr: u16) -> u8 {
+        if addr >= 0x3F00 && addr < 0x4000 {
+            self.palettes[mask_palette_addr(addr)]
+        } else {
+            self.mapper.read_ppu_bus(addr)
         }
-        addr &= 0x001F;
-        let ptr: &mut u8 = &mut self.palettes[addr as usize];
-
-        if write {
-            *ptr = val;
-        }
-        *ptr
     }
 
     fn flip_frame(&mut self) {
@@ -147,6 +127,14 @@ impl PPU {
 
     pub fn output_display_buffer(&self, output: &mut [u8]) {
         output.copy_from_slice(&self.finished_display_buffer);
+    }
+}
+
+fn mask_palette_addr(addr: u16) -> usize {
+    if addr == 0x3F10 {
+        0
+    } else {
+        (addr & 0x1F) as usize
     }
 }
 
@@ -229,11 +217,11 @@ impl PPUMask {
     }
 }
 
-fn mask_ppu_addr(addr: u16) -> u16 { addr & 0x2007 }
+fn mask_register_addr(addr: u16) -> u16 { addr & 0x2007 }
 
 pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
     let ppu = &mut nes.ppu;
-    match mask_ppu_addr(addr) {
+    match mask_register_addr(addr) {
         PPUSTATUS => {
             ppu.write_toggle_w = false;
 
@@ -287,7 +275,7 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
     // "Writing any value to any PPU port, even to the nominally read-only PPUSTATUS, will fill this latch" - https://www.nesdev.org/wiki/PPU_registers#Ports
     ppu.data_bus_latch = val;
 
-    match mask_ppu_addr(addr) {
+    match mask_register_addr(addr) {
         PPUCTRL => {
             ppu.control = PPUControl::from_bits(val);
         }
