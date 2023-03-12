@@ -55,6 +55,7 @@ dependencies = [
 name = "nes_emu"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "env_logger",
  "log",
  "sdl2",

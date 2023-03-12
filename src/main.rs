@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 use sdl2::audio::AudioDevice;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::surface::Surface;
-use crate::apu::{NesAudioCallback};
+use crate::apu::{AudioChannels, NesAudioCallback};
 use crate::mapper::Mapper;
 use crate::nes::NES;
 
@@ -69,7 +69,6 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
     let mut audio_device: AudioDevice<NesAudioCallback> = apu::create_audio_device(&sdl_context);
-    audio_device.resume();
 
     let mut frame_stats = FrameStats::new();
     let mut event_pump = sdl_context.event_pump()?;
@@ -85,11 +84,23 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     paused = !paused;
                 }
+                Event::KeyDown { keycode: Some(keycode), .. } => {
+                    let Some(nes) = nes.as_mut() else { continue; };
+                    match keycode {
+                        Keycode::Num1 => nes.apu.toggle_channel(AudioChannels::SQUARE1),
+                        Keycode::Num2 => nes.apu.toggle_channel(AudioChannels::SQUARE2),
+                        Keycode::Num3 => nes.apu.toggle_channel(AudioChannels::TRIANGLE),
+                        Keycode::Num4 => nes.apu.toggle_channel(AudioChannels::NOISE),
+                        Keycode::Num5 => nes.apu.toggle_channel(AudioChannels::DMC),
+                        _ => {}
+                    }
+                }
                 Event::DropFile { filename, .. } => {
                     let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
                     match load_nes_system(&filename, trace_output) {
                         Ok(mut new_nes) => {
                             new_nes.apu.attach_output_device(&mut audio_device);
+                            audio_device.resume();
                             nes = Some(new_nes);
                         }
                         Err(e) => {

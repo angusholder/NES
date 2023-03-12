@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use log::{warn};
+use bitflags::bitflags;
+use log::{info, warn};
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 
 pub struct APU {
@@ -10,11 +11,10 @@ pub struct APU {
     square_wave2: SquareWave,
     triangle_wave: TriangleWave,
 
-    enable_square1: bool,
-    enable_square2: bool,
-    enable_triangle: bool,
-    enable_noise: bool,
-    enable_dmc: bool,
+    /// Which channels the game wants enabled currently.
+    guest_enabled_channels: AudioChannels,
+    /// The user can override to mute a channel that the game has enabled.
+    host_enabled_channels: AudioChannels,
 
     sq1_samples: Vec<f32>,
     sq2_samples: Vec<f32>,
@@ -22,6 +22,16 @@ pub struct APU {
     mixed_samples: Vec<f32>,
 
     last_cpu_cycles: u64,
+}
+
+bitflags! {
+    pub struct AudioChannels : u8 {
+        const SQUARE1 = 0x01;
+        const SQUARE2 = 0x02;
+        const TRIANGLE = 0x04;
+        const NOISE = 0x08;
+        const DMC = 0x10;
+    }
 }
 
 pub struct SampleBuffer {
@@ -89,11 +99,8 @@ impl APU {
             square_wave2: SquareWave::new(),
             triangle_wave: TriangleWave::new(),
 
-            enable_square1: false,
-            enable_square2: false,
-            enable_triangle: false,
-            enable_noise: false,
-            enable_dmc: false,
+            guest_enabled_channels: AudioChannels::empty(),
+            host_enabled_channels: AudioChannels::all(),
 
             sq1_samples: Vec::new(),
             sq2_samples: Vec::new(),
@@ -124,13 +131,13 @@ impl APU {
         self.tri_samples.resize(samples_to_output, 0f32);
         self.mixed_samples.resize(samples_to_output, 0f32);
 
-        if self.enable_square1 {
+        if self.channel_enabled(AudioChannels::SQUARE1) {
             self.square_wave1.output_samples(start_time_s, step_duration_s, &mut self.sq1_samples);
         }
-        if self.enable_square2 {
+        if self.channel_enabled(AudioChannels::SQUARE2) {
             self.square_wave2.output_samples(start_time_s, step_duration_s, &mut self.sq2_samples);
         }
-        if self.enable_triangle {
+        if self.channel_enabled(AudioChannels::TRIANGLE) {
             self.triangle_wave.output_samples(start_time_s, step_duration_s, &mut self.tri_samples);
         }
 
@@ -176,15 +183,22 @@ impl APU {
             0x400B => self.triangle_wave.write_coarse_tune(value),
 
             0x4015 => {
-                self.enable_square1 = (value & 0x01) != 0;
-                self.enable_square2 = (value & 0x02) != 0;
-                self.enable_triangle = (value & 0x04) != 0;
-                self.enable_noise = (value & 0x08) != 0;
-                self.enable_dmc = (value & 0x10) != 0;
+                self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
             }
 
             _ => {}
         }
+    }
+
+    fn channel_enabled(&self, channel: AudioChannels) -> bool {
+        let enabled = self.host_enabled_channels & self.guest_enabled_channels;
+        enabled.contains(channel)
+    }
+
+    pub fn toggle_channel(&mut self, channel: AudioChannels) {
+        self.host_enabled_channels.toggle(channel);
+        let state = if self.host_enabled_channels.contains(channel) { "on" } else { "off" };
+        info!("Toggled channel {channel:?} to {state}")
     }
 }
 
