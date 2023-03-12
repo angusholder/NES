@@ -14,6 +14,10 @@ pub struct APU {
     enable_noise: bool,
     enable_dmc: bool,
 
+    sq1_samples: Vec<f32>,
+    sq2_samples: Vec<f32>,
+    mixed_samples: Vec<f32>,
+
     last_cpu_cycles: u64,
 }
 
@@ -69,14 +73,18 @@ impl APU {
     pub fn new() -> APU {
         APU {
             output_buffer: SampleBuffer::new(),
-            square_wave1: SquareWave::new(AUDIO_FREQUENCY),
-            square_wave2: SquareWave::new(AUDIO_FREQUENCY),
+            square_wave1: SquareWave::new(),
+            square_wave2: SquareWave::new(),
 
             enable_square1: false,
             enable_square2: false,
             enable_triangle: false,
             enable_noise: false,
             enable_dmc: false,
+
+            sq1_samples: Vec::new(),
+            sq2_samples: Vec::new(),
+            mixed_samples: Vec::new(),
 
             last_cpu_cycles: 0,
         }
@@ -86,22 +94,34 @@ impl APU {
         self.output_buffer = output_buffer;
     }
 
-    pub fn run_until_cycle(&mut self, cpu_cycle: u64) {
-        let start_cycle = self.last_cpu_cycles;
-        let mut samples = self.square_wave1.output_samples(start_cycle, cpu_cycle);
-        if !self.enable_square1 {
-            samples.fill(0.0);
+    pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {
+        let start_cpu_cycle = self.last_cpu_cycles;
+        let samples_per_second = AUDIO_FREQUENCY;
+
+        let start_time_s = start_cpu_cycle as f64 / CPU_FREQ as f64;
+        let step_duration_s = (end_cpu_cycle - start_cpu_cycle) as f64 / CPU_FREQ as f64;
+        let samples_to_output = (samples_per_second as f64 * step_duration_s) as usize;
+
+        self.sq1_samples.resize(samples_to_output, 0f32);
+        self.sq2_samples.resize(samples_to_output, 0f32);
+        self.mixed_samples.resize(samples_to_output, 0f32);
+
+        if self.enable_square1 {
+            self.square_wave1.output_samples(start_time_s, step_duration_s, &mut self.sq1_samples);
         }
-        let samples2 = self.square_wave2.output_samples(start_cycle, cpu_cycle);
         if self.enable_square2 {
-            for (s0, s1) in samples.iter_mut().zip(samples2.iter()) {
-                *s0 += *s1;
-            }
+            self.square_wave2.output_samples(start_time_s, step_duration_s, &mut self.sq2_samples);
         }
 
-        self.output_buffer.write_samples(&samples);
+        for ((s0, s1), out) in self.sq1_samples.iter().zip(self.sq2_samples.iter()).zip(self.mixed_samples.iter_mut()) {
+            *out = *s0 + *s1;
+        }
 
-        self.last_cpu_cycles = cpu_cycle;
+        if !self.mixed_samples.is_empty() {
+            self.output_buffer.write_samples(&self.mixed_samples);
+        }
+
+        self.last_cpu_cycles = end_cpu_cycle;
     }
 
     pub fn write_register(&mut self, addr: u16, value: u8, cpu_cycle: u64) {
@@ -158,7 +178,6 @@ impl AudioCallback for NesAudioCallback {
 }
 
 struct SquareWave {
-    samples_per_second: u32,
     phase: f32,
     volume: f32,
 
@@ -167,9 +186,8 @@ struct SquareWave {
 }
 
 impl SquareWave {
-    fn new(samples_per_second: u32) -> SquareWave {
+    fn new() -> SquareWave {
         SquareWave {
-            samples_per_second,
             phase: 0.0,
             volume: 0.1,
             duty_cycle: 0.5,
@@ -181,11 +199,16 @@ impl SquareWave {
         CPU_FREQ as f32 / (16.0 * (self.period as f32 + 1.0))
     }
 
-    fn output_samples(&mut self, cpu_start_cycle: u64, cpu_end_cycle: u64) -> Vec<f32> {
+    fn output_samples(
+        &mut self,
+        step_start_time_s: f64,
+        step_duration_s: f64,
+        output: &mut [f32],
+    ) {
         step_square_wave(
-            cpu_start_cycle,
-            cpu_end_cycle,
-            self.samples_per_second,
+            step_start_time_s,
+            step_duration_s,
+            output,
             self.period,
             self.volume,
             self.duty_cycle,
@@ -222,26 +245,23 @@ impl SquareWave {
 }
 
 fn step_square_wave(
-    cpu_start_cycle: u64,
-    cpu_end_cycle: u64,
-    samples_per_second: u32,
+    step_start_time_s: f64,
+    step_duration_s: f64,
+    output: &mut [f32],
     apu_period: u32,
     volume: f32,
     duty_cycle: f32,
-) -> Vec<f32> {
+) {
     let period_s: f64 = (16 * (apu_period + 1)) as f64 / CPU_FREQ as f64;
-    let start_time_s = cpu_start_cycle as f64 / CPU_FREQ as f64;
-    let total_duration_s = (cpu_end_cycle - cpu_start_cycle) as f64 / CPU_FREQ as f64;
-    let samples_to_output = (samples_per_second as f64 * total_duration_s) as usize;
-    let mut output: Vec<f32> = vec![0.0; samples_to_output];
     if apu_period < 8 {
+        output.fill(0.0);
         // All zeroes
-        return output;
+        return;
     }
 
-    let time_step = total_duration_s / samples_to_output as f64;
+    let time_step = step_duration_s / output.len() as f64;
     for (i, sample) in output.iter_mut().enumerate() {
-        let now_s = start_time_s + time_step * i as f64;
+        let now_s = step_start_time_s + time_step * i as f64;
         let phase = (now_s / period_s) % 1.0;
         if phase <= duty_cycle as f64 { // duty_cycle
             *sample = volume;
@@ -249,8 +269,6 @@ fn step_square_wave(
             *sample = -volume;
         };
     }
-
-    output
 }
 
 static PULSE_FREQ_PERIODS_LUT: [(u32, &str); 75] = [
