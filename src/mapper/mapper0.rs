@@ -1,5 +1,6 @@
 use log::warn;
 use crate::cartridge::{Cartridge, NametableMirroring};
+use crate::mapper;
 use crate::mapper::RawMapper;
 
 /// Mapper 0: NROM
@@ -67,7 +68,7 @@ impl RawMapper for NROMMapper {
                 self.chr_rom[addr as usize]
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                let ptr = access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF);
+                let ptr = mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF);
                 if write {
                     *ptr = value;
                 }
@@ -78,29 +79,4 @@ impl RawMapper for NROMMapper {
             }
         }
     }
-}
-
-/// See https://www.nesdev.org/wiki/Mirroring#Nametable_Mirroring
-pub fn access_nametable(storage: &mut [u8; 0x800], mirroring: NametableMirroring, addr: u16) -> &mut u8 {
-    let range = match mirroring {
-        NametableMirroring::Horizontal => match addr {
-            0x2000..=0x27FF => &mut storage[..0x400],
-            0x2800..=0x2FFF => &mut storage[0x400..0x800],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
-        },
-        NametableMirroring::Vertical => match addr {
-            0x2000..=0x23FF | 0x2800..=0x2BFF => &mut storage[..0x400],
-            0x2400..=0x27FF | 0x2C00..=0x2FFF => &mut storage[0x400..0x800],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
-        },
-        NametableMirroring::SingleScreenLowerBank => match addr {
-            0x2000..=0x2FFF => &mut storage[..0x400],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
-        },
-        NametableMirroring::SingleScreenUpperBank => match addr {
-            0x2000..=0x2FFF => &mut storage[0x400..0x800],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
-        },
-    };
-    &mut range[(addr & 0x3FF) as usize]
 }

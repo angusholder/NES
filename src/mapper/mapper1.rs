@@ -1,6 +1,6 @@
 use std::ops::Range;
 use crate::cartridge::{Cartridge, NametableMirroring};
-use crate::mapper::mapper0::access_nametable;
+use crate::mapper::access_nametable;
 use crate::mapper::RawMapper;
 
 /// https://www.nesdev.org/wiki/MMC1
