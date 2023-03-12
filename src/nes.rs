@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::io::Write;
 use crate::mapper::{Mapper};
 use crate::{disassemble, input, cpu, ppu};
-use crate::audio::APU;
+use crate::apu::APU;
 use crate::input::InputState;
 use crate::ppu::PPU;
 

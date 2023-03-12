@@ -10,7 +10,7 @@ mod ppu;
 mod mapper;
 mod disassemble;
 mod input;
-mod audio;
+mod apu;
 
 use std::collections::VecDeque;
 use std::error::Error;
@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 use sdl2::audio::AudioDevice;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::surface::Surface;
-use crate::audio::{NesAudioCallback};
+use crate::apu::{NesAudioCallback};
 use crate::mapper::Mapper;
 use crate::nes::NES;
 
@@ -68,7 +68,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     display_buffer_paletted.set_palette(&load_nes_palette())?;
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
-    let mut audio_device: AudioDevice<NesAudioCallback> = audio::create_audio_device(&sdl_context);
+    let mut audio_device: AudioDevice<NesAudioCallback> = apu::create_audio_device(&sdl_context);
     audio_device.resume();
 
     let mut frame_stats = FrameStats::new();
