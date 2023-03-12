@@ -514,7 +514,7 @@ fn render_pixel(ppu: &mut PPU) {
                 let sx = sprite.x as u32;
                 if sx <= x && x < sx + 8 {
                     let dx = x - sx;
-                    sprite_color_index =(sprite.palette_index << 2) | ((sprite.pattern2 >> (dx*2)) as u8 & 0b11);
+                    sprite_color_index = 0x10 | (sprite.palette_index << 2) | ((sprite.pattern2 >> (dx*2)) as u8 & 0b11);
                     sprite_behind_bg = sprite.behind_bg;
                     break;
                     // TODO: Use sprite.is_sprite_0
@@ -524,11 +524,11 @@ fn render_pixel(ppu: &mut PPU) {
 
         // Choose a pixel based on priority
         let mut pixel_index = bg_color_index;
-        if sprite_color_index != 0 {
-            if bg_color_index == 0 {
-                pixel_index = 0x10 | sprite_color_index;
+        if sprite_color_index & 0b11 != 0 {
+            if bg_color_index & 0b11 == 0 {
+                pixel_index = sprite_color_index;
             } else if !sprite_behind_bg {
-                pixel_index = 0x10 | sprite_color_index;
+                pixel_index = sprite_color_index;
             }
         }
 
