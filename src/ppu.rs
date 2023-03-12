@@ -495,7 +495,10 @@ fn render_pixel(ppu: &mut PPU) {
         let mut bg_color_index = 0;
         if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
             let palette_index = read_attribute_byte(ppu.attribute_byte, ppu.dot, ppu.scanline);
-            bg_color_index = (palette_index << 2) | (ppu.tiles_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_hi >> ppu.fine_x & 1) << 1) as u8;
+            bg_color_index = (ppu.tiles_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_hi >> ppu.fine_x & 1) << 1) as u8;
+            if bg_color_index != 0 {
+                bg_color_index |= palette_index << 2;
+            }
             ppu.tiles_lo >>= 1;
             ppu.tiles_hi >>= 1;
         }
@@ -510,7 +513,10 @@ fn render_pixel(ppu: &mut PPU) {
                 let sx = sprite.x as u32;
                 if sx <= x && x < sx + 8 {
                     let dx = x - sx;
-                    sprite_color_index = 0x10 | (sprite.palette_index << 2) | ((sprite.pattern2 >> (dx*2)) as u8 & 0b11);
+                    sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
+                    if sprite_color_index != 0 {
+                        sprite_color_index |= 0x10 | (sprite.palette_index << 2);
+                    }
                     sprite_behind_bg = sprite.behind_bg;
                     is_sprite_0 = sprite.is_sprite_0;
                     break;
@@ -521,8 +527,8 @@ fn render_pixel(ppu: &mut PPU) {
 
         // Choose a pixel based on priority
         let mut pixel_index = bg_color_index;
-        if sprite_color_index & 0b11 != 0 { // Sprite pixel not blank
-            if bg_color_index & 0b11 == 0 { // Background pixel is blank
+        if sprite_color_index != 0 { // Sprite pixel not blank
+            if bg_color_index == 0 { // Background pixel is blank
                 pixel_index = sprite_color_index;
             } else {
                 if !sprite_behind_bg {
