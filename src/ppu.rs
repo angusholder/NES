@@ -35,6 +35,7 @@ pub struct PPU {
     oam_addr: u8,
     oam: [u8; NUM_SPRITES * 4],
     cur_line_sprites: [SpriteRowSlice; 8],
+    sprite_0_hit: bool,
 
     palettes: [u8; 2 * 4 * 4],
     mapper: Mapper,
@@ -79,6 +80,7 @@ impl PPU {
             oam_addr: 0,
             oam: [0; NUM_SPRITES * 4],
             cur_line_sprites: [SpriteRowSlice::hidden(); 8],
+            sprite_0_hit: false,
 
             palettes: [0; 2 * 4 * 4],
             mapper,
@@ -226,11 +228,14 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
             ppu.write_toggle_w = false;
 
             let mut status = 0u8;
-            // TODO: Sprite overflow and sprite 0 hit not implemented
+            // TODO: Sprite overflow not implemented
 
             if ppu.vblank_started {
                 status |= 0b1000_0000;
                 ppu.vblank_started = false;
+            }
+            if ppu.sprite_0_hit {
+                status |= 0b0100_0000;
             }
 
             // PPU open bus. Returns stale PPU bus contents
@@ -361,6 +366,7 @@ pub fn ppu_step(nes: &mut NES) {
         261 => {
             if nes.ppu.dot == 1 {
                 nes.ppu.vblank_started = false;
+                nes.ppu.sprite_0_hit = false;
             }
             ppu_step_scanline(&mut nes.ppu);
         }
@@ -497,27 +503,40 @@ fn render_pixel(ppu: &mut PPU) {
 
         let mut sprite_color_index: u8 = 0;
         let mut sprite_behind_bg: bool = true;
+        let mut is_sprite_0 = false;
         if ppu.mask.show_sprites && (ppu.mask.show_sprites_left || x > 8) && ppu.scanline > 0 {
-            for sprite in ppu.cur_line_sprites.iter() {
+            let mut i = 0;
+            while i < ppu.cur_line_sprites.len() {
+                let sprite = &ppu.cur_line_sprites[i];
                 let sx = sprite.x as u32;
                 if sx <= x && x < sx + 8 {
                     let dx = x - sx;
                     sprite_color_index = 0x10 | (sprite.palette_index << 2) | ((sprite.pattern2 >> (dx*2)) as u8 & 0b11);
                     sprite_behind_bg = sprite.behind_bg;
+                    is_sprite_0 = sprite.is_sprite_0;
                     break;
-                    // TODO: Use sprite.is_sprite_0
                 }
+                i += 1;
             }
         }
 
         // Choose a pixel based on priority
         let mut pixel_index = bg_color_index;
-        if sprite_color_index & 0b11 != 0 {
-            if bg_color_index & 0b11 == 0 {
+        if sprite_color_index & 0b11 != 0 { // Sprite pixel not blank
+            if bg_color_index & 0b11 == 0 { // Background pixel is blank
                 pixel_index = sprite_color_index;
-            } else if !sprite_behind_bg {
-                pixel_index = sprite_color_index;
+            } else {
+                if !sprite_behind_bg {
+                    pixel_index = sprite_color_index;
+                }
+
+                // Sprite 0 hit ignores priority, it only requires that both sprite pixel and
+                // bg pixel be non-transparent.
+                if is_sprite_0 && x != 255 && !ppu.sprite_0_hit {
+                    ppu.sprite_0_hit = true;
+                }
             }
+
         }
 
         ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = ppu.palettes[pixel_index as usize];
