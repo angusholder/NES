@@ -172,7 +172,9 @@ impl FrameStats {
 
     fn add_reading(&mut self, time: Duration) {
         self.frame_count += 1;
-        self.frame_times.truncate(MAX_READINGS - 1);
+        while self.frame_times.len() >= MAX_READINGS {
+            self.frame_times.pop_front();
+        }
         self.frame_times.push_back(time);
     }
 
