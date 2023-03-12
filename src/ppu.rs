@@ -105,7 +105,7 @@ impl PPU {
         self.mask.show_background || self.mask.show_sprites
     }
 
-    fn write_mem(&mut self, mut addr: u16, val: u8) {
+    fn write_mem(&mut self, addr: u16, val: u8) {
         if addr >= 0x3F00 && addr < 0x4000 {
             self.palettes[mask_palette_addr(addr)] = val;
         } else {
@@ -113,7 +113,7 @@ impl PPU {
         }
     }
 
-    fn read_mem(&mut self, mut addr: u16) -> u8 {
+    fn read_mem(&mut self, addr: u16) -> u8 {
         if addr >= 0x3F00 && addr < 0x4000 {
             self.palettes[mask_palette_addr(addr)]
         } else {
