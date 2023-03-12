@@ -5,8 +5,10 @@ use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 
 pub struct APU {
     output_buffer: Option<SampleBuffer>,
+
     square_wave1: SquareWave,
     square_wave2: SquareWave,
+    triangle_wave: TriangleWave,
 
     enable_square1: bool,
     enable_square2: bool,
@@ -16,6 +18,7 @@ pub struct APU {
 
     sq1_samples: Vec<f32>,
     sq2_samples: Vec<f32>,
+    tri_samples: Vec<f32>,
     mixed_samples: Vec<f32>,
 
     last_cpu_cycles: u64,
@@ -81,8 +84,10 @@ impl APU {
     pub fn new() -> APU {
         APU {
             output_buffer: None,
+
             square_wave1: SquareWave::new(),
             square_wave2: SquareWave::new(),
+            triangle_wave: TriangleWave::new(),
 
             enable_square1: false,
             enable_square2: false,
@@ -92,6 +97,7 @@ impl APU {
 
             sq1_samples: Vec::new(),
             sq2_samples: Vec::new(),
+            tri_samples: Vec::new(),
             mixed_samples: Vec::new(),
 
             last_cpu_cycles: 0,
@@ -115,6 +121,7 @@ impl APU {
 
         self.sq1_samples.resize(samples_to_output, 0f32);
         self.sq2_samples.resize(samples_to_output, 0f32);
+        self.tri_samples.resize(samples_to_output, 0f32);
         self.mixed_samples.resize(samples_to_output, 0f32);
 
         if self.enable_square1 {
@@ -123,9 +130,22 @@ impl APU {
         if self.enable_square2 {
             self.square_wave2.output_samples(start_time_s, step_duration_s, &mut self.sq2_samples);
         }
+        if self.enable_triangle {
+            self.triangle_wave.output_samples(start_time_s, step_duration_s, &mut self.tri_samples);
+        }
 
-        for ((s0, s1), out) in self.sq1_samples.iter().zip(self.sq2_samples.iter()).zip(self.mixed_samples.iter_mut()) {
-            *out = *s0 + *s1;
+        for i in 0..samples_to_output {
+            // Mixing formula from here: https://www.nesdev.org/wiki/APU_Mixer
+            let pulse1 = self.sq1_samples[i];
+            let pulse2 = self.sq2_samples[i];
+            let triangle = self.tri_samples[i];
+            let noise: f32 = 0.0;
+            let dmc: f32 = 0.0;
+
+            let pulse_out = 0.00752 * (pulse1 + pulse2);
+            let tnd_out = 0.00851 * triangle + 0.00494 * noise + 0.00335 * dmc;
+            let output = pulse_out + tnd_out;
+            self.mixed_samples[i] = output;
         }
 
         if !self.mixed_samples.is_empty() {
@@ -150,6 +170,10 @@ impl APU {
             0x4005 => self.square_wave2.write_ramp(value),
             0x4006 => self.square_wave2.write_fine_tune(value),
             0x4007 => self.square_wave2.write_coarse_tune(value),
+
+            0x4008 => self.triangle_wave.write_control(value),
+            0x400A => self.triangle_wave.write_fine_tune(value),
+            0x400B => self.triangle_wave.write_coarse_tune(value),
 
             0x4015 => {
                 self.enable_square1 = (value & 0x01) != 0;
@@ -194,7 +218,7 @@ struct SquareWave {
 impl SquareWave {
     fn new() -> SquareWave {
         SquareWave {
-            volume: 0.1,
+            volume: 1.0,
             duty_cycle: 0.5,
             period: 0, // Range: 0-0x7FF / 0-2047 / 12.428KHz-54Hz
         }
@@ -251,5 +275,65 @@ impl SquareWave {
     // $4001/$4005
     fn write_ramp(&mut self, _value: u8) {
 
+    }
+}
+
+struct TriangleWave {
+    period: u32,
+}
+
+impl TriangleWave {
+    fn new() -> TriangleWave {
+        TriangleWave {
+            period: 0,
+        }
+    }
+
+    fn output_samples(
+        &mut self,
+        step_start_time_s: f64,
+        step_duration_s: f64,
+        output: &mut [f32],
+    ) {
+        if self.period < 2 {
+            output.fill(0.0);
+            // All zeroes
+            return;
+        }
+
+        let period_s: f64 = (32 * (self.period + 1)) as f64 / CPU_FREQ as f64;
+        let time_step = step_duration_s / output.len() as f64;
+        for (i, sample) in output.iter_mut().enumerate() {
+            let now_s = step_start_time_s + time_step * i as f64;
+            let scaled: f64  = now_s / period_s * 4.0;
+            // Number between 0 and 3 - which of the 4 sections of the triangle wave are we in
+            let cycle_phase = scaled as i64 % 4;
+            // Number between 0 and 1 - how far through a single section are we
+            let cycle_offset = (scaled % 1.0) as f32;
+
+            // TODO: Quantize into 4-bit values
+            *sample = match cycle_phase {
+                0 => cycle_offset, // 0 to 1
+                1 => 1.0 - cycle_offset, // 1 to 0
+                2 => -cycle_offset, // 0 to -1
+                3 => -1.0 + cycle_offset, // -1 to 0
+                _ => unreachable!(),
+            };
+        }
+    }
+
+    // $4008
+    fn write_control(&mut self, _value: u8) {
+
+    }
+
+    // $400A
+    fn write_fine_tune(&mut self, value: u8) {
+        self.period = self.period & 0xFF00 | (value as u32);
+    }
+
+    // $400B
+    fn write_coarse_tune(&mut self, value: u8) {
+        self.period = self.period & 0x00FF | ((value as u32 & 0x7) << 8);
     }
 }
