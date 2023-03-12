@@ -74,13 +74,16 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     let mut frame_stats = FrameStats::new();
     let mut event_pump = sdl_context.event_pump()?;
     let mut nes: Option<Box<NES>> = None;
+    let mut paused = false;
     'running: loop {
         let start_time = Instant::now();
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit {..} |
+                Event::Quit {..} => {
+                    break 'running;
+                }
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    break 'running
+                    paused = !paused;
                 }
                 Event::DropFile { filename, .. } => {
                     let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
@@ -98,20 +101,22 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        display_buffer_rgb.fill_rect(None, Color::BLACK)?;
-        if let Some(nes) = &mut nes {
-            nes.input.update_key_state(&event_pump);
+        if !paused {
+            if let Some(nes) = &mut nes {
+                nes.input.update_key_state(&event_pump);
 
-            nes.simulate_frame();
+                nes.simulate_frame();
 
-            nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
-            display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
+                nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
+                display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
+            }
         }
         let mut window_surf = window.surface(&event_pump)?;
         display_buffer_rgb.blit_scaled(None, &mut window_surf, None)?;
         window_surf.finish()?;
 
-        window.set_title(&format!("NES Emulator - {:.2}ms", frame_stats.get_avg_frame_time_ms()))?;
+        let pause_text = if paused { " - PAUSED" } else { "" };
+        window.set_title(&format!("NES Emulator - {:.2}ms{}", frame_stats.get_avg_frame_time_ms(), pause_text))?;
         let frame_time = start_time.elapsed();
         frame_stats.add_reading(frame_time);
         thread::sleep(Duration::new(0, 1_000_000_000u32 / 60).saturating_sub(frame_time));
