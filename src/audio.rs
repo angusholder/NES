@@ -185,7 +185,6 @@ impl AudioCallback for NesAudioCallback {
 }
 
 struct SquareWave {
-    phase: f32,
     volume: f32,
 
     duty_cycle: f32,
@@ -195,15 +194,10 @@ struct SquareWave {
 impl SquareWave {
     fn new() -> SquareWave {
         SquareWave {
-            phase: 0.0,
             volume: 0.1,
             duty_cycle: 0.5,
             period: 0, // Range: 0-0x7FF / 0-2047 / 12.428KHz-54Hz
         }
-    }
-
-    fn get_pulse_tone_hz(&self) -> f32 {
-        CPU_FREQ as f32 / (16.0 * (self.period as f32 + 1.0))
     }
 
     fn output_samples(
@@ -212,19 +206,28 @@ impl SquareWave {
         step_duration_s: f64,
         output: &mut [f32],
     ) {
-        step_square_wave(
-            step_start_time_s,
-            step_duration_s,
-            output,
-            self.period,
-            self.volume,
-            self.duty_cycle,
-        )
+        if self.period < 8 {
+            output.fill(0.0);
+            // All zeroes
+            return;
+        }
+
+        let period_s: f64 = (16 * (self.period + 1)) as f64 / CPU_FREQ as f64;
+        let time_step = step_duration_s / output.len() as f64;
+        for (i, sample) in output.iter_mut().enumerate() {
+            let now_s = step_start_time_s + time_step * i as f64;
+            let phase = (now_s / period_s) % 1.0;
+            if phase <= self.duty_cycle as f64 { // duty_cycle
+                *sample = self.volume;
+            } else {
+                *sample = -self.volume;
+            };
+        }
     }
 
     // $4003/$4007
     fn write_coarse_tune(&mut self, value: u8) {
-        self.phase = 0.0;
+        // TODO: Reset the phase
         self.period = self.period & 0x00FF | ((value as u32 & 0x7) << 8);
         // TODO: Reset length counter
     }
@@ -248,32 +251,5 @@ impl SquareWave {
     // $4001/$4005
     fn write_ramp(&mut self, _value: u8) {
 
-    }
-}
-
-fn step_square_wave(
-    step_start_time_s: f64,
-    step_duration_s: f64,
-    output: &mut [f32],
-    apu_period: u32,
-    volume: f32,
-    duty_cycle: f32,
-) {
-    let period_s: f64 = (16 * (apu_period + 1)) as f64 / CPU_FREQ as f64;
-    if apu_period < 8 {
-        output.fill(0.0);
-        // All zeroes
-        return;
-    }
-
-    let time_step = step_duration_s / output.len() as f64;
-    for (i, sample) in output.iter_mut().enumerate() {
-        let now_s = step_start_time_s + time_step * i as f64;
-        let phase = (now_s / period_s) % 1.0;
-        if phase <= duty_cycle as f64 { // duty_cycle
-            *sample = volume;
-        } else {
-            *sample = -volume;
-        };
     }
 }
