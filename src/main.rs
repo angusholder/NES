@@ -20,11 +20,12 @@ use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use std::thread;
 use std::time::{Duration, Instant};
 use sdl2::audio::AudioDevice;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
+use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::surface::Surface;
+use sdl2::video::Window;
 use crate::apu::{AudioChannels, NesAudioCallback};
 use crate::mapper::Mapper;
 use crate::nes::NES;
@@ -60,9 +61,18 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
-    let mut window = video_subsystem.window("NES Emulator", SCREEN_WIDTH*2, SCREEN_HEIGHT*2)
+    let window: Window = video_subsystem.window("NES Emulator", SCREEN_WIDTH*3, SCREEN_HEIGHT*3)
         .position_centered()
         .build()?;
+
+    let mut canvas: WindowCanvas = window.into_canvas()
+        .accelerated()
+        .present_vsync()
+        .build()?;
+
+    let texture_creator: TextureCreator<_> = canvas.texture_creator();
+
+    let mut display_texture: Texture = texture_creator.create_texture_streaming(PixelFormatEnum::ARGB8888, SCREEN_WIDTH, SCREEN_HEIGHT)?;
 
     let mut display_buffer_paletted = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::Index8)?;
     display_buffer_paletted.set_palette(&load_nes_palette())?;
@@ -122,15 +132,16 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                 display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
             }
         }
-        let mut window_surf = window.surface(&event_pump)?;
-        display_buffer_rgb.blit_scaled(None, &mut window_surf, None)?;
-        window_surf.finish()?;
+        display_texture.update(None, display_buffer_rgb.without_lock().unwrap(), display_buffer_rgb.pitch() as usize)?;
+
+        canvas.clear();
+        canvas.copy(&display_texture, None, None)?;
+        canvas.present();
 
         let pause_text = if paused { " - PAUSED" } else { "" };
-        window.set_title(&format!("NES Emulator - {:.2}ms{}", frame_stats.get_avg_frame_time_ms(), pause_text))?;
+        canvas.window_mut().set_title(&format!("NES Emulator - {:.2}ms{}", frame_stats.get_avg_frame_time_ms(), pause_text))?;
         let frame_time = start_time.elapsed();
         frame_stats.add_reading(frame_time);
-        thread::sleep(Duration::new(0, 1_000_000_000u32 / 60).saturating_sub(frame_time));
     }
 
     Ok(())
