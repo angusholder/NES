@@ -56,11 +56,6 @@ pub struct PPU {
     tiles_palette_hi: u16,
     tiles_lo: u16,
     tiles_hi: u16,
-
-    next_nametable_byte: u8,
-    next_palette_index: u8,
-    next_tile_lo: u8,
-    next_tile_hi: u8,
 }
 
 /// The 0th element in this array is not used.
@@ -99,10 +94,6 @@ impl PPU {
             tiles_palette_hi: 0,
             tiles_lo: 0,
             tiles_hi: 0,
-            next_nametable_byte: 0,
-            next_palette_index: 0,
-            next_tile_lo: 0,
-            next_tile_hi: 0,
         }
     }
 
@@ -393,30 +384,29 @@ fn ppu_step_scanline(ppu: &mut PPU) {
     match dot {
         1..=256 | 321..=336 => {
             // Background fetches - https://www.nesdev.org/wiki/File:Ppu.svg
-            match dot % 8 {
-                1  => {
-                    let tile_addr = 0x2000 | (ppu.v_addr & 0x0FFF);
-                    ppu.next_nametable_byte = ppu.read_mem(tile_addr);
+            if dot % 8 == 0 {
+                // Cycles 1 & 2
+                let tile_addr = 0x2000 | (ppu.v_addr & 0x0FFF);
+                let tile_index: u8 = ppu.read_mem(tile_addr);
+
+                // Cycles 3 & 4
+                let palette_index: u8 = read_next_palette_index(ppu);
+
+                // Cycles 5 & 6
+                let pattern_addr = ppu.control.background_pattern_table + (tile_index as u16) * 16 + (scanline % 8) as u16;
+                let next_tile_lo: u8 = ppu.read_mem(pattern_addr);
+
+                // Cycles 7 & 0
+                let next_tile_hi: u8 = ppu.read_mem(pattern_addr + 8);
+
+                ppu.tiles_palette_lo = (ppu.tiles_palette_lo & 0x00FF) | if palette_index & 1 != 0 { 0xFF00 } else { 0x0000 };
+                ppu.tiles_palette_hi = (ppu.tiles_palette_hi & 0x00FF) | if palette_index & 2 != 0 { 0xFF00 } else { 0x0000 };
+                ppu.tiles_lo = (ppu.tiles_lo & 0x00FF) | (next_tile_lo.reverse_bits() as u16) << 8;
+                ppu.tiles_hi = (ppu.tiles_hi & 0x00FF) | (next_tile_hi.reverse_bits() as u16) << 8;
+
+                if ppu.rendering_enabled() {
+                    scroll_next_x(ppu);
                 }
-                3 => {
-                    ppu.next_palette_index = read_next_palette_index(ppu);
-                }
-                5 => {
-                    ppu.next_tile_lo = ppu.read_mem(ppu.control.background_pattern_table + (ppu.next_nametable_byte as u16) * 16 + (scanline % 8 as u16))
-                }
-                7 => {
-                    ppu.next_tile_hi = ppu.read_mem(ppu.control.background_pattern_table + (ppu.next_nametable_byte as u16) * 16 + (scanline % 8 as u16) + 8);
-                }
-                0 => {
-                    ppu.tiles_palette_lo = (ppu.tiles_palette_lo & 0x00FF) | if ppu.next_palette_index & 1 != 0 { 0xFF00 } else { 0x0000 };
-                    ppu.tiles_palette_hi = (ppu.tiles_palette_hi & 0x00FF) | if ppu.next_palette_index & 2 != 0 { 0xFF00 } else { 0x0000 };
-                    ppu.tiles_lo = (ppu.tiles_lo & 0x00FF) | (ppu.next_tile_lo.reverse_bits() as u16) << 8;
-                    ppu.tiles_hi = (ppu.tiles_hi & 0x00FF) | (ppu.next_tile_hi.reverse_bits() as u16) << 8;
-                    if ppu.rendering_enabled() {
-                        scroll_next_x(ppu);
-                    }
-                }
-                _ => {}
             }
             render_pixel(ppu);
         }
