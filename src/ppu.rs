@@ -303,7 +303,7 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
                 ppu.t_addr = (ppu.t_addr & !0x1F) | (val >> 3) as u16;
             } else {
                 let val = val as u16;
-                ppu.t_addr = (ppu.t_addr & !0b0001100_00011111) | (val & 0b11111000 << 2) | (val & 0b111 << 12);
+                ppu.t_addr = (ppu.t_addr & 0b0001100_00011111) | (val & 0b11111000 << 2) | (val & 0b111 << 12);
             }
             ppu.write_toggle_w = !ppu.write_toggle_w;
         }
