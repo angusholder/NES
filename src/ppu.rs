@@ -169,7 +169,7 @@ impl SpriteSize {
 }
 
 impl PPUControl {
-    pub fn from_bits(bits: u8) -> PPUControl {
+    fn from_bits(bits: u8) -> PPUControl {
         PPUControl {
             enable_nmi: bits & 0b1000_0000 != 0,
             slave_mode: bits & 0b0100_0000 != 0,
@@ -221,8 +221,7 @@ impl PPUMask {
 
 fn mask_register_addr(addr: u16) -> u16 { addr & 0x2007 }
 
-pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
-    let ppu = &mut nes.ppu;
+pub fn ppu_read_register(ppu: &mut PPU, addr: u16) -> u8 {
     match mask_register_addr(addr) {
         PPUSTATUS => {
             ppu.write_toggle_w = false;
@@ -274,9 +273,7 @@ pub fn ppu_read_register(nes: &mut NES, addr: u16) -> u8 {
     }
 }
 
-pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
-    let ppu = &mut nes.ppu;
-
+pub fn ppu_write_register(ppu: &mut PPU, addr: u16, val: u8) {
     // "Writing any value to any PPU port, even to the nominally read-only PPUSTATUS, will fill this latch" - https://www.nesdev.org/wiki/PPU_registers#Ports
     ppu.data_bus_latch = val;
 
@@ -344,38 +341,37 @@ const FIRST_SCANLINE: u32 = 0;
 const LAST_SCANLINE: u32 = 261;
 const DOTS_PER_SCANLINE: u32 = 341;
 
-pub fn ppu_step(nes: &mut NES) {
-    match nes.ppu.scanline {
+pub fn ppu_step(ppu: &mut PPU) {
+    match ppu.scanline {
         // Visible scanlines
         0..=239 => {
-            ppu_step_scanline(&mut nes.ppu);
+            ppu_step_scanline(ppu);
         }
         240 => {
-            if nes.ppu.dot == 0 {
+            if ppu.dot == 0 {
                 // A full frame has been rendered, make it visible
-                nes.ppu.flip_frame();
+                ppu.flip_frame();
             }
         }
         241 => {
-            if nes.ppu.dot == 1 {
-                nes.ppu.vblank_started = true;
-                if nes.ppu.control.enable_nmi {
-                    nes.ppu.request_nmi = true;
+            if ppu.dot == 1 {
+                ppu.vblank_started = true;
+                if ppu.control.enable_nmi {
+                    ppu.request_nmi = true;
                 }
             }
         }
         // Pre-render line - a dummy scanline to fill the shift registers ready for line 0
         261 => {
-            if nes.ppu.dot == 1 {
-                nes.ppu.vblank_started = false;
-                nes.ppu.sprite_0_hit = false;
+            if ppu.dot == 1 {
+                ppu.vblank_started = false;
+                ppu.sprite_0_hit = false;
             }
-            ppu_step_scanline(&mut nes.ppu);
+            ppu_step_scanline(ppu);
         }
         _ => {}
     }
 
-    let ppu = &mut nes.ppu;
     ppu.dot += 1;
     if ppu.dot >= DOTS_PER_SCANLINE {
         ppu.dot = 0;

@@ -196,7 +196,7 @@ impl NES {
         if addr < 0x2000 {
             return self.ram[addr as usize % 0x800];
         } else if addr < 0x4000 {
-            return ppu::ppu_read_register(self, addr);
+            return ppu::ppu_read_register(&mut self.ppu, addr);
         } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
             return self.input.handle_register_access(addr, 0, false);
         } else if addr < 0x4020 {
@@ -230,7 +230,7 @@ impl NES {
         if addr < 0x2000 {
             self.ram[addr as usize % 0x800] = val;
         } else if addr < 0x4000 {
-            ppu::ppu_write_register(self, addr, val);
+            ppu::ppu_write_register(&mut self.ppu, addr, val);
         } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
             self.input.handle_register_access(addr, val, true);
         } else if addr == 0x4014 {
@@ -278,9 +278,9 @@ impl NES {
     pub fn tick(&mut self) {
         self.remaining_cycles -= 1;
         self.total_cycles += 1;
-        ppu::ppu_step(self);
-        ppu::ppu_step(self);
-        ppu::ppu_step(self);
+        ppu::ppu_step(&mut self.ppu);
+        ppu::ppu_step(&mut self.ppu);
+        ppu::ppu_step(&mut self.ppu);
     }
 
     pub fn get_cycles(&self) -> u64 {
