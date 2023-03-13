@@ -411,8 +411,8 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 }
                 0 => {
                     ppu.attribute_byte = ppu.next_attribute_byte;
-                    ppu.tiles_lo |= (ppu.next_tile_lo.reverse_bits() as u16) << 8;
-                    ppu.tiles_hi |= (ppu.next_tile_hi.reverse_bits() as u16) << 8;
+                    ppu.tiles_lo = (ppu.tiles_lo & 0x00FF) | (ppu.next_tile_lo.reverse_bits() as u16) << 8;
+                    ppu.tiles_hi = (ppu.tiles_hi & 0x00FF) | (ppu.next_tile_hi.reverse_bits() as u16) << 8;
                     if ppu.rendering_enabled() {
                         scroll_next_x(ppu);
                     }
