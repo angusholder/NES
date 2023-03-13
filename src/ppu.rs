@@ -499,8 +499,6 @@ fn render_pixel(ppu: &mut PPU) {
             if bg_color_index != 0 {
                 bg_color_index |= palette_index << 2;
             }
-            ppu.tiles_lo >>= 1;
-            ppu.tiles_hi >>= 1;
         }
 
         let mut sprite_color_index: u8 = 0;
@@ -546,6 +544,11 @@ fn render_pixel(ppu: &mut PPU) {
 
         ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = ppu.palettes[pixel_index as usize];
     }
+
+    // These shift registers need to shift even if we're not rendering pixels, so that cycles
+    // 321-336 correctly prefetch the first two tiles for the next scanline
+    ppu.tiles_lo >>= 1;
+    ppu.tiles_hi >>= 1;
 }
 
 fn get_tile_address(base_addr: u16, tile_no: u8, y_offset: u32, high: bool) -> u16 {
