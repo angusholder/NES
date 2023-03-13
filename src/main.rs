@@ -148,7 +148,7 @@ fn load_nes_system(
 }
 
 fn load_nes_palette() -> Palette {
-    static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../ntscpalette_24bpp.pal");
+    static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../nestopia_rgb.pal");
 
     let mut colors = [Color::BLACK; 64];
     for i in 0..64 {
