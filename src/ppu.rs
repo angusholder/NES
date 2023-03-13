@@ -40,6 +40,7 @@ pub struct PPU {
     mapper: Mapper,
 
     vblank_started: bool,
+    pub request_nmi: bool,
 
     /// Filled with values 0-63, which are indices into "ntscpalette_24bpp.pal".
     /// This is the in-progress frame that is being drawn.
@@ -85,6 +86,7 @@ impl PPU {
             mapper,
 
             vblank_started: true,
+            request_nmi: false,
 
             cur_display_buffer: [0; 256 * 240],
             finished_display_buffer: [0; 256 * 240],
@@ -358,7 +360,7 @@ pub fn ppu_step(nes: &mut NES) {
             if nes.ppu.dot == 1 {
                 nes.ppu.vblank_started = true;
                 if nes.ppu.control.enable_nmi {
-                    nes.trigger_nmi = true;
+                    nes.ppu.request_nmi = true;
                 }
             }
         }

@@ -27,7 +27,6 @@ pub struct NES {
 
     pub mapper: Mapper,
 
-    pub trigger_nmi: bool,
     trigger_irq: bool,
 
     pub trace_output: Option<Box<dyn Write>>,
@@ -137,7 +136,6 @@ impl NES {
             total_cycles: 0,
             ppu: PPU::new(mapper.clone()),
             mapper,
-            trigger_nmi: false,
             trigger_irq: false,
             trace_output,
 
@@ -163,9 +161,9 @@ impl NES {
     pub fn simulate_frame(&mut self) {
         self.remaining_cycles += CYCLES_PER_FRAME as i64;
         while self.remaining_cycles > 0 {
-            if self.trigger_nmi {
+            if self.ppu.request_nmi {
                 self.interrupt(Interrupt::NMI);
-                self.trigger_nmi = false;
+                self.ppu.request_nmi = false;
             } else if self.trigger_irq && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
             }
