@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::BitOr;
-use log::warn;
+use log::{info, warn};
 use sdl2::EventPump;
 use sdl2::keyboard::Scancode;
 
@@ -24,11 +24,15 @@ impl InputState {
     }
 
     pub fn update_key_state(&mut self, event_pump: &EventPump) {
+        let prev_pressed = self.pressed.clone();
         self.pressed.clear();
         for (scan_code, button) in self.key_map.iter() {
             if event_pump.keyboard_state().is_scancode_pressed(*scan_code) {
                 self.pressed.insert(*button);
             }
+        }
+        for new_button in self.pressed.difference(&prev_pressed) {
+            info!("Pressed {new_button:?}");
         }
     }
 
