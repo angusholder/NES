@@ -52,12 +52,13 @@ pub struct PPU {
 
     dot: u32, // 0-340
     scanline: u32, // 0-261
-    attribute_byte: u8,
+    tiles_palette_lo: u16,
+    tiles_palette_hi: u16,
     tiles_lo: u16,
     tiles_hi: u16,
 
     next_nametable_byte: u8,
-    next_attribute_byte: u8,
+    next_palette_index: u8,
     next_tile_lo: u8,
     next_tile_hi: u8,
 }
@@ -94,11 +95,12 @@ impl PPU {
 
             dot: 0,
             scanline: 0,
-            attribute_byte: 0,
+            tiles_palette_lo: 0,
+            tiles_palette_hi: 0,
             tiles_lo: 0,
             tiles_hi: 0,
             next_nametable_byte: 0,
-            next_attribute_byte: 0,
+            next_palette_index: 0,
             next_tile_lo: 0,
             next_tile_hi: 0,
         }
@@ -400,7 +402,9 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 3 => {
                     let v = ppu.v_addr;
                     let attr_addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-                    ppu.next_attribute_byte = ppu.read_mem(attr_addr);
+                    let attr = ppu.read_mem(attr_addr);
+                    let shift_amount = get_attr_byte_rshift_amount(ppu);
+                    ppu.next_palette_index = attr >> shift_amount & 0b11;
                 }
                 5 => {
                     ppu.next_tile_lo = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, false))
@@ -409,7 +413,8 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                     ppu.next_tile_hi = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, true));
                 }
                 0 => {
-                    ppu.attribute_byte = ppu.next_attribute_byte;
+                    ppu.tiles_palette_lo = (ppu.tiles_palette_lo & 0x00FF) | if ppu.next_palette_index & 1 != 0 { 0xFF00 } else { 0x0000 };
+                    ppu.tiles_palette_hi = (ppu.tiles_palette_hi & 0x00FF) | if ppu.next_palette_index & 2 != 0 { 0xFF00 } else { 0x0000 };
                     ppu.tiles_lo = (ppu.tiles_lo & 0x00FF) | (ppu.next_tile_lo.reverse_bits() as u16) << 8;
                     ppu.tiles_hi = (ppu.tiles_hi & 0x00FF) | (ppu.next_tile_hi.reverse_bits() as u16) << 8;
                     if ppu.rendering_enabled() {
@@ -493,7 +498,7 @@ fn render_pixel(ppu: &mut PPU) {
     if ppu.scanline < 240 && x < 256 {
         let mut bg_color_index = 0;
         if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
-            let palette_index = read_attribute_byte(ppu.attribute_byte, ppu.dot, ppu.scanline);
+            let palette_index = (ppu.tiles_palette_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_palette_hi >> ppu.fine_x & 1) << 1) as u8;
             bg_color_index = (ppu.tiles_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_hi >> ppu.fine_x & 1) << 1) as u8;
             if bg_color_index != 0 {
                 bg_color_index |= palette_index << 2;
@@ -548,6 +553,8 @@ fn render_pixel(ppu: &mut PPU) {
     // 321-336 correctly prefetch the first two tiles for the next scanline
     ppu.tiles_lo >>= 1;
     ppu.tiles_hi >>= 1;
+    ppu.tiles_palette_lo >>= 1;
+    ppu.tiles_palette_hi >>= 1;
 }
 
 fn get_tile_address(base_addr: u16, tile_no: u8, y_offset: u32, high: bool) -> u16 {
@@ -559,15 +566,19 @@ fn get_tile_address(base_addr: u16, tile_no: u8, y_offset: u32, high: bool) -> u
     tile_addr
 }
 
-fn read_attribute_byte(attribute: u8, x: u32, y: u32) -> u8 {
+fn get_attr_byte_rshift_amount(ppu: &mut PPU) -> u32 {
+    let v = ppu.v_addr as u32;
+    let x16 = v >> 1 & 1; // 16 is bit 1, the 2nd bit of coarse X
+    let y16 = v >> 6 & 1; // 16 is bit 6, the 2nd bit of coarse Y
+
     let mut shift: u32 = 0;
-    if x & 16 != 0 {
+    if x16 != 0 {
         shift += 2;
     }
-    if y & 16 != 0 {
+    if y16 != 0 {
         shift += 4;
     }
-    attribute >> shift & 0b11
+    shift
 }
 
 const NUM_SPRITES: usize = 64;
