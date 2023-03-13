@@ -402,10 +402,10 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                     ppu.next_palette_index = read_next_palette_index(ppu);
                 }
                 5 => {
-                    ppu.next_tile_lo = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, false))
+                    ppu.next_tile_lo = ppu.read_mem(ppu.control.background_pattern_table + (ppu.next_nametable_byte as u16) * 16 + (scanline % 8 as u16))
                 }
                 7 => {
-                    ppu.next_tile_hi = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, true));
+                    ppu.next_tile_hi = ppu.read_mem(ppu.control.background_pattern_table + (ppu.next_nametable_byte as u16) * 16 + (scanline % 8 as u16) + 8);
                 }
                 0 => {
                     ppu.tiles_palette_lo = (ppu.tiles_palette_lo & 0x00FF) | if ppu.next_palette_index & 1 != 0 { 0xFF00 } else { 0x0000 };
@@ -553,15 +553,6 @@ fn render_pixel(ppu: &mut PPU) {
     ppu.tiles_palette_hi >>= 1;
 }
 
-fn get_tile_address(base_addr: u16, tile_no: u8, y_offset: u32, high: bool) -> u16 {
-    assert!(y_offset < 8);
-    let mut tile_addr = base_addr + (tile_no as u16) * 16 + (y_offset as u16);
-    if high {
-        tile_addr += 8;
-    }
-    tile_addr
-}
-
 fn read_next_palette_index(ppu: &mut PPU) -> u8 {
     let v = ppu.v_addr as u32;
     let attr_addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
@@ -633,7 +624,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) -> [SpriteRowSlice; 8] {
                 if attrs & SPRITE_ATTR_FLIP_V != 0 {
                     y_offset = 7 - y_offset;
                 }
-                let pattern_addr = get_tile_address(ppu.control.sprite_pattern_table, tile_index, y_offset, false);
+                let pattern_addr = ppu.control.sprite_pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
                 let mut pat_lower = ppu.read_mem(pattern_addr);
                 let mut pat_upper = ppu.read_mem(pattern_addr + 8);
                 if attrs & SPRITE_ATTR_FLIP_H == 0 {
@@ -694,23 +685,4 @@ fn test_interleave_bits() {
             assert_eq!(slow_res, fast_res);
         }
     }
-}
-
-#[test]
-fn test_tile_address() {
-    assert_eq!(get_tile_address(0x0000, 0, 0, false), 0x0000);
-    assert_eq!(get_tile_address(0x0000, 0, 0, true ), 0x0008);
-    assert_eq!(get_tile_address(0x0000, 0, 1, false), 0x0001);
-    assert_eq!(get_tile_address(0x0000, 0, 1, true ), 0x0009);
-    assert_eq!(get_tile_address(0x0000, 0, 7, false), 0x0007);
-    assert_eq!(get_tile_address(0x0000, 0, 7, true ), 0x000F);
-
-    assert_eq!(get_tile_address(0x1000, 0, 0, false), 0x1000);
-    assert_eq!(get_tile_address(0x1000, 0, 0, true ), 0x1008);
-    assert_eq!(get_tile_address(0x1000, 0, 1, false), 0x1001);
-    assert_eq!(get_tile_address(0x1000, 0, 1, true ), 0x1009);
-    assert_eq!(get_tile_address(0x1000, 0, 7, false), 0x1007);
-    assert_eq!(get_tile_address(0x1000, 0, 7, true ), 0x100F);
-
-    assert_eq!(get_tile_address(0x0000, 1, 0, false), 0x0010);
 }
