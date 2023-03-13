@@ -281,7 +281,8 @@ pub fn ppu_write_register(nes: &mut NES, addr: u16, val: u8) {
     match mask_register_addr(addr) {
         PPUCTRL => {
             ppu.control = PPUControl::from_bits(val);
-            ppu.t_addr |= 0b11_00000_00000 & ppu.control.base_nametable_addr;
+            let nt_mask = 0b11_00000_00000;
+            ppu.t_addr = (ppu.t_addr & !nt_mask) | (ppu.control.base_nametable_addr & nt_mask);
         }
         PPUMASK => {
             ppu.mask = PPUMask::from_bits(val);
