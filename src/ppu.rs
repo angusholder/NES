@@ -392,7 +392,6 @@ fn ppu_step_scanline(ppu: &mut PPU) {
     // See the cycles here https://www.nesdev.org/wiki/PPU_rendering#Visible_scanlines_(0-239)
     match dot {
         1..=256 | 321..=336 => {
-            render_pixel(ppu);
             // Background fetches - https://www.nesdev.org/wiki/File:Ppu.svg
             match dot % 8 {
                 1  => {
@@ -400,11 +399,7 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                     ppu.next_nametable_byte = ppu.read_mem(tile_addr);
                 }
                 3 => {
-                    let v = ppu.v_addr;
-                    let attr_addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-                    let attr = ppu.read_mem(attr_addr);
-                    let shift_amount = get_attr_byte_rshift_amount(ppu);
-                    ppu.next_palette_index = attr >> shift_amount & 0b11;
+                    ppu.next_palette_index = read_next_palette_index(ppu);
                 }
                 5 => {
                     ppu.next_tile_lo = ppu.read_mem(get_tile_address(ppu.control.background_pattern_table, ppu.next_nametable_byte, scanline % 8, false))
@@ -423,6 +418,7 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 }
                 _ => {}
             }
+            render_pixel(ppu);
         }
         // Sprite-loading interval
         257..=320 => {
@@ -566,19 +562,20 @@ fn get_tile_address(base_addr: u16, tile_no: u8, y_offset: u32, high: bool) -> u
     tile_addr
 }
 
-fn get_attr_byte_rshift_amount(ppu: &mut PPU) -> u32 {
+fn read_next_palette_index(ppu: &mut PPU) -> u8 {
     let v = ppu.v_addr as u32;
-    let x16 = v >> 1 & 1; // 16 is bit 1, the 2nd bit of coarse X
-    let y16 = v >> 6 & 1; // 16 is bit 6, the 2nd bit of coarse Y
+    let attr_addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
+    let attr = ppu.read_mem(attr_addr as u16);
 
     let mut shift: u32 = 0;
-    if x16 != 0 {
+    if (v >> 1 & 1) != 0 { // the 2nd bit of coarse X (the 16s digit of X)
         shift += 2;
     }
-    if y16 != 0 {
+    if (v >> 6 & 1) != 0 { // the 2nd bit of coarse Y (the 16s digit of Y)
         shift += 4;
     }
-    shift
+
+    attr >> shift & 0b11
 }
 
 const NUM_SPRITES: usize = 64;
