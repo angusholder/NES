@@ -2716,7 +2716,7 @@ mod jmp_absolute {
         nes.ram[1] = 0x04;
         nes.ram[2] = 0x00;
         nes.ram[3] = 0x00;
-        nes.ram[4] = SED_IMPLIED;
+        nes.ram[4] = SED;
         emulate_instructions(nes, 2);
         assert_eq!(true, nes.SR.D);
     }
@@ -2735,7 +2735,7 @@ mod jmp_indirect {
         nes.ram[3] = 0x00;
         nes.ram[4] = 0x06;
         nes.ram[5] = 0x00;
-        nes.ram[6] = SED_IMPLIED;
+        nes.ram[6] = SED;
         emulate_instructions(nes, 2);
         assert_eq!(true, nes.SR.D);
     }
