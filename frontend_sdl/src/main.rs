@@ -1,17 +1,3 @@
-#![allow(dead_code)]
-
-mod cartridge;
-mod nes;
-mod cpu_ops;
-#[cfg(test)]
-mod test_cpu;
-mod cpu;
-mod ppu;
-mod mapper;
-mod disassemble;
-mod input;
-mod apu;
-
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::io::Write;
@@ -27,11 +13,12 @@ use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_me
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::surface::Surface;
 use sdl2::video::Window;
-use crate::apu::{AudioChannels, SampleBuffer};
-use crate::input::JoypadButtons;
-use crate::mapper::Mapper;
-use crate::nes::NES;
-use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
+use nes_core::apu::{AudioChannels, SampleBuffer};
+use nes_core::cartridge;
+use nes_core::input::JoypadButtons;
+use nes_core::mapper::Mapper;
+use nes_core::nes::NES;
+use nes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH, self};
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();

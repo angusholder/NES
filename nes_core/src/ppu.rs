@@ -139,7 +139,7 @@ pub struct Color {
 }
 
 fn get_output_color(palette_index: u8) -> Color {
-    static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../nestopia_rgb.pal");
+    static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../../nestopia_rgb.pal");
 
     let r = PALETTE_LOOKUP[palette_index as usize * 3 + 0];
     let g = PALETTE_LOOKUP[palette_index as usize * 3 + 1];

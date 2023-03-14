@@ -25,6 +25,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "frontend_sdl"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "log",
+ "nes_core",
+ "sdl2",
+]
+
+[[package]]
 name = "humantime"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -38,9 +48,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.137"
+version = "0.2.140"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
+checksum = "99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c"
 
 [[package]]
 name = "log"
@@ -52,13 +62,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "nes_emu"
+name = "nes_core"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "env_logger",
  "log",
- "sdl2",
 ]
 
 [[package]]
