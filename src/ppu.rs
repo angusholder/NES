@@ -393,7 +393,8 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 let palette_index: u8 = read_next_palette_index(ppu);
 
                 // Cycles 5 & 6
-                let pattern_addr = ppu.control.background_pattern_table + (tile_index as u16) * 16 + (scanline % 8) as u16;
+                let fine_y: u16 = ppu.v_addr >> 12 & 0b111;
+                let pattern_addr = ppu.control.background_pattern_table + (tile_index as u16) * 16 + fine_y;
                 let next_tile_lo: u8 = ppu.mapper.read_ppu_bus(pattern_addr);
 
                 // Cycles 7 & 0
