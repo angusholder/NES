@@ -1,6 +1,5 @@
 use crate::mapper::Mapper;
 use crate::nes::{NES};
-use crate::{SCREEN_PIXELS};
 
 const PPUCTRL: u16 = 0x2000;
 const PPUMASK: u16 = 0x2001;
@@ -121,9 +120,32 @@ impl PPU {
         self.finished_display_buffer.copy_from_slice(&self.cur_display_buffer)
     }
 
-    pub fn output_display_buffer(&self, output: &mut [u8]) {
-        output.copy_from_slice(&self.finished_display_buffer);
+    pub fn output_display_buffer(&self, output: &mut [Color; SCREEN_PIXELS]) {
+        for (i, palette_index) in self.finished_display_buffer.iter().enumerate() {
+            output[i] = get_output_color(*palette_index);
+        }
     }
+}
+
+pub const SCREEN_WIDTH: u32 = 256;
+pub const SCREEN_HEIGHT: u32 = 240;
+pub const SCREEN_PIXELS: usize = (SCREEN_WIDTH * SCREEN_HEIGHT) as usize;
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+fn get_output_color(palette_index: u8) -> Color {
+    static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../nestopia_rgb.pal");
+
+    let r = PALETTE_LOOKUP[palette_index as usize * 3 + 0];
+    let g = PALETTE_LOOKUP[palette_index as usize * 3 + 1];
+    let b = PALETTE_LOOKUP[palette_index as usize * 3 + 2];
+
+    Color { r, g, b }
 }
 
 fn mask_palette_addr(addr: u16) -> usize {

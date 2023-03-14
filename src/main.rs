@@ -17,7 +17,7 @@ use std::error::Error;
 use std::io::Write;
 use std::panic::catch_unwind;
 use std::path::Path;
-use sdl2::pixels::{Color, Palette, PixelFormatEnum};
+use sdl2::pixels::{PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use std::time::{Duration, Instant};
@@ -31,10 +31,7 @@ use crate::apu::{AudioChannels, SampleBuffer};
 use crate::input::JoypadButtons;
 use crate::mapper::Mapper;
 use crate::nes::NES;
-
-pub const SCREEN_WIDTH: u32 = 256;
-pub const SCREEN_HEIGHT: u32 = 240;
-pub const SCREEN_PIXELS: usize = (SCREEN_WIDTH * SCREEN_HEIGHT) as usize;
+use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -76,8 +73,6 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
     let mut display_texture: Texture = texture_creator.create_texture_streaming(PixelFormatEnum::ARGB8888, SCREEN_WIDTH, SCREEN_HEIGHT)?;
 
-    let mut display_buffer_paletted = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::Index8)?;
-    display_buffer_paletted.set_palette(&load_nes_palette())?;
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
     let mut audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
@@ -134,8 +129,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
                 nes.simulate_frame();
 
-                nes.ppu.output_display_buffer(display_buffer_paletted.without_lock_mut().unwrap());
-                display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
+                render_nes_to_surface(&mut display_buffer_rgb, nes);
             }
         }
         display_texture.update(None, display_buffer_rgb.without_lock().unwrap(), display_buffer_rgb.pitch() as usize)?;
@@ -153,6 +147,18 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn render_nes_to_surface(display_buffer_rgb: &mut Surface, nes: &mut NES) {
+    let mut data = [ppu::Color::default(); ppu::SCREEN_PIXELS];
+    nes.ppu.output_display_buffer(&mut data);
+    let display = display_buffer_rgb.without_lock_mut().unwrap();
+    for (i, color) in data.iter().enumerate() {
+        display[i * 4 + 3] = 255;
+        display[i * 4 + 2] = color.r;
+        display[i * 4 + 1] = color.g;
+        display[i * 4 + 0] = color.b;
+    }
+}
+
 fn load_nes_system(
     filename: &String,
     trace_output: Option<Box<dyn Write>>,
@@ -162,20 +168,6 @@ fn load_nes_system(
     let mut nes = Box::new(NES::new(mapper, trace_output));
     nes.power_on();
     Ok(nes)
-}
-
-fn load_nes_palette() -> Palette {
-    static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../nestopia_rgb.pal");
-
-    let mut colors = [Color::BLACK; 64];
-    for i in 0..64 {
-        let r = PALETTE_LOOKUP[i * 3 + 0];
-        let g = PALETTE_LOOKUP[i * 3 + 1];
-        let b = PALETTE_LOOKUP[i * 3 + 2];
-        colors[i] = Color::RGB(r, g, b);
-    }
-
-    Palette::with_colors(&colors).unwrap()
 }
 
 fn display_error_dialog(title: &str, message: &str) {
