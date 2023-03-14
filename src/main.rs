@@ -12,21 +12,23 @@ mod disassemble;
 mod input;
 mod apu;
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::io::Write;
 use std::panic::catch_unwind;
 use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Scancode};
 use std::time::{Duration, Instant};
 use sdl2::audio::AudioDevice;
+use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::surface::Surface;
 use sdl2::video::Window;
 use crate::apu::{AudioChannels, NesAudioCallback};
+use crate::input::JoypadButtons;
 use crate::mapper::Mapper;
 use crate::nes::NES;
 
@@ -80,6 +82,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
     let mut audio_device: AudioDevice<NesAudioCallback> = apu::create_audio_device(&sdl_context);
 
+    let keymap: Keymap = get_key_map();
+
     let mut frame_stats = FrameStats::new();
     let mut event_pump = sdl_context.event_pump()?;
     let mut nes: Option<Box<NES>> = None;
@@ -124,7 +128,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
         if !paused {
             if let Some(nes) = &mut nes {
-                nes.input.update_key_state(&event_pump);
+                nes.input.update_key_state(get_pressed_buttons(&event_pump, &keymap));
 
                 nes.simulate_frame();
 
@@ -180,6 +184,32 @@ fn display_error_dialog(title: &str, message: &str) {
         message,
         None, None,
     ).unwrap();
+}
+
+type Keymap = HashMap<Scancode, JoypadButtons>;
+
+fn get_key_map() -> Keymap {
+    let mut map = HashMap::new();
+    map.insert(Scancode::Z, JoypadButtons::A);
+    map.insert(Scancode::X, JoypadButtons::B);
+    map.insert(Scancode::A, JoypadButtons::SELECT);
+    map.insert(Scancode::S, JoypadButtons::START);
+    map.insert(Scancode::Return, JoypadButtons::START);
+    map.insert(Scancode::Up, JoypadButtons::UP);
+    map.insert(Scancode::Down, JoypadButtons::DOWN);
+    map.insert(Scancode::Left, JoypadButtons::LEFT);
+    map.insert(Scancode::Right, JoypadButtons::RIGHT);
+    map
+}
+
+pub fn get_pressed_buttons(event_pump: &EventPump, keymap: &Keymap) -> JoypadButtons {
+    let mut pressed = JoypadButtons::empty();
+    for (scan_code, button) in keymap.iter() {
+        if event_pump.keyboard_state().is_scancode_pressed(*scan_code) {
+            pressed.insert(*button);
+        }
+    }
+    pressed
 }
 
 struct FrameStats {
