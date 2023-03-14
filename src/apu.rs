@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use bitflags::bitflags;
 use log::{info, warn};
-use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 
 pub struct APU {
     output_buffer: Option<SampleBuffer>,
@@ -40,10 +39,10 @@ pub struct SampleBuffer {
 }
 
 impl SampleBuffer {
-    pub fn new(spec: &AudioSpec) -> SampleBuffer {
+    pub fn new(freq: u32) -> SampleBuffer {
         SampleBuffer {
             buffer: Arc::new(Mutex::new(VecDeque::new())),
-            samples_per_second: spec.freq as u32,
+            samples_per_second: freq,
         }
     }
 
@@ -75,21 +74,6 @@ impl SampleBuffer {
     }
 }
 
-pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
-    let audio_subsystem = sdl.audio().unwrap();
-    let audio_spec = AudioSpecDesired {
-        freq: Some(48_000),
-        channels: Some(1),
-        samples: None,
-    };
-    audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
-        println!("Got audio spec: {spec:?}");
-        NesAudioCallback {
-            output_buffer: SampleBuffer::new(&spec),
-        }
-    }).unwrap()
-}
-
 impl APU {
     pub fn new() -> APU {
         APU {
@@ -111,10 +95,8 @@ impl APU {
         }
     }
 
-    pub fn attach_output_device(&mut self, device: &mut AudioDevice<NesAudioCallback>) {
-        let mut sample_buffer = device.lock().get_output_buffer();
-        sample_buffer.clear();
-        self.output_buffer = Some(sample_buffer);
+    pub fn attach_output_device(&mut self, output_buffer: SampleBuffer) {
+        self.output_buffer = Some(output_buffer);
     }
 
     pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {
@@ -203,24 +185,6 @@ impl APU {
 }
 
 const CPU_FREQ: u32 = 1_789_773; // 1.789773 MHz
-
-pub struct NesAudioCallback {
-    output_buffer: SampleBuffer,
-}
-
-impl NesAudioCallback {
-    pub fn get_output_buffer(&self) -> SampleBuffer {
-        self.output_buffer.clone_ref()
-    }
-}
-
-impl AudioCallback for NesAudioCallback {
-    type Channel = f32;
-
-    fn callback(&mut self, out: &mut [f32]) {
-        self.output_buffer.output_samples(out);
-    }
-}
 
 struct SquareWave {
     volume: f32,

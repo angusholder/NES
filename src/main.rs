@@ -21,13 +21,13 @@ use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use std::time::{Duration, Instant};
-use sdl2::audio::AudioDevice;
+use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::surface::Surface;
 use sdl2::video::Window;
-use crate::apu::{AudioChannels, NesAudioCallback};
+use crate::apu::{AudioChannels, SampleBuffer};
 use crate::input::JoypadButtons;
 use crate::mapper::Mapper;
 use crate::nes::NES;
@@ -80,7 +80,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     display_buffer_paletted.set_palette(&load_nes_palette())?;
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
-    let mut audio_device: AudioDevice<NesAudioCallback> = apu::create_audio_device(&sdl_context);
+    let mut audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
 
     let keymap: Keymap = get_key_map();
 
@@ -113,7 +113,9 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                     let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
                     match load_nes_system(&filename, trace_output) {
                         Ok(mut new_nes) => {
-                            new_nes.apu.attach_output_device(&mut audio_device);
+                            let mut sample_buffer = audio_device.lock().get_output_buffer();
+                            sample_buffer.clear();
+                            new_nes.apu.attach_output_device(sample_buffer);
                             audio_device.resume();
                             nes = Some(new_nes);
                         }
@@ -243,4 +245,37 @@ impl FrameStats {
         let mean = total_time / self.frame_times.len() as u32;
         mean.as_micros() as f64 / 1000.0
     }
+}
+
+pub struct NesAudioCallback {
+    output_buffer: SampleBuffer,
+}
+
+impl NesAudioCallback {
+    pub fn get_output_buffer(&self) -> SampleBuffer {
+        self.output_buffer.clone_ref()
+    }
+}
+
+impl AudioCallback for NesAudioCallback {
+    type Channel = f32;
+
+    fn callback(&mut self, out: &mut [f32]) {
+        self.output_buffer.output_samples(out);
+    }
+}
+
+pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
+    let audio_subsystem = sdl.audio().unwrap();
+    let audio_spec = AudioSpecDesired {
+        freq: Some(48_000),
+        channels: Some(1),
+        samples: None,
+    };
+    audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
+        println!("Got audio spec: {spec:?}");
+        NesAudioCallback {
+            output_buffer: SampleBuffer::new(spec.freq as u32),
+        }
+    }).unwrap()
 }
