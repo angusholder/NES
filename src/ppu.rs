@@ -419,7 +419,7 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 // I don't think there's an observable difference between this and the real thing.
                 // https://www.nesdev.org/wiki/PPU_sprite_evaluation
                 if dot == 257 {
-                    ppu.cur_line_sprites = evaluate_sprites_for_line(ppu, scanline + 1);
+                    ppu.cur_line_sprites = evaluate_sprites_for_line(ppu, scanline);
                 }
             }
         }
@@ -480,7 +480,7 @@ fn scroll_next_y(ppu: &mut PPU) {
 }
 
 fn render_pixel(ppu: &mut PPU) {
-    let x = ppu.dot.wrapping_sub(2);
+    let x = ppu.dot;
     if ppu.scanline < 240 && x < 256 {
         let mut bg_color_index = 0;
         if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
