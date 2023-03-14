@@ -1,12 +1,12 @@
-use std::collections::{HashMap, HashSet};
-use std::ops::BitOr;
+use std::collections::{HashMap};
+use bitflags::bitflags;
 use log::{info, warn};
 use sdl2::EventPump;
 use sdl2::keyboard::Scancode;
 
 pub struct InputState {
-    key_map: HashMap<Scancode, JoypadButton>,
-    pressed: HashSet<JoypadButton>,
+    key_map: HashMap<Scancode, JoypadButtons>,
+    pressed: JoypadButtons,
 
     is_polling: bool,
     joypad1_shift_register: u8,
@@ -16,7 +16,7 @@ impl InputState {
     pub fn new() -> Self {
         Self {
             key_map: get_key_map(),
-            pressed: HashSet::with_capacity(8),
+            pressed: JoypadButtons::empty(),
 
             is_polling: false,
             joypad1_shift_register: 0,
@@ -24,16 +24,14 @@ impl InputState {
     }
 
     pub fn update_key_state(&mut self, event_pump: &EventPump) {
-        let prev_pressed = self.pressed.clone();
-        self.pressed.clear();
+        let prev_pressed = self.pressed;
+        self.pressed = JoypadButtons::empty();
         for (scan_code, button) in self.key_map.iter() {
             if event_pump.keyboard_state().is_scancode_pressed(*scan_code) {
                 self.pressed.insert(*button);
             }
         }
-        for new_button in self.pressed.difference(&prev_pressed) {
-            info!("Pressed {new_button:?}");
-        }
+        info!("Pressed {:?}", self.pressed.difference(prev_pressed));
     }
 
     pub fn handle_register_access(&mut self, addr: u16, val: u8, write: bool) -> u8 {
@@ -69,42 +67,34 @@ impl InputState {
     /// Returns the current state of the joypad as a bitmask.
     /// https://www.nesdev.org/wiki/Standard_controller
     fn get_button_bitmask(&self) -> u8 {
-        self.pressed
-            .iter()
-            .map(|b| b.get_bit())
-            .fold(0, u8::bitor)
+        self.pressed.bits()
     }
 }
 
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
-enum JoypadButton {
-    A = 0,
-    B = 1,
-    Select = 2,
-    Start = 3,
-    Up = 4,
-    Down = 5,
-    Left = 6,
-    Right = 7,
-}
-
-impl JoypadButton {
-    fn get_bit(&self) -> u8 {
-        1 << *self as u8
+bitflags! {
+    pub struct JoypadButtons : u8 {
+        const A = 0;
+        const B = 1;
+        const SELECT = 2;
+        const START = 3;
+        const UP = 4;
+        const DOWN = 5;
+        const LEFT = 6;
+        const RIGHT = 7;
     }
 }
 
-fn get_key_map() -> HashMap<Scancode, JoypadButton> {
+fn get_key_map() -> HashMap<Scancode, JoypadButtons> {
     let mut map = HashMap::new();
-    map.insert(Scancode::Z, JoypadButton::A);
-    map.insert(Scancode::X, JoypadButton::B);
-    map.insert(Scancode::A, JoypadButton::Select);
-    map.insert(Scancode::S, JoypadButton::Start);
-    map.insert(Scancode::Return, JoypadButton::Start);
-    map.insert(Scancode::Up, JoypadButton::Up);
-    map.insert(Scancode::Down, JoypadButton::Down);
-    map.insert(Scancode::Left, JoypadButton::Left);
-    map.insert(Scancode::Right, JoypadButton::Right);
+    map.insert(Scancode::Z, JoypadButtons::A);
+    map.insert(Scancode::X, JoypadButtons::B);
+    map.insert(Scancode::A, JoypadButtons::SELECT);
+    map.insert(Scancode::S, JoypadButtons::START);
+    map.insert(Scancode::Return, JoypadButtons::START);
+    map.insert(Scancode::Up, JoypadButtons::UP);
+    map.insert(Scancode::Down, JoypadButtons::DOWN);
+    map.insert(Scancode::Left, JoypadButtons::LEFT);
+    map.insert(Scancode::Right, JoypadButtons::RIGHT);
     map
 }
 
