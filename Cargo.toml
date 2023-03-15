@@ -1,2 +1,2 @@
 [workspace]
-members = ["nes_core", "frontend_sdl"]
+members = ["nes_core", "frontend_sdl", "frontend_windows"]
