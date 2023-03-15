@@ -7,6 +7,7 @@ use sdl2::pixels::{PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use std::time::{Duration, Instant};
+use log::info;
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
@@ -46,15 +47,18 @@ fn main() {
 fn main_loop() -> Result<(), Box<dyn Error>> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
+    info!("Video driver: {}", video_subsystem.current_video_driver());
 
     let window: Window = video_subsystem.window("NES Emulator", SCREEN_WIDTH*3, SCREEN_HEIGHT*3)
         .position_centered()
         .build()?;
+    info!("Window {:?}", window.display_mode()?);
 
     let mut canvas: WindowCanvas = window.into_canvas()
         .accelerated()
         .present_vsync()
         .build()?;
+    info!("Renderer {:?}", canvas.info());
 
     let texture_creator: TextureCreator<_> = canvas.texture_creator();
 
@@ -63,6 +67,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
     let mut audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
+    info!("Got audio device: {:?}", audio_device.spec());
 
     let keymap: Keymap = get_key_map();
 
@@ -252,7 +257,6 @@ pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
         samples: None,
     };
     audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
-        println!("Got audio spec: {spec:?}");
         NesAudioCallback {
             output_buffer: SampleBuffer::new(spec.freq as u32),
         }
