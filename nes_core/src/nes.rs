@@ -172,6 +172,7 @@ impl NES {
             }
             cpu::emulate_instruction(self);
         }
+        self.apu.run_until_cycle(self.total_cycles);
     }
 
     pub fn interrupt(&mut self, interrupt: Interrupt) {
