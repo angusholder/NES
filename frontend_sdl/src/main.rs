@@ -3,7 +3,7 @@ use std::error::Error;
 use std::io::Write;
 use std::panic::catch_unwind;
 use std::path::Path;
-use sdl2::pixels::{PixelFormatEnum};
+use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use std::time::{Duration, Instant};
@@ -64,6 +64,10 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
     let mut display_texture: Texture = texture_creator.create_texture_streaming(PixelFormatEnum::ARGB8888, SCREEN_WIDTH, SCREEN_HEIGHT)?;
 
+    let mut display_buffer_paletted = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::Index8)?;
+    let colors = ppu::get_palette_colors().map(|c| Color { r: c.r, g: c.g, b: c.b, a: 255 });
+    let palette = Palette::with_colors(&colors)?;
+    display_buffer_paletted.set_palette(&palette)?;
     let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
 
     let mut audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
@@ -121,7 +125,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
                 nes.simulate_frame();
 
-                render_nes_to_surface(&mut display_buffer_rgb, nes);
+                render_nes_to_surface(&mut display_buffer_paletted, nes);
+                display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
             }
         }
         display_texture.update(None, display_buffer_rgb.without_lock().unwrap(), display_buffer_rgb.pitch() as usize)?;
@@ -140,15 +145,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 }
 
 fn render_nes_to_surface(display_buffer_rgb: &mut Surface, nes: &mut NES) {
-    let mut data = [ppu::Color::default(); ppu::SCREEN_PIXELS];
-    nes.ppu.output_display_buffer(&mut data);
-    let display = display_buffer_rgb.without_lock_mut().unwrap();
-    for (i, color) in data.iter().enumerate() {
-        display[i * 4 + 3] = 255;
-        display[i * 4 + 2] = color.r;
-        display[i * 4 + 1] = color.g;
-        display[i * 4 + 0] = color.b;
-    }
+    nes.ppu.output_display_buffer_indexed(display_buffer_rgb.without_lock_mut().unwrap().try_into().unwrap());
 }
 
 fn load_nes_system(

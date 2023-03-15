@@ -120,10 +120,14 @@ impl PPU {
         self.finished_display_buffer.copy_from_slice(&self.cur_display_buffer)
     }
 
-    pub fn output_display_buffer(&self, output: &mut [Color; SCREEN_PIXELS]) {
+    pub fn output_display_buffer_rgb(&self, output: &mut [Color; SCREEN_PIXELS]) {
         for (i, palette_index) in self.finished_display_buffer.iter().enumerate() {
             output[i] = get_output_color(*palette_index);
         }
+    }
+
+    pub fn output_display_buffer_indexed(&self, output: &mut[u8; SCREEN_PIXELS]) {
+        output.copy_from_slice(&self.finished_display_buffer)
     }
 }
 
@@ -138,14 +142,25 @@ pub struct Color {
     pub b: u8,
 }
 
-fn get_output_color(palette_index: u8) -> Color {
-    static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../../nestopia_rgb.pal");
+static PALETTE_LOOKUP: &[u8; 192] = include_bytes!("../../nestopia_rgb.pal");
 
+fn get_output_color(palette_index: u8) -> Color {
     let r = PALETTE_LOOKUP[palette_index as usize * 3 + 0];
     let g = PALETTE_LOOKUP[palette_index as usize * 3 + 1];
     let b = PALETTE_LOOKUP[palette_index as usize * 3 + 2];
 
     Color { r, g, b }
+}
+
+pub fn get_palette_colors() -> [Color; 64] {
+    let mut res = [Color::default(); 64];
+    for i in 0..64 {
+        let r = PALETTE_LOOKUP[i * 3 + 0];
+        let g = PALETTE_LOOKUP[i * 3 + 1];
+        let b = PALETTE_LOOKUP[i * 3 + 2];
+        res[i] = Color { r, g, b };
+    }
+    res
 }
 
 fn mask_palette_addr(addr: u16) -> usize {
