@@ -20,7 +20,10 @@ impl InputState {
     pub fn update_key_state(&mut self, pressed: JoypadButtons) {
         let prev_pressed = self.pressed;
         self.pressed = pressed;
-        info!("Pressed {:?}", prev_pressed.difference(pressed));
+        let button_diff = prev_pressed.difference(pressed);
+        if !button_diff.is_empty() {
+            info!("Pressed {button_diff:?}");
+        }
     }
 
     pub fn handle_register_access(&mut self, addr: u16, val: u8, write: bool) -> u8 {
