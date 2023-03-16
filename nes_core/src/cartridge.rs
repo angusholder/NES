@@ -124,5 +124,5 @@ pub enum NametableMirroring {
 
 #[test]
 fn test_parse_rom() {
-    parse_rom(Path::new("samples/hello_green.nes")).unwrap();
+    parse_rom(Path::new("../samples/hello_green.nes")).unwrap();
 }
