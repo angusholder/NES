@@ -35,4 +35,5 @@ jobs:
     - name: Build
       run: cargo build
     - name: Run tests
-      run: cargo test
+      # frontend_windows can't build on Linux, so skip it
+      run: cargo test --exclude frontend_windows
