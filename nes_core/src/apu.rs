@@ -9,6 +9,7 @@ pub struct APU {
     square_wave1: SquareWave,
     square_wave2: SquareWave,
     triangle_wave: TriangleWave,
+    noise: Noise,
 
     /// Which channels the game wants enabled currently.
     guest_enabled_channels: AudioChannels,
@@ -18,6 +19,7 @@ pub struct APU {
     sq1_samples: Vec<f32>,
     sq2_samples: Vec<f32>,
     tri_samples: Vec<f32>,
+    noise_samples: Vec<f32>,
     mixed_samples: Vec<f32>,
 
     last_cpu_cycles: u64,
@@ -82,6 +84,7 @@ impl APU {
             square_wave1: SquareWave::new(),
             square_wave2: SquareWave::new(),
             triangle_wave: TriangleWave::new(),
+            noise: Noise::new(),
 
             guest_enabled_channels: AudioChannels::empty(),
             host_enabled_channels: AudioChannels::all(),
@@ -89,6 +92,7 @@ impl APU {
             sq1_samples: Vec::new(),
             sq2_samples: Vec::new(),
             tri_samples: Vec::new(),
+            noise_samples: Vec::new(),
             mixed_samples: Vec::new(),
 
             last_cpu_cycles: 0,
@@ -111,6 +115,7 @@ impl APU {
         self.sq1_samples.resize(samples_to_output, 0f32);
         self.sq2_samples.resize(samples_to_output, 0f32);
         self.tri_samples.resize(samples_to_output, 0f32);
+        self.noise_samples.resize(samples_to_output, 0f32);
         self.mixed_samples.resize(samples_to_output, 0f32);
 
         if self.channel_enabled(AudioChannels::SQUARE1) {
@@ -122,13 +127,16 @@ impl APU {
         if self.channel_enabled(AudioChannels::TRIANGLE) {
             self.triangle_wave.output_samples(start_time_s, step_duration_s, &mut self.tri_samples);
         }
+        if self.channel_enabled(AudioChannels::NOISE) {
+            self.noise.output_samples(start_time_s, step_duration_s, &mut self.noise_samples);
+        }
 
         for i in 0..samples_to_output {
             // Mixing formula from here: https://www.nesdev.org/wiki/APU_Mixer
             let pulse1 = self.sq1_samples[i];
             let pulse2 = self.sq2_samples[i];
             let triangle = self.tri_samples[i];
-            let noise: f32 = 0.0;
+            let noise: f32 = self.noise_samples[i];
             let dmc: f32 = 0.0;
 
             let pulse_out = 0.00752 * (pulse1 + pulse2);
@@ -163,6 +171,10 @@ impl APU {
             0x4008 => self.triangle_wave.write_control(value),
             0x400A => self.triangle_wave.write_fine_tune(value),
             0x400B => self.triangle_wave.write_coarse_tune(value),
+
+            0x400C => self.noise.write_control(value),
+            0x400E => self.noise.write_noise_freq1(value),
+            0x400F => self.noise.write_noise_freq2(value),
 
             0x4015 => {
                 self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
@@ -313,5 +325,60 @@ impl TriangleWave {
     // $400B
     fn write_coarse_tune(&mut self, value: u8) {
         self.period = self.period & 0x00FF | ((value as u32 & 0x7) << 8);
+    }
+}
+
+/// https://www.nesdev.org/wiki/APU_Noise
+struct Noise {
+    period: u32,
+    feedback_bit_6: bool,
+    shift_register: u16, // 15 bits
+}
+
+impl Noise {
+    const PERIOD_LUT: [u32; 16] = [4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068];
+
+    fn new() -> Noise {
+        Noise {
+            period: Self::PERIOD_LUT[0],
+            feedback_bit_6: false,
+            shift_register: 1,
+        }
+    }
+
+    fn write_control(&mut self, _value: u8) {
+
+    }
+
+    fn write_noise_freq1(&mut self, value: u8) {
+        let period_index = (value & 0xF) as usize;
+        self.period = Self::PERIOD_LUT[period_index];
+        self.feedback_bit_6 = value & 0x80 != 0; // otherwise bit 1
+    }
+
+    fn write_noise_freq2(&mut self, _value: u8) {
+
+    }
+
+    fn output_samples(
+        &mut self,
+        step_start_time_s: f64,
+        step_duration_s: f64,
+        output: &mut [f32],
+    ) {
+
+    }
+
+    fn do_feedback(&mut self) {
+        let mut sr = self.shift_register;
+
+        let shift_amt = if self.feedback_bit_6 { 6 } else { 1 };
+        let feedback = (sr & 1) ^ (sr >> shift_amt & 1);
+
+        sr >>= 1;
+
+        sr |= feedback << 14;
+
+        self.shift_register = sr;
     }
 }
