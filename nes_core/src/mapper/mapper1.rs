@@ -125,6 +125,8 @@ impl MMC1Mapper {
 
 impl RawMapper for MMC1Mapper {
     fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
+        const BANK_SIZE: usize = 16 * 1024;
+
         if write {
             self.write_register(addr, value);
             return 0;
@@ -136,30 +138,30 @@ impl RawMapper for MMC1Mapper {
             }
         }
 
-        let low_bank: Range<usize>;
-        let high_bank: Range<usize>;
+        let low_bank: usize;
+        let high_bank: usize;
         match self.prg_mode {
             PRGMode::Switch32KiB => {
-                let base_addr = (self.prg_bank & !1) as usize * 16*1024;
-                low_bank = base_addr..base_addr + 16*1024;
-                high_bank = base_addr + 16*1024..base_addr + 32*1024;
+                let base_addr = (self.prg_bank & !1) as usize * BANK_SIZE;
+                low_bank = base_addr;
+                high_bank = base_addr + BANK_SIZE;
             }
             PRGMode::FixedFirstSwitchLast => {
-                low_bank = 0..16*1024;
-                let base_addr = self.prg_bank as usize * 16*1024;
-                high_bank = base_addr..base_addr + 16*1024;
+                low_bank = 0;
+                let base_addr = self.prg_bank as usize * BANK_SIZE;
+                high_bank = base_addr;
             }
             PRGMode::FixedLastSwitchFirst => {
-                let base_addr = self.prg_bank as usize * 16*1024;
-                low_bank = base_addr..base_addr + 16*1024;
-                high_bank = self.prg_rom.len() - 16*1024..self.prg_rom.len();
+                let base_addr = self.prg_bank as usize * BANK_SIZE;
+                low_bank = base_addr;
+                high_bank = self.prg_rom.len() - BANK_SIZE;
             }
         }
 
         if addr >= 0x8000 && addr < 0xC000 {
-            self.prg_rom[low_bank][addr as usize - 0x8000]
+            self.prg_rom[low_bank..low_bank+BANK_SIZE][addr as usize - 0x8000]
         } else if addr >= 0xC000 {
-            self.prg_rom[high_bank][addr as usize - 0xC000]
+            self.prg_rom[high_bank..high_bank+BANK_SIZE][addr as usize - 0xC000]
         } else {
             warn!("Tried to read cartridge at {addr:08X}");
             0
