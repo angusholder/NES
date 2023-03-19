@@ -9,6 +9,7 @@ fn new_nes() -> NES {
         mapper_num: 0,
         mirroring: crate::cartridge::NametableMirroring::Horizontal,
         prg_ram_size: 0,
+        prg_ram_battery_backed: false,
         prg_nvram_size: 0,
         chr_ram_size: 0,
         chr_nvram_size: 0,

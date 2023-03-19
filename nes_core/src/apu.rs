@@ -367,6 +367,9 @@ struct Noise {
     period: u32,
     feedback_bit_6: bool,
     shift_register: u16, // 15 bits
+    volume: u8, // 0 to 15 (4-bit)
+    constant_volume: bool,
+    length_counter_halt: bool,
 }
 
 impl Noise {
@@ -377,11 +380,16 @@ impl Noise {
             period: Self::PERIOD_LUT[0],
             feedback_bit_6: false,
             shift_register: 1,
+            volume: 15,
+            constant_volume: true,
+            length_counter_halt: true,
         }
     }
 
-    fn write_control(&mut self, _value: u8) {
-
+    fn write_control(&mut self, value: u8) {
+        self.volume = vaue & 0xF;
+        self.constant_volume = value & 0x10 != 0;
+        self.length_counter_halt = value & 0x20 != 0;
     }
 
     fn write_noise_freq1(&mut self, value: u8) {
