@@ -33,6 +33,7 @@ pub struct PPU {
     oam_addr: u8,
     oam: [u8; NUM_SPRITES * 4],
     cur_line_sprites: [SpriteRowSlice; 8],
+    cur_line_num_sprites: usize, // Between 0 and 8
     sprite_0_hit: bool,
 
     palettes: [u8; 2 * 4 * 4],
@@ -75,6 +76,7 @@ impl PPU {
             oam_addr: 0,
             oam: [0; NUM_SPRITES * 4],
             cur_line_sprites: [SpriteRowSlice::hidden(); 8],
+            cur_line_num_sprites: 0,
             sprite_0_hit: false,
 
             palettes: [0; 2 * 4 * 4],
@@ -457,7 +459,7 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 // I don't think there's an observable difference between this and the real thing.
                 // https://www.nesdev.org/wiki/PPU_sprite_evaluation
                 if dot == 257 {
-                    ppu.cur_line_sprites = evaluate_sprites_for_line(ppu, scanline);
+                    evaluate_sprites_for_line(ppu, scanline);
                 }
             }
         }
@@ -534,7 +536,7 @@ fn render_pixel(ppu: &mut PPU) {
         let mut is_sprite_0 = false;
         if ppu.mask.show_sprites && (ppu.mask.show_sprites_left || x > 8) && ppu.scanline > 0 {
             let mut i = 0;
-            while i < ppu.cur_line_sprites.len() {
+            while i < ppu.cur_line_num_sprites {
                 let sprite = &ppu.cur_line_sprites[i];
                 let sx = sprite.x as u32;
                 if sx <= x && x < sx + 8 {
@@ -631,8 +633,7 @@ const SPRITE_ATTR_PALETTE: u8 = 0b0000_0011;
 const SPRITE_ATTR_FLIP_H: u8 = 0b0100_0000;
 const SPRITE_ATTR_FLIP_V: u8 = 0b1000_0000;
 
-fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) -> [SpriteRowSlice; 8] {
-    let mut sprites = [SpriteRowSlice::hidden(); 8];
+fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
     let mut dest_index = 0usize;
     let sprite_size = ppu.control.sprite_size;
     let sprite_height = sprite_size.height();
@@ -667,7 +668,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) -> [SpriteRowSlice; 8] {
             }
         };
 
-        sprites[dest_index] = SpriteRowSlice {
+        ppu.cur_line_sprites[dest_index] = SpriteRowSlice {
             x: sprite_data[SPRITE_X],
             pattern2,
             behind_bg: (attrs & SPRITE_ATTR_BEHIND_BG) != 0,
@@ -675,11 +676,11 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) -> [SpriteRowSlice; 8] {
             is_sprite_0: src_index == 0,
         };
         dest_index += 1;
-        if dest_index >= sprites.len() {
+        if dest_index >= ppu.cur_line_sprites.len() {
             break;
         }
     }
-    sprites
+    ppu.cur_line_num_sprites = dest_index;
 }
 
 fn interleave_bits_slow(x: u8, y: u8) -> u16 {
