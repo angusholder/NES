@@ -96,7 +96,7 @@ pub fn access_nametable(storage: &mut [u8; 0x800], mirroring: NametableMirroring
 #[inline(never)]
 #[track_caller]
 pub fn out_of_bounds_read(context: &str, addr: u16) -> u8 {
-    log::warn!("Attempted to read {context} out of bounds at {addr:08X}");
+    log::warn!("Attempted to read {context} out of bounds at {addr:04X}");
 
     return 0;
 }
@@ -104,7 +104,7 @@ pub fn out_of_bounds_read(context: &str, addr: u16) -> u8 {
 #[inline(never)]
 #[track_caller]
 pub fn out_of_bounds_write(context: &str, addr: u16, value: u8) {
-    log::warn!("Attempted to write {context} out of bounds at {addr:08X} with {value} (0x{value:02X})");
+    log::warn!("Attempted to write {context} out of bounds at {addr:04X} with {value} (0x{value:02X})");
 }
 
 #[inline(never)]
