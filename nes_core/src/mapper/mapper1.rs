@@ -1,6 +1,6 @@
-use std::ops::Range;
 use log::warn;
 use crate::cartridge::{Cartridge, NametableMirroring};
+use crate::mapper;
 use crate::mapper::access_nametable;
 use crate::mapper::RawMapper;
 
@@ -163,8 +163,7 @@ impl RawMapper for MMC1Mapper {
         } else if addr >= 0xC000 {
             self.prg_rom[high_bank..high_bank+BANK_SIZE][addr as usize - 0xC000]
         } else {
-            warn!("Tried to read cartridge at {addr:08X}");
-            0
+            mapper::out_of_bounds_read("cartridge", addr)
         }
     }
 
@@ -191,14 +190,10 @@ impl RawMapper for MMC1Mapper {
                 *ptr
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                let ptr = access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF);
-                if write {
-                    *ptr = value;
-                }
-                *ptr
+                access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
             }
             _ => {
-                panic!("Attempted to access CHR outside of range: {addr:04X}")
+                mapper::out_of_bounds_access("CHR", addr, value, write)
             }
         }
 

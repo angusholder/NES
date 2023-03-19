@@ -1,4 +1,3 @@
-use log::warn;
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::RawMapper;
@@ -36,15 +35,13 @@ impl RawMapper for NROMMapper {
         match addr {
             0x8000..=0xBFFF => {
                 if write {
-                    warn!("Attempted to write to PRG ROM: {addr:04X} = {value:02X}");
-                    return 0;
+                    mapper::out_of_bounds_write("PRG ROM", addr, value);
                 }
                 return self.prg_rom0[addr as usize - 0x8000];
             }
             0xC000..=0xFFFF => {
                 if write {
-                    warn!("Attempted to write to PRG ROM: {addr:04X} = {value:02X}");
-                    return 0;
+                    mapper::out_of_bounds_write("PRG ROM", addr, value);
                 }
                 match self.prg_rom1 {
                     Some(prg_rom1) => return prg_rom1[addr as usize - 0xC000],
@@ -53,8 +50,7 @@ impl RawMapper for NROMMapper {
                 }
             }
             _ => {
-                warn!("Attempted to access PRG ROM outside of range: {addr:04X}");
-                0
+                mapper::out_of_bounds_access("CPU memory space", addr, value, write)
             }
         }
     }
@@ -63,19 +59,15 @@ impl RawMapper for NROMMapper {
         match addr {
             0x0000..=0x1FFF => {
                 if write {
-                    warn!("Attempted to write to CHR ROM: {addr:04X} = {value:02X}");
+                    mapper::out_of_bounds_write("CHR ROM", addr, value);
                 }
                 self.chr_rom[addr as usize]
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                let ptr = mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF);
-                if write {
-                    *ptr = value;
-                }
-                *ptr
+                mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
             }
             _ => {
-                panic!("Attempted to access CHR outside of range: {addr:04X}")
+                mapper::out_of_bounds_access("PPU memory space", addr, value, write)
             }
         }
     }

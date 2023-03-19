@@ -63,26 +63,55 @@ fn mask_ppu_addr(addr: u16) -> u16 {
 }
 
 /// See https://www.nesdev.org/wiki/Mirroring#Nametable_Mirroring
-pub fn access_nametable(storage: &mut [u8; 0x800], mirroring: NametableMirroring, addr: u16) -> &mut u8 {
+pub fn access_nametable(storage: &mut [u8; 0x800], mirroring: NametableMirroring, addr: u16, value: u8, write: bool) -> u8 {
+    let sub_addr = (addr & 0x3FF) as usize;
     let range = match mirroring {
         NametableMirroring::Horizontal => match addr {
-            0x2000..=0x27FF => &mut storage[..0x400],
-            0x2800..=0x2FFF => &mut storage[0x400..0x800],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
+            0x2000..=0x27FF => &mut storage[..0x400][sub_addr],
+            0x2800..=0x2FFF => &mut storage[0x400..0x800][sub_addr],
+            _ => unreachable!(),
         },
         NametableMirroring::Vertical => match addr {
-            0x2000..=0x23FF | 0x2800..=0x2BFF => &mut storage[..0x400],
-            0x2400..=0x27FF | 0x2C00..=0x2FFF => &mut storage[0x400..0x800],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
+            0x2000..=0x23FF | 0x2800..=0x2BFF => &mut storage[..0x400][sub_addr],
+            0x2400..=0x27FF | 0x2C00..=0x2FFF => &mut storage[0x400..0x800][sub_addr],
+            _ => unreachable!(),
         },
         NametableMirroring::SingleScreenLowerBank => match addr {
-            0x2000..=0x2FFF => &mut storage[..0x400],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
+            0x2000..=0x2FFF => &mut storage[..0x400][sub_addr],
+            _ => unreachable!(),
         },
         NametableMirroring::SingleScreenUpperBank => match addr {
-            0x2000..=0x2FFF => &mut storage[0x400..0x800],
-            _ => panic!("Attempted to access nametable outside of range: {addr:04X}"),
+            0x2000..=0x2FFF => &mut storage[0x400..0x800][sub_addr],
+            _ => unreachable!(),
         },
     };
-    &mut range[(addr & 0x3FF) as usize]
+    if write {
+        *range = value
+    }
+    *range
+}
+
+#[inline(never)]
+#[track_caller]
+pub fn out_of_bounds_read(context: &str, addr: u16) -> u8 {
+    log::warn!("Attempted to read {context} out of bounds at {addr:08X}");
+
+    return 0;
+}
+
+#[inline(never)]
+#[track_caller]
+pub fn out_of_bounds_write(context: &str, addr: u16, value: u8) {
+    log::warn!("Attempted to write {context} out of bounds at {addr:08X} with {value} (0x{value:02X})");
+}
+
+#[inline(never)]
+#[track_caller]
+pub fn out_of_bounds_access(context: &str, addr: u16, value: u8, write: bool) -> u8 {
+    if write {
+        out_of_bounds_write(context, addr, value);
+        return 0;
+    } else {
+        out_of_bounds_read(context, addr)
+    }
 }

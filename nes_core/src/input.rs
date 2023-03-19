@@ -1,5 +1,6 @@
 use bitflags::bitflags;
-use log::{info, warn};
+use log::{info};
+use crate::mapper;
 
 pub struct InputState {
     pressed: JoypadButtons,
@@ -52,8 +53,7 @@ impl InputState {
             return 0;
         }
 
-        warn!("Unhandled controller access: {addr:04X}/{write}/{val}");
-        0
+        mapper::out_of_bounds_access("INPUT", addr, val, write)
     }
 }
 
