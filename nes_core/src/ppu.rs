@@ -356,8 +356,8 @@ pub fn ppu_write_register(ppu: &mut PPU, addr: u16, val: u8) {
 
 /// https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_($4014)_%3E_write
 pub fn do_oam_dma(nes: &mut NES, source_upper_addr: u8) {
-    let oam_addr = nes.ppu.oam_addr as usize;
-    for i in 0..256 {
+    let oam_addr = nes.ppu.oam_addr;
+    for i in 0..=255 {
         nes.ppu.oam[oam_addr.wrapping_add(i) as usize] = nes.read8(((source_upper_addr as u16) << 8) + i as u16);
         nes.tick(); // PPU write cycle
     }
