@@ -1,2 +1,3 @@
 [workspace]
 members = ["nes_core", "frontend_sdl", "frontend_windows"]
+default-members = ["frontend_sdl"]
