@@ -286,6 +286,7 @@ impl SquareWave {
             3 => 0.75,
             _ => unreachable!(),
         };
+        self.volume = value & 0xF;
     }
 
     // $4001/$4005
