@@ -53,6 +53,14 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
         if chr_nvram_size != 0 {
             chr_nvram_size = 64 << chr_nvram_size;
         }
+    } else {
+        if header[8] == 0 {
+            // Value 0 infers 8 KB for compatibility
+            // https://www.nesdev.org/wiki/INES#Flags_8
+            prg_ram_size = 8 * 1024;
+        } else {
+            return Err(format!("Header 8 value {} not supported", header[8]).into());
+        }
     }
 
     prg_rom_size *= 16 * 1024;
@@ -80,6 +88,8 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
         info!("The file had {} tail bytes", rest.len());
     }
 
+    let prg_ram_battery_backed = header[6] & 0b10 != 0;
+
     if header[6] & 0b1000 != 0 {
         return Err("Four-screen mirroring mode not supported".into());
     }
@@ -93,6 +103,7 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
         mapper_num,
         submapper_num,
         prg_ram_size,
+        prg_ram_battery_backed,
         prg_nvram_size,
         chr_ram_size,
         chr_nvram_size,
@@ -108,6 +119,7 @@ pub struct Cartridge {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
     pub prg_ram_size: u32,
+    pub prg_ram_battery_backed: bool,
     pub prg_nvram_size: u32,
     pub chr_ram_size: u32,
     pub chr_nvram_size: u32,

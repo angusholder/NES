@@ -1,4 +1,5 @@
 use std::ops::Range;
+use log::warn;
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper::access_nametable;
 use crate::mapper::RawMapper;
@@ -7,6 +8,7 @@ use crate::mapper::RawMapper;
 pub struct MMC1Mapper {
     prg_rom: Box<[u8]>,
     chr_ram: [u8; 8192],
+    wram: Option<[u8; 8192]>,
 
     // See https://www.nesdev.org/wiki/MMC1#Registers
     prg_mode: PRGMode,
@@ -37,9 +39,14 @@ enum PRGMode {
 
 impl MMC1Mapper {
     pub fn new(cart: Cartridge) -> Self {
+        if cart.prg_ram_battery_backed {
+            warn!("Battery-backed PRG RAM not supported");
+        }
+
         Self {
             prg_rom: cart.prg_rom.into_boxed_slice(),
             chr_ram: [0; 8192],
+            wram: if cart.prg_ram_size == 8*1024 { Some([0; 8*1024]) } else { None },
             prg_mode: PRGMode::FixedLastSwitchFirst,
             chr_mode: CHRMode::Switch8KiB,
             chr_bank_0: 0,
@@ -120,6 +127,13 @@ impl RawMapper for MMC1Mapper {
     fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         if write {
             self.write_register(addr, value);
+            return 0;
+        }
+
+        if addr >= 0x6000 && addr < 0x8000 {
+            if let Some(wram) = self.wram.as_ref() {
+                return wram[addr as usize & 0x1FFF];
+            }
         }
 
         let low_bank: Range<usize>;
@@ -142,10 +156,13 @@ impl RawMapper for MMC1Mapper {
             }
         }
 
-        if addr < 0xC000 {
+        if addr >= 0x8000 && addr < 0xC000 {
             self.prg_rom[low_bank][addr as usize - 0x8000]
-        } else {
+        } else if addr >= 0xC000 {
             self.prg_rom[high_bank][addr as usize - 0xC000]
+        } else {
+            warn!("Tried to read cartridge at {addr:08X}");
+            0
         }
     }
 
