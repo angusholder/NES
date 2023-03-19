@@ -544,10 +544,10 @@ fn render_pixel(ppu: &mut PPU) {
                     sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
                     if sprite_color_index != 0 {
                         sprite_color_index |= 0x10 | (sprite.palette_index << 2);
+                        sprite_behind_bg = sprite.behind_bg;
+                        is_sprite_0 = sprite.is_sprite_0;
+                        break;
                     }
-                    sprite_behind_bg = sprite.behind_bg;
-                    is_sprite_0 = sprite.is_sprite_0;
-                    break;
                 }
                 i += 1;
             }
