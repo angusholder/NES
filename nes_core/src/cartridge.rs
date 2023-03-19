@@ -24,7 +24,7 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     let ines2 = header[7] & 0x0C == 0x08;
 
     let mut submapper_num: Option<u32> = None;
-    let mut prg_ram_size: u32 = 0;
+    let mut prg_ram_size: u32;
     let mut prg_nvram_size: u32 = 0;
     let mut chr_ram_size: u32 = 0;
     let mut chr_nvram_size: u32 = 0;

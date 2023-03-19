@@ -362,9 +362,9 @@ impl Noise {
 
     fn output_samples(
         &mut self,
-        step_start_time_s: f64,
-        step_duration_s: f64,
-        output: &mut [f32],
+        _step_start_time_s: f64,
+        _step_duration_s: f64,
+        _output: &mut [f32],
     ) {
 
     }
