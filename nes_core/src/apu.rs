@@ -16,10 +16,11 @@ pub struct APU {
     /// The user can override to mute a channel that the game has enabled.
     host_enabled_channels: AudioChannels,
 
-    sq1_samples: Vec<f32>,
-    sq2_samples: Vec<f32>,
-    tri_samples: Vec<f32>,
-    noise_samples: Vec<f32>,
+    sq1_samples: Vec<u8>,
+    sq2_samples: Vec<u8>,
+    tri_samples: Vec<u8>,
+    noise_samples: Vec<u8>,
+    dmc_samples: Vec<u8>,
     mixed_samples: Vec<f32>,
 
     last_cpu_cycles: u64,
@@ -61,7 +62,7 @@ impl SampleBuffer {
             warn!("Not enough samples in buffer - needed {}, got {}", out.len(), buffer.len());
         }
         for x in out.iter_mut() {
-            *x = buffer.pop_front().unwrap_or(0.0);
+            *x = buffer.pop_front().unwrap_or(-1.0);
         }
     }
 
@@ -93,6 +94,7 @@ impl APU {
             sq2_samples: Vec::new(),
             tri_samples: Vec::new(),
             noise_samples: Vec::new(),
+            dmc_samples: Vec::new(),
             mixed_samples: Vec::new(),
 
             last_cpu_cycles: 0,
@@ -112,11 +114,13 @@ impl APU {
         let step_duration_s = (end_cpu_cycle - start_cpu_cycle) as f64 / CPU_FREQ as f64;
         let samples_to_output = (samples_per_second as f64 * step_duration_s) as usize;
 
-        self.sq1_samples.resize(samples_to_output, 0f32);
-        self.sq2_samples.resize(samples_to_output, 0f32);
-        self.tri_samples.resize(samples_to_output, 0f32);
-        self.noise_samples.resize(samples_to_output, 0f32);
+        self.sq1_samples.resize(samples_to_output, 0);
+        self.sq2_samples.resize(samples_to_output, 0);
+        self.tri_samples.resize(samples_to_output, 0);
+        self.noise_samples.resize(samples_to_output, 0);
+        self.dmc_samples.resize(samples_to_output, 0);
         self.mixed_samples.resize(samples_to_output, 0f32);
+        self.mixed_samples.fill(0.0);
 
         if self.channel_enabled(AudioChannels::SQUARE1) {
             self.square_wave1.output_samples(start_time_s, step_duration_s, &mut self.sq1_samples);
@@ -131,18 +135,40 @@ impl APU {
             self.noise.output_samples(start_time_s, step_duration_s, &mut self.noise_samples);
         }
 
+        // Lookup table from https://www.nesdev.org/wiki/APU_Mixer
+        static PULSE_OUT: [f32; 31] = {
+            let mut result = [0.0f32; 31];
+            let mut n = 0;
+            while n < result.len() {
+                result[n] = 95.52 / (8128.0 / (n as f32) + 100.0);
+                n += 1;
+            }
+            result
+        };
+
+        // Lookup table from https://www.nesdev.org/wiki/APU_Mixer
+        static TND_OUT: [f32; 203] = {
+            let mut result = [0.0f32; 203];
+            let mut n = 0;
+            while n < result.len() {
+                result[n] = 163.67 / (24329.0 / (n as f32) + 100.0);
+                n += 1;
+            }
+            result
+        };
+
         for i in 0..samples_to_output {
             // Mixing formula from here: https://www.nesdev.org/wiki/APU_Mixer
-            let pulse1 = self.sq1_samples[i];
-            let pulse2 = self.sq2_samples[i];
-            let triangle = self.tri_samples[i];
-            let noise: f32 = self.noise_samples[i];
-            let dmc: f32 = 0.0;
+            let pulse1: u8 = self.sq1_samples[i] & 15; // 0 to 15 (4-bit)
+            let pulse2: u8 = self.sq2_samples[i] & 15; // 0 to 15 (4-bit)
+            let triangle: u8 = self.tri_samples[i] & 15; // 0 to 15 (4-bit)
+            let noise: u8 = self.noise_samples[i] & 15; // 0 to 15 (4-bit)
+            let dmc: u8 = self.dmc_samples[i] & 127; // 0 to 127 (7-bit)
 
-            let pulse_out = 0.00752 * (pulse1 + pulse2);
-            let tnd_out = 0.00851 * triangle + 0.00494 * noise + 0.00335 * dmc;
+            let pulse_out = PULSE_OUT[(pulse1 + pulse2) as usize];
+            let tnd_out = TND_OUT[(3 * triangle + 2 * noise + dmc) as usize];
             let output = pulse_out + tnd_out;
-            self.mixed_samples[i] = output;
+            self.mixed_samples[i] = output * 2.0 - 1.0;
         }
 
         if !self.mixed_samples.is_empty() {
@@ -199,7 +225,7 @@ impl APU {
 const CPU_FREQ: u32 = 1_789_773; // 1.789773 MHz
 
 struct SquareWave {
-    volume: f32,
+    volume: u8,
 
     duty_cycle: f32,
     period: u32,
@@ -208,7 +234,7 @@ struct SquareWave {
 impl SquareWave {
     fn new() -> SquareWave {
         SquareWave {
-            volume: 1.0,
+            volume: 15,
             duty_cycle: 0.5,
             period: 0, // Range: 0-0x7FF / 0-2047 / 12.428KHz-54Hz
         }
@@ -218,10 +244,10 @@ impl SquareWave {
         &mut self,
         step_start_time_s: f64,
         step_duration_s: f64,
-        output: &mut [f32],
+        output: &mut [u8],
     ) {
         if self.period < 8 {
-            output.fill(0.0);
+            output.fill(0);
             // All zeroes
             return;
         }
@@ -234,7 +260,7 @@ impl SquareWave {
             if phase <= self.duty_cycle as f64 { // duty_cycle
                 *sample = self.volume;
             } else {
-                *sample = -self.volume;
+                *sample = 0;
             };
         }
     }
@@ -283,10 +309,10 @@ impl TriangleWave {
         &mut self,
         step_start_time_s: f64,
         step_duration_s: f64,
-        output: &mut [f32],
+        output: &mut [u8],
     ) {
         if self.period < 2 {
-            output.fill(0.0);
+            output.fill(0);
             // All zeroes
             return;
         }
@@ -301,13 +327,20 @@ impl TriangleWave {
             // Number between 0 and 1 - how far through a single section are we
             let cycle_offset = (scaled % 1.0) as f32;
 
-            // TODO: Quantize into 4-bit values
-            *sample = match cycle_phase {
+            let step_m1_1 = match cycle_phase {
                 0 => cycle_offset, // 0 to 1
                 1 => 1.0 - cycle_offset, // 1 to 0
                 2 => -cycle_offset, // 0 to -1
                 3 => -1.0 + cycle_offset, // -1 to 0
                 _ => unreachable!(),
+            };
+            let step_0_1 = (step_m1_1 + 1.0) / 2.0;
+            *sample = if step_0_1 >= 1.0 {
+                15
+            } else if step_0_1 <= 0.0 {
+                0
+            } else {
+                (step_0_1 * 16.0).floor() as u8
             };
         }
     }
@@ -364,7 +397,7 @@ impl Noise {
         &mut self,
         _step_start_time_s: f64,
         _step_duration_s: f64,
-        _output: &mut [f32],
+        _output: &mut [u8],
     ) {
 
     }
