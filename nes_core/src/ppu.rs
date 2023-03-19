@@ -663,7 +663,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) -> [SpriteRowSlice; 8] {
             }
             SpriteSize::Size8x16 => {
                 // TODO: Implement 8x16 sprites
-                0
+                0b10001000_10001000
             }
         };
 
