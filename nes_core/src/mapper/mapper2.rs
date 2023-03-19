@@ -2,6 +2,7 @@ use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::RawMapper;
 
+/// https://www.nesdev.org/wiki/UxROM
 pub struct UxROM {
     chr_ram: [u8; 8192],
     prg_rom: Box<[u8]>,
