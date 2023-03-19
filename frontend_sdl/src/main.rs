@@ -9,6 +9,7 @@ use sdl2::keyboard::{Keycode, Scancode};
 use std::time::{Duration, Instant};
 use log::info;
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
+use sdl2::controller::{Button, GameController};
 use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
@@ -47,6 +48,7 @@ fn main() {
 fn main_loop() -> Result<(), Box<dyn Error>> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
+    let controller_subsystem = sdl_context.game_controller().unwrap();
     info!("Video driver: {}", video_subsystem.current_video_driver());
 
     let window: Window = video_subsystem.window("NES Emulator", SCREEN_WIDTH*3, SCREEN_HEIGHT*3)
@@ -75,6 +77,10 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
     let keymap: Keymap = get_key_map();
 
+    let mut controller_mappings = &include_bytes!("../gamecontrollerdb.txt")[..];
+    controller_subsystem.load_mappings_from_read(&mut controller_mappings).unwrap();
+    let mut game_controller: Option<GameController> = None;
+
     let mut frame_stats = FrameStats::new();
     let mut event_pump = sdl_context.event_pump()?;
     let mut nes: Option<Box<NES>> = None;
@@ -100,6 +106,22 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                         _ => {}
                     }
                 }
+                Event::ControllerDeviceAdded { which: joystick_index, .. } => {
+                    let controller = controller_subsystem.open(joystick_index).unwrap();
+                    if controller.instance_id() == 0 {
+                        info!("P1 game controller plugged in: {}, attached={}, joystick_index={joystick_index}, instance_id={}", controller.name(), controller.attached(), controller.instance_id());
+                        game_controller = Some(controller);
+                    } else {
+                        info!("Other game controller plugged in, ignoring ({}, attached={}, joystick_index={joystick_index}, instance_id={})", controller.name(), controller.attached(), controller.instance_id());
+                    }
+                }
+                Event::ControllerDeviceRemoved { which: instance_id, .. } => {
+                    info!("Controller device {instance_id} removed");
+                    if game_controller.as_ref().map(|c| c.instance_id()) == Some(instance_id) {
+                        game_controller = None;
+                        info!("No game controller present now");
+                    }
+                }
                 Event::DropFile { filename, .. } => {
                     let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
                     match load_nes_system(&filename, trace_output) {
@@ -121,7 +143,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
         if !paused {
             if let Some(nes) = &mut nes {
-                nes.input.update_key_state(get_pressed_buttons(&event_pump, &keymap));
+                nes.input.update_key_state(get_pressed_buttons(&event_pump, &keymap, game_controller.as_ref()));
 
                 nes.simulate_frame();
 
@@ -185,12 +207,21 @@ fn get_key_map() -> Keymap {
     map
 }
 
-pub fn get_pressed_buttons(event_pump: &EventPump, keymap: &Keymap) -> JoypadButtons {
+pub fn get_pressed_buttons(event_pump: &EventPump, keymap: &Keymap, controller: Option<&GameController>) -> JoypadButtons {
     let mut pressed = JoypadButtons::empty();
     for (scan_code, button) in keymap.iter() {
         if event_pump.keyboard_state().is_scancode_pressed(*scan_code) {
             pressed.insert(*button);
         }
+    }
+    if let Some(con) = controller {
+        if con.button(Button::A) { pressed |= JoypadButtons::A; }
+        if con.button(Button::B) { pressed |= JoypadButtons::B; }
+        if con.button(Button::DPadUp) { pressed |= JoypadButtons::UP; }
+        if con.button(Button::DPadDown) { pressed |= JoypadButtons::DOWN; }
+        if con.button(Button::DPadLeft) { pressed |= JoypadButtons::LEFT; }
+        if con.button(Button::DPadRight) { pressed |= JoypadButtons::RIGHT; }
+        if con.button(Button::Start) { pressed |= JoypadButtons::START; }
     }
     pressed
 }
