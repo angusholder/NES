@@ -5,7 +5,7 @@ use crate::mapper::RawMapper;
 
 /// https://www.nesdev.org/wiki/MMC1
 pub struct MMC1Mapper {
-    prg_rom: Box<[u8; 256 * 1024]>,
+    prg_rom: Box<[u8]>,
     chr_ram: [u8; 8192],
 
     // See https://www.nesdev.org/wiki/MMC1#Registers
@@ -38,7 +38,7 @@ enum PRGMode {
 impl MMC1Mapper {
     pub fn new(cart: Cartridge) -> Self {
         Self {
-            prg_rom: cart.prg_rom.try_into().unwrap(),
+            prg_rom: cart.prg_rom.into_boxed_slice(),
             chr_ram: [0; 8192],
             prg_mode: PRGMode::FixedLastSwitchFirst,
             chr_mode: CHRMode::Switch8KiB,
