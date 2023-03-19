@@ -663,8 +663,19 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
                 interleave_bits(pat_lower, pat_upper)
             }
             SpriteSize::Size8x16 => {
-                // TODO: Implement 8x16 sprites
-                0b10001000_10001000
+                let mut y_offset = line - y;
+                if attrs & SPRITE_ATTR_FLIP_V != 0 {
+                    y_offset = 15 - y_offset;
+                }
+                let pattern_table = if tile_index & 1 == 1 { 0x1000 } else { 0x0000 };
+                let pattern_addr = pattern_table | (tile_index as u16 & !1) * 16 + (y_offset as u16);
+                let mut pat_lower = ppu.mapper.read_ppu_bus(pattern_addr);
+                let mut pat_upper = ppu.mapper.read_ppu_bus(pattern_addr + 8);
+                if attrs & SPRITE_ATTR_FLIP_H == 0 {
+                    pat_lower = pat_lower.reverse_bits();
+                    pat_upper = pat_upper.reverse_bits();
+                }
+                interleave_bits(pat_lower, pat_upper)
             }
         };
 
