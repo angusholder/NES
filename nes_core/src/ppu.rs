@@ -331,10 +331,10 @@ pub fn ppu_write_register(ppu: &mut PPU, addr: u16, val: u8) {
         PPUSCROLL => {
             if !ppu.write_toggle_w {
                 ppu.fine_x = val & 0b111;
-                ppu.t_addr = (ppu.t_addr & !0x1F) | (val >> 3) as u16;
+                ppu.t_addr = (ppu.t_addr & 0b111_11_11111_00000) | (val >> 3) as u16;
             } else {
                 let val = val as u16;
-                ppu.t_addr = (ppu.t_addr & 0b0001100_00011111) | (val & 0b11111000 << 2) | (val & 0b111 << 12);
+                ppu.t_addr = (ppu.t_addr & 0b000_11_00000_11111) | (val & 0b11111000 << 2) | (val & 0b111 << 12);
             }
             ppu.write_toggle_w = !ppu.write_toggle_w;
         }
@@ -480,12 +480,12 @@ fn ppu_step_scanline(ppu: &mut PPU) {
 
 fn update_x_from_temp(ppu: &mut PPU) {
 // If rendering is enabled, the PPU copies all bits related to horizontal position from t to v - https://www.nesdev.org/wiki/PPU_scrolling
-    let horizontal_mask = 0b100_00011111;
+    let horizontal_mask = 0b000_01_00000_11111;
     ppu.v_addr = (ppu.v_addr & !horizontal_mask) | (ppu.t_addr & horizontal_mask);
 }
 
 fn update_y_from_temp(ppu: &mut PPU) {
-    let vertical_mask = 0b1111011_11100000;
+    let vertical_mask = 0b111_10_11111_00000;
     ppu.v_addr = (ppu.v_addr & !vertical_mask) | (ppu.t_addr & vertical_mask);
 }
 
