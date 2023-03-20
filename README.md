@@ -1,4 +1,11 @@
 
+## Instruction tracing
+
+Enable instruction tracing with an environmental variable `RUST_LOG` set to `nes_core::cpu=trace`.
+For example, in Powershell:
+```powershell
+$Env:RUST_LOG="nes_core::cpu=trace"
+```
 
 ## Tutorials and resources
 https://famicom.party/book/03-gettingstarted/

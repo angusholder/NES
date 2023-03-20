@@ -16,7 +16,7 @@ fn new_nes() -> NES {
         submapper_num: None,
     }).unwrap();
 
-    let mut nes = NES::new(mapper, None);
+    let mut nes = NES::new(mapper);
     nes.A = 0;
     nes.X = 0;
     nes.Y = 0;

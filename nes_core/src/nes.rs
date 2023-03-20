@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
-use std::io::Write;
 use crate::mapper::{Mapper};
-use crate::{disassemble, input, cpu, ppu};
+use crate::{input, cpu, ppu};
 use crate::apu::APU;
 use crate::input::InputState;
 use crate::ppu::PPU;
@@ -28,8 +27,6 @@ pub struct NES {
     pub mapper: Mapper,
 
     trigger_irq: bool,
-
-    pub trace_output: Option<Box<dyn Write>>,
 
     pub input: InputState,
     pub apu: APU,
@@ -123,7 +120,7 @@ impl Interrupt {
 }
 
 impl NES {
-    pub fn new(mapper: Mapper, trace_output: Option<Box<dyn Write>>) -> NES {
+    pub fn new(mapper: Mapper) -> NES {
         NES {
             A: 0,
             X: 0,
@@ -137,7 +134,6 @@ impl NES {
             ppu: PPU::new(mapper.clone()),
             mapper,
             trigger_irq: false,
-            trace_output,
 
             input: InputState::new(),
             apu: APU::new(),
@@ -166,9 +162,6 @@ impl NES {
                 self.ppu.request_nmi = false;
             } else if self.trigger_irq && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
-            }
-            if self.trace_output.is_some() {
-                disassemble::disassemble(self);
             }
             cpu::emulate_instruction(self);
         }

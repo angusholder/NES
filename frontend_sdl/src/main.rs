@@ -1,6 +1,5 @@
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
-use std::io::Write;
 use std::panic::catch_unwind;
 use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
@@ -123,8 +122,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 Event::DropFile { filename, .. } => {
-                    let trace_output: Option<Box<dyn Write>> = None; // Some(Box::new(std::fs::File::create("trace.txt").unwrap()));
-                    match load_nes_system(&filename, trace_output) {
+                    match load_nes_system(&filename) {
                         Ok(mut new_nes) => {
                             let mut sample_buffer = audio_device.lock().get_output_buffer();
                             sample_buffer.clear();
@@ -172,11 +170,10 @@ fn render_nes_to_surface(display_buffer_rgb: &mut Surface, nes: &mut NES) {
 
 fn load_nes_system(
     filename: &String,
-    trace_output: Option<Box<dyn Write>>,
 ) -> Result<Box<NES>, Box<dyn Error>> {
     let cart = cartridge::parse_rom(Path::new(&filename))?;
     let mapper = Mapper::new(cart)?;
-    let mut nes = Box::new(NES::new(mapper, trace_output));
+    let mut nes = Box::new(NES::new(mapper));
     nes.power_on();
     Ok(nes)
 }
