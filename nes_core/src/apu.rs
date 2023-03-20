@@ -387,7 +387,7 @@ impl Noise {
     }
 
     fn write_control(&mut self, value: u8) {
-        self.volume = vaue & 0xF;
+        self.volume = value & 0xF;
         self.constant_volume = value & 0x10 != 0;
         self.length_counter_halt = value & 0x20 != 0;
     }
