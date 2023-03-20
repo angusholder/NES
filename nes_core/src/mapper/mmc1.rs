@@ -4,6 +4,7 @@ use crate::mapper;
 use crate::mapper::access_nametable;
 use crate::mapper::RawMapper;
 
+/// Mapper 1: MMC1
 /// https://www.nesdev.org/wiki/MMC1
 pub struct MMC1Mapper {
     prg_rom: Box<[u8]>,

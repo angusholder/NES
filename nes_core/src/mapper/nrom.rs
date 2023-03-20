@@ -4,7 +4,7 @@ use crate::mapper::RawMapper;
 
 /// Mapper 0: NROM
 /// https://www.nesdev.org/wiki/NROM
-pub struct NROMMapper {
+pub struct NRomMapper {
     /// 8KiB
     chr_rom: [u8; 8192],
     /// 16KiB or 32KiB
@@ -14,7 +14,7 @@ pub struct NROMMapper {
     nametables: [u8; 0x800],
 }
 
-impl NROMMapper {
+impl NRomMapper {
     pub fn new(cart: Cartridge) -> Self {
         Self {
             chr_rom: cart.chr_rom.try_into().expect("CHR ROM should be 8KiB"),
@@ -30,7 +30,7 @@ impl NROMMapper {
     }
 }
 
-impl RawMapper for NROMMapper {
+impl RawMapper for NRomMapper {
     fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
             0x8000..=0xBFFF => {

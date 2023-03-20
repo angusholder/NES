@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::cartridge::{Cartridge, NametableMirroring};
 
-mod mapper0;
-mod mapper1;
-mod mapper2;
-mod mapper3;
+mod nrom;
+mod mmc1;
+mod uxrom;
+mod cnrom;
 
 /// The mapper covers two address spaces - the CPU memory map, and the PPU memory map.
 /// The CPU memory map is 16-bit, and the PPU memory map is 14-bit.
@@ -26,10 +26,10 @@ pub struct Mapper {
 impl Mapper {
     pub fn new(cart: Cartridge) -> Result<Mapper, String> {
         Ok(match cart.mapper_num {
-            0 => Mapper::wrap(mapper0::NROMMapper::new(cart)),
-            1 => Mapper::wrap(mapper1::MMC1Mapper::new(cart)),
-            2 => Mapper::wrap(mapper2::UxROM::new(cart)),
-            3 => Mapper::wrap(mapper3::CNROM::new(cart)),
+            0 => Mapper::wrap(nrom::NRomMapper::new(cart)),
+            1 => Mapper::wrap(mmc1::MMC1Mapper::new(cart)),
+            2 => Mapper::wrap(uxrom::UxRomMapper::new(cart)),
+            3 => Mapper::wrap(cnrom::CNRomMapper::new(cart)),
             _ => {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }

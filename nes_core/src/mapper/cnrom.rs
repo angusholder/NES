@@ -2,44 +2,40 @@ use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::RawMapper;
 
-/// https://www.nesdev.org/wiki/UxROM
-pub struct UxROM {
-    chr_ram: [u8; 8192],
+/// Mapper 3: CNROM
+/// https://www.nesdev.org/wiki/INES_Mapper_003
+pub struct CNRomMapper {
     prg_rom: Box<[u8]>,
+    chr_rom: Box<[u8]>,
     mirroring: NametableMirroring,
     nametables: [u8; 0x800],
-    prg_bank_lo: u8,
+    chr_bank: u8,
 }
 
-const BANK_SIZE: usize = 16 * 1024;
-const BANK_MASK: usize = BANK_SIZE - 1;
-
-impl UxROM {
-    pub fn new(cart: Cartridge) -> UxROM {
-        UxROM {
+impl CNRomMapper {
+    pub fn new(cart: Cartridge) -> CNRomMapper {
+        CNRomMapper {
             prg_rom: cart.prg_rom.into_boxed_slice(),
-            chr_ram: [0; 8192],
+            chr_rom: cart.chr_rom.into_boxed_slice(),
             mirroring: cart.mirroring,
             nametables: [0; 0x800],
-            prg_bank_lo: 0,
+            chr_bank: 0,
         }
     }
 }
 
-impl RawMapper for UxROM {
+const CHR_BANK_SIZE: usize = 8 * 1024;
+
+impl RawMapper for CNRomMapper {
     fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         if write {
-            self.prg_bank_lo = value;
+            self.chr_bank = value;
             return 0;
         }
 
         match addr {
-            0x8000..=0xBFFF => {
-                let base = self.prg_bank_lo as usize * BANK_SIZE;
-                self.prg_rom[base..base+BANK_SIZE][addr as usize & BANK_MASK]
-            }
-            0xC000..=0xFFFF => {
-                self.prg_rom[self.prg_rom.len() - BANK_SIZE..][addr as usize & BANK_MASK]
+            0x8000..=0xFFFF => {
+                self.prg_rom[(addr & 0x7FFF) as usize % self.prg_rom.len()]
             }
             _ => {
                 mapper::out_of_bounds_read("cart", addr)
@@ -51,9 +47,10 @@ impl RawMapper for UxROM {
         match addr {
             0x0000..=0x1FFF => {
                 if write {
-                    self.chr_ram[addr as usize] = value;
+                    mapper::out_of_bounds_write("CHR", addr, value);
                 }
-                self.chr_ram[addr as usize]
+                let base = self.chr_bank as usize * CHR_BANK_SIZE;
+                self.chr_rom[base..base + CHR_BANK_SIZE][addr as usize]
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
                 mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
