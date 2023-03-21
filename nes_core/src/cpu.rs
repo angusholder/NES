@@ -375,10 +375,11 @@ fn dex(nes: &mut NES) {
 fn inc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let addr = addressing(nes);
     let arg = nes.read8(addr);
+    // Dummy write cycle of old value, relied on by some games, eg: https://www.nesdev.org/wiki/MMC1#Reset
+    nes.write8(addr, arg);
     let result = arg.wrapping_add(1);
     nes.write8(addr, result);
     update_zn(nes, result);
-    alu_cycle(nes);
 }
 
 fn iny(nes: &mut NES) {
