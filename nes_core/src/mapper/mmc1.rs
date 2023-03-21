@@ -1,4 +1,4 @@
-use log::warn;
+use log::{trace, warn};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::access_nametable;
@@ -62,6 +62,7 @@ impl MMC1Mapper {
 
     fn write_register(&mut self, addr: u16, value: u8) {
         if value & 0x80 != 0 {
+            trace!("Resetting state");
             self.reset();
             return;
         }
@@ -78,12 +79,15 @@ impl MMC1Mapper {
                 0 => self.write_control_register(self.shift_register),
                 1 => {
                     self.chr_bank_0 = self.shift_register;
+                    trace!("Set CHR bank 0 = {}", self.chr_bank_0);
                 }
                 2 => {
                     self.chr_bank_1 = self.shift_register;
+                    trace!("Set CHR bank 1 = {}", self.chr_bank_1);
                 }
                 3 => {
                     self.prg_bank = self.shift_register;
+                    trace!("Set PRG bank = {}", self.prg_bank);
                 }
                 _ => unreachable!(),
             }
@@ -94,7 +98,7 @@ impl MMC1Mapper {
     fn reset(&mut self) {
         self.reset_shift_register();
         // Initially set to PRGMode::FixedLastSwitchFirst
-        self.write_control_register(0xC);
+        self.prg_mode =PRGMode::FixedLastSwitchFirst;
     }
 
     fn reset_shift_register(&mut self) {
@@ -121,6 +125,10 @@ impl MMC1Mapper {
             1 => CHRMode::SwitchTwo4KiB,
             _ => unreachable!(),
         };
+        trace!("Set mapper control register to {byte:02X}:");
+        trace!("> mirroring = {:?}", self.mirroring);
+        trace!("> PRG mode = {:?}", self.prg_mode);
+        trace!("> CHR mode = {:?}", self.chr_mode);
     }
 }
 
