@@ -285,13 +285,22 @@ pub fn ppu_read_register(ppu: &mut PPU, addr: u16) -> u8 {
             res
         }
         PPUDATA => {
-            let res = ppu.read_mem(ppu.v_addr);
+            let addr = ppu.v_addr;
+            let res = ppu.read_mem(addr);
             ppu.v_addr += ppu.control.vram_increment as u16;
 
+            let previous_read = ppu.data_bus_latch;
             // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
             ppu.data_bus_latch = res;
 
-            res
+            if addr >= 0x3EFF {
+                // The palette memory responds immediately
+                res
+            } else {
+                // The rest of PPU memory has an intermediate buffer, so we return the data
+                // that was read from memory on the previous PPUDATA read
+                previous_read
+            }
         }
         PPUCTRL |
         PPUMASK |
