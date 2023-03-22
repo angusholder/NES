@@ -98,8 +98,8 @@ pub fn disassemble(nes: &mut NES) -> String {
     let op_name = INSTRUCTION_NAMES[op as usize];
     let addr_mode = INSTRUCTION_ADDRESS_MODES[op as usize];
     let size = get_addr_mode_instruction_size(addr_mode);
-    let mut op_bytes: Vec<u8> = Vec::with_capacity(3);
-    for i in 0..size { op_bytes.push(nes.read8(PC + i as u16)); }
+    let op_bytes = &mut [0u8; 3][..size];
+    for i in 0..size { op_bytes[i] = nes.read8(PC + i as u16); }
 
     write!(output, "c{:08}  ", nes.get_cycles()).unwrap();
     write!(output, "A:{A:02X} X:{X:02X} Y:{Y:02X} S:{SP:02X} {SR} ").unwrap();
