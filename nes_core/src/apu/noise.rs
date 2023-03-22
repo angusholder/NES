@@ -1,3 +1,5 @@
+use crate::apu::CPU_FREQ;
+
 /// https://www.nesdev.org/wiki/APU_Noise
 pub struct Noise {
     period: u32,
@@ -40,11 +42,25 @@ impl Noise {
 
     pub fn output_samples(
         &mut self,
-        _step_start_time_s: f64,
-        _step_duration_s: f64,
-        _output: &mut [u8],
+        step_start_time_s: f64,
+        samples_per_second: u32,
+        output: &mut [u8],
     ) {
-
+        let mut cycles_until_feedback: i64 = 0;
+        let mut time_s = step_start_time_s;
+        let mut sample_gap_s = 1.0 / samples_per_second as f64;
+        let apu_freq = CPU_FREQ / 2;
+        let apu_cycle_len_s = (1.0 / apu_freq as f64);
+        let apu_cycles_per_sample = (sample_gap_s / apu_cycle_len_s) as i64;
+        for sample in output.iter_mut() {
+            time_s += sample_gap_s;
+            cycles_until_feedback -= apu_cycles_per_sample;
+            while cycles_until_feedback <= 0 {
+                self.do_feedback();
+                cycles_until_feedback += self.period as i64;
+            }
+            *sample = if self.shift_register & 1 == 1 { 0 } else { self.volume };
+        }
     }
 
     fn do_feedback(&mut self) {

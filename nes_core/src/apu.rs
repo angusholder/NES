@@ -203,7 +203,7 @@ impl APU {
             self.triangle_wave.output_samples(start_time_s, step_duration_s, &mut self.tri_samples);
         }
         if self.channel_enabled(AudioChannels::NOISE) {
-            self.noise.output_samples(start_time_s, step_duration_s, &mut self.noise_samples);
+            self.noise.output_samples(start_time_s, samples_per_second, &mut self.noise_samples);
         }
 
         // Lookup table from https://www.nesdev.org/wiki/APU_Mixer
