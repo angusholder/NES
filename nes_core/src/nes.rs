@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use log::info;
 use crate::mapper::{Mapper};
 use crate::{input, cpu, ppu};
 use crate::apu::APU;
@@ -25,8 +26,6 @@ pub struct NES {
     pub ppu: PPU,
 
     pub mapper: Mapper,
-
-    trigger_irq: bool,
 
     pub input: InputState,
     pub apu: APU,
@@ -133,7 +132,6 @@ impl NES {
             total_cycles: 0,
             ppu: PPU::new(mapper.clone()),
             mapper,
-            trigger_irq: false,
 
             input: InputState::new(),
             apu: APU::new(),
@@ -160,8 +158,9 @@ impl NES {
             if self.ppu.request_nmi {
                 self.interrupt(Interrupt::NMI);
                 self.ppu.request_nmi = false;
-            } else if self.trigger_irq && !self.SR.I {
+            } else if self.apu.trigger_irq && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
+                self.apu.trigger_irq = false;
             }
             cpu::emulate_instruction(self);
         }
@@ -275,6 +274,9 @@ impl NES {
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
+        if self.total_cycles & 1 == 0 { // every other cycle
+            self.apu.step_cycle(self.total_cycles);
+        }
     }
 
     pub fn get_cycles(&self) -> u64 {

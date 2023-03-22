@@ -24,6 +24,9 @@ pub struct APU {
     /// The user can override to mute a channel that the game has enabled.
     host_enabled_channels: AudioChannels,
 
+    irq_inhibit: bool,
+    frame_counter_mode: FrameCountMode,
+
     sq1_samples: Vec<u8>,
     sq2_samples: Vec<u8>,
     tri_samples: Vec<u8>,
@@ -32,6 +35,14 @@ pub struct APU {
     mixed_samples: Vec<f32>,
 
     last_cpu_cycles: u64,
+    apu_cycle: u64,
+    pub trigger_irq: bool,
+}
+
+#[derive(PartialEq, Debug)]
+enum FrameCountMode {
+    Step4,
+    Step5,
 }
 
 bitflags! {
@@ -98,6 +109,9 @@ impl APU {
             guest_enabled_channels: AudioChannels::empty(),
             host_enabled_channels: AudioChannels::all(),
 
+            irq_inhibit: false,
+            frame_counter_mode: FrameCountMode::Step4,
+
             sq1_samples: Vec::new(),
             sq2_samples: Vec::new(),
             tri_samples: Vec::new(),
@@ -106,11 +120,60 @@ impl APU {
             mixed_samples: Vec::new(),
 
             last_cpu_cycles: 0,
+            apu_cycle: 0,
+            trigger_irq: false,
         }
     }
 
     pub fn attach_output_device(&mut self, output_buffer: SampleBuffer) {
         self.output_buffer = Some(output_buffer);
+    }
+
+    pub fn step_cycle(&mut self, cpu_cycle: u64) {
+        self.apu_cycle += 1;
+
+        // See https://www.nesdev.org/wiki/APU_Frame_Counter
+        match self.apu_cycle {
+            3728 => {
+                self.tick_envelope_and_triangle();
+            }
+            7456 => {
+                self.tick_envelope_and_triangle();
+                self.tick_length_counters_and_sweep();
+            }
+            11185 => {
+                self.tick_envelope_and_triangle();
+            }
+            14914 if self.frame_counter_mode == FrameCountMode::Step4 => {
+                self.tick_envelope_and_triangle();
+                self.tick_length_counters_and_sweep();
+                self.trigger_irq();
+                self.apu_cycle = 0;
+            }
+            18640 if self.frame_counter_mode == FrameCountMode::Step5 => {
+                self.tick_envelope_and_triangle();
+                self.tick_length_counters_and_sweep();
+                self.apu_cycle = 0;
+            }
+            _ => {
+                // Nothing changed, don't call run_until_cycle
+                return;
+            }
+        }
+        self.run_until_cycle(cpu_cycle);
+    }
+
+    fn tick_envelope_and_triangle(&mut self) {
+    }
+
+    fn tick_length_counters_and_sweep(&mut self) {
+    }
+
+    fn trigger_irq(&mut self) {
+        if self.irq_inhibit {
+            return;
+        }
+        self.trigger_irq = true;
     }
 
     pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {
@@ -213,9 +276,19 @@ impl APU {
             0x4015 => {
                 self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
             }
+            0x4017 => {
+                self.write_frame_counter(value)
+            }
 
             _ => {}
         }
+    }
+
+    fn write_frame_counter(&mut self, value: u8) {
+        self.irq_inhibit = value & 0x40 != 0;
+        self.frame_counter_mode = if value & 0x80 == 0 { FrameCountMode::Step4 } else { FrameCountMode::Step5 };
+        self.apu_cycle = 0;
+        info!("IRQ inhibit = {}, frame counter mode = {:?}", self.irq_inhibit, self.frame_counter_mode);
     }
 
     fn channel_enabled(&self, channel: AudioChannels) -> bool {
