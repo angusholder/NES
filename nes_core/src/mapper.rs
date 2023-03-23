@@ -6,6 +6,7 @@ mod nrom;
 mod mmc1;
 mod uxrom;
 mod cnrom;
+mod mmc2;
 
 /// The mapper covers two address spaces - the CPU memory map, and the PPU memory map.
 /// The CPU memory map is 16-bit, and the PPU memory map is 14-bit.
@@ -30,6 +31,7 @@ impl Mapper {
             1 => Mapper::wrap(mmc1::MMC1Mapper::new(cart)),
             2 => Mapper::wrap(uxrom::UxRomMapper::new(cart)),
             3 => Mapper::wrap(cnrom::CNRomMapper::new(cart)),
+            9 => Mapper::wrap(mmc2::MMC2Mapper::new(cart)),
             _ => {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }
