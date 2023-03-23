@@ -71,21 +71,21 @@ impl MMC1Mapper {
         if value & 1 != 0 {
             new_sr |= 0b1_0000;
         }
-        self.shift_register = new_sr;
+        self.shift_register = new_sr & 0b11111;
         self.shift_counter += 1;
 
         if self.shift_counter >= 5 {
-            match addr >> 13 & 0b11 {
-                0 => self.write_control_register(self.shift_register),
-                1 => {
+            match addr & 0xF000 {
+                0x8000 | 0x9000 => self.write_control_register(self.shift_register),
+                0xA000 | 0xB000 => {
                     self.chr_bank_0 = self.shift_register;
                     trace!("Set CHR bank 0 = {}", self.chr_bank_0);
                 }
-                2 => {
+                0xC000 | 0xD000 => {
                     self.chr_bank_1 = self.shift_register;
                     trace!("Set CHR bank 1 = {}", self.chr_bank_1);
                 }
-                3 => {
+                0xE000 | 0xF000 => {
                     self.prg_bank = self.shift_register;
                     trace!("Set PRG bank = {}", self.prg_bank);
                 }
@@ -136,15 +136,15 @@ impl RawMapper for MMC1Mapper {
     fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         const BANK_SIZE: usize = 16 * 1024;
 
-        if write {
-            self.write_register(addr, value);
-            return 0;
-        }
-
         if addr >= 0x6000 && addr < 0x8000 {
             if let Some(wram) = self.wram.as_ref() {
                 return wram[addr as usize & 0x1FFF];
             }
+        }
+
+        if write {
+            self.write_register(addr, value);
+            return 0;
         }
 
         let low_bank: usize;
