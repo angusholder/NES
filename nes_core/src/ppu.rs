@@ -343,7 +343,7 @@ pub fn ppu_write_register(ppu: &mut PPU, addr: u16, val: u8) {
                 ppu.t_addr = (ppu.t_addr & 0b111_11_11111_00000) | (val >> 3) as u16;
             } else {
                 let val = val as u16;
-                ppu.t_addr = (ppu.t_addr & 0b000_11_00000_11111) | (val & 0b11111000 << 2) | (val & 0b111 << 12);
+                ppu.t_addr = (ppu.t_addr & 0b000_11_00000_11111) | ((val & 0b11111000) << 2) | ((val & 0b111) << 12);
             }
             ppu.write_toggle_w = !ppu.write_toggle_w;
         }
