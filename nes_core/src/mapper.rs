@@ -14,7 +14,8 @@ mod mmc2;
 /// There's only one method for each address space, and the `write` parameter tells us whether we're
 /// reading or writing (so we don't have to duplicate the address logic between reads and writes).
 trait RawMapper {
-    fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8;
+    fn write_main_bus(&mut self, addr: u16, value: u8);
+    fn read_main_bus(&mut self, addr: u16) -> u8;
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8;
 }
@@ -45,11 +46,11 @@ impl Mapper {
     }
 
     pub fn read_main_bus(&mut self, addr: u16) -> u8 {
-        self.mapper.borrow_mut().access_main_bus(addr, 0, false)
+        self.mapper.borrow_mut().read_main_bus(addr)
     }
 
     pub fn write_main_bus(&mut self, addr: u16, value: u8) {
-        self.mapper.borrow_mut().access_main_bus(addr, value, true);
+        self.mapper.borrow_mut().write_main_bus(addr, value);
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {

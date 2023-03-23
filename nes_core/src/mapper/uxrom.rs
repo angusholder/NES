@@ -28,12 +28,11 @@ impl UxRomMapper {
 }
 
 impl RawMapper for UxRomMapper {
-    fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
-        if write {
-            self.prg_bank_lo = value;
-            return 0;
-        }
+    fn write_main_bus(&mut self, _addr: u16, value: u8) {
+        self.prg_bank_lo = value;
+    }
 
+    fn read_main_bus(&mut self, addr: u16) -> u8 {
         match addr {
             0x8000..=0xBFFF => {
                 let base = self.prg_bank_lo as usize * BANK_SIZE;

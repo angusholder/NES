@@ -27,12 +27,11 @@ impl CNRomMapper {
 const CHR_BANK_SIZE: usize = 8 * 1024;
 
 impl RawMapper for CNRomMapper {
-    fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
-        if write {
-            self.chr_bank = value;
-            return 0;
-        }
+    fn write_main_bus(&mut self, _addr: u16, value: u8) {
+        self.chr_bank = value;
+    }
 
+    fn read_main_bus(&mut self, addr: u16) -> u8 {
         match addr {
             0x8000..=0xFFFF => {
                 self.prg_rom[(addr & 0x7FFF) as usize % self.prg_rom.len()]

@@ -39,13 +39,17 @@ impl NRomMapper {
 }
 
 impl RawMapper for NRomMapper {
-    fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
+    fn write_main_bus(&mut self, addr: u16, value: u8) {
+        mapper::out_of_bounds_write("CPU memory space", addr, value);
+    }
+
+    fn read_main_bus(&mut self, addr: u16) -> u8 {
         match addr {
-            0x8000..=0xFFFF if !write => {
+            0x8000..=0xFFFF => {
                 self.prg_rom[addr as usize - 0x8000]
             }
             _ => {
-                mapper::out_of_bounds_access("CPU memory space", addr, value, write)
+                mapper::out_of_bounds_read("CPU memory space", addr)
             }
         }
     }

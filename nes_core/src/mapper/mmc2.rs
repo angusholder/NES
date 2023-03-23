@@ -1,4 +1,3 @@
-use log::info;
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::RawMapper;
@@ -75,12 +74,11 @@ enum BankSelector {
 }
 
 impl RawMapper for MMC2Mapper {
-    fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
-        if write {
-            self.write_register(addr, value);
-            return 0;
-        }
+    fn write_main_bus(&mut self, addr: u16, value: u8) {
+        self.write_register(addr, value);
+    }
 
+    fn read_main_bus(&mut self, addr: u16) -> u8 {
         match addr {
             0x8000..=0x9FFF => {
                 self.prg_rom[self.prg_bank + (addr & 0x1FFF) as usize]
