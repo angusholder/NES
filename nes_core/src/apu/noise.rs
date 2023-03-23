@@ -18,7 +18,7 @@ impl Noise {
             period: Self::PERIOD_LUT[0],
             feedback_bit_6: false,
             shift_register: 1,
-            volume: 15,
+            volume: 0,
             constant_volume: true,
             length_counter_halt: true,
         }
