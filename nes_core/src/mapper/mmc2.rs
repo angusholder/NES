@@ -34,8 +34,16 @@ impl MMC2Mapper {
             nametables: [0; 0x800],
         }
     }
+}
 
-    fn write_register(&mut self, addr: u16, value: u8) {
+#[derive(Clone, Copy, Debug)]
+enum BankSelector {
+    FD = 0,
+    FE = 1,
+}
+
+impl RawMapper for MMC2Mapper {
+    fn write_main_bus(&mut self, addr: u16, value: u8) {
         let chr_bank_addr = (value & 0b1_1111) as usize * 4 * 1024;
         match addr {
             0xA000..=0xAFFF => {
@@ -64,18 +72,6 @@ impl MMC2Mapper {
                 mapper::out_of_bounds_write("cart", addr, value);
             }
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-enum BankSelector {
-    FD = 0,
-    FE = 1,
-}
-
-impl RawMapper for MMC2Mapper {
-    fn write_main_bus(&mut self, addr: u16, value: u8) {
-        self.write_register(addr, value);
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
