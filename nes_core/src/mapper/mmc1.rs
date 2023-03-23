@@ -1,3 +1,4 @@
+use std::ops::Range;
 use log::{trace, warn};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
@@ -132,11 +133,13 @@ impl MMC1Mapper {
     }
 }
 
+const WRAM_RANGE: Range<u16> = 0x6000..0x8000;
+
 impl RawMapper for MMC1Mapper {
     fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         const BANK_SIZE: usize = 16 * 1024;
 
-        if addr >= 0x6000 && addr < 0x8000 {
+        if WRAM_RANGE.contains(&addr) {
             if let Some(wram) = self.wram.as_ref() {
                 return wram[addr as usize & 0x1FFF];
             }
