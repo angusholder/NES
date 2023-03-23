@@ -7,23 +7,31 @@ use crate::mapper::RawMapper;
 pub struct NRomMapper {
     /// 8KiB
     chr_rom: [u8; 8192],
-    /// 16KiB or 32KiB
-    prg_rom0: [u8; 16_384],
-    prg_rom1: Option<[u8; 16_384]>,
+    /// 32KiB, or 16KiB mirrored into two
+    prg_rom: [u8; 32*1024],
     mirroring: NametableMirroring,
     nametables: [u8; 0x800],
 }
 
 impl NRomMapper {
     pub fn new(cart: Cartridge) -> Self {
+        let mut prg_rom = [0u8; 32*1024];
+        match cart.prg_rom.len() {
+            // 16KiB (mirrored into two)
+            0x4000 => {
+                prg_rom[..16*1024].copy_from_slice(&cart.prg_rom);
+                prg_rom[16*1024..].copy_from_slice(&cart.prg_rom);
+            }
+            // 32KiB
+            0x8000 => {
+                prg_rom.copy_from_slice(&cart.prg_rom);
+            }
+            _ => panic!("PRG ROM should be 16KiB or 32KiB"),
+        }
+
         Self {
             chr_rom: cart.chr_rom.try_into().expect("CHR ROM should be 8KiB"),
-            prg_rom0: cart.prg_rom[..0x4000].try_into().unwrap(),
-            prg_rom1: match cart.prg_rom.len() {
-                0x4000 => None,
-                0x8000 => Some(cart.prg_rom[0x4000..].try_into().unwrap()),
-                _ => panic!("PRG ROM should be 16KiB or 32KiB"),
-            },
+            prg_rom,
             mirroring: cart.mirroring,
             nametables: [0; 0x800],
         }
@@ -33,21 +41,8 @@ impl NRomMapper {
 impl RawMapper for NRomMapper {
     fn access_main_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
-            0x8000..=0xBFFF => {
-                if write {
-                    mapper::out_of_bounds_write("PRG ROM", addr, value);
-                }
-                return self.prg_rom0[addr as usize - 0x8000];
-            }
-            0xC000..=0xFFFF => {
-                if write {
-                    mapper::out_of_bounds_write("PRG ROM", addr, value);
-                }
-                match self.prg_rom1 {
-                    Some(prg_rom1) => return prg_rom1[addr as usize - 0xC000],
-                    // Mirror of first 16KiB
-                    None => self.prg_rom0[addr as usize - 0xC000]
-                }
+            0x8000..=0xFFFF if !write => {
+                self.prg_rom[addr as usize - 0x8000]
             }
             _ => {
                 mapper::out_of_bounds_access("CPU memory space", addr, value, write)
@@ -57,10 +52,7 @@ impl RawMapper for NRomMapper {
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
-            0x0000..=0x1FFF => {
-                if write {
-                    mapper::out_of_bounds_write("CHR ROM", addr, value);
-                }
+            0x0000..=0x1FFF if !write => {
                 self.chr_rom[addr as usize]
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
