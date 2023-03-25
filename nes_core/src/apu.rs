@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use bitflags::bitflags;
 use log::{info, warn};
@@ -10,6 +11,7 @@ mod noise;
 use crate::apu::noise::Noise;
 use crate::apu::square::SquareWave;
 use crate::apu::triangle::TriangleWave;
+use crate::nes::Signals;
 
 pub struct APU {
     output_buffer: Option<SampleBuffer>,
@@ -36,7 +38,7 @@ pub struct APU {
 
     last_cpu_cycles: u64,
     apu_cycle: u64,
-    pub trigger_irq: bool,
+    signals: Rc<Signals>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -97,7 +99,7 @@ impl SampleBuffer {
 }
 
 impl APU {
-    pub fn new() -> APU {
+    pub fn new(signals: Rc<Signals>) -> APU {
         APU {
             output_buffer: None,
 
@@ -121,7 +123,7 @@ impl APU {
 
             last_cpu_cycles: 0,
             apu_cycle: 0,
-            trigger_irq: false,
+            signals,
         }
     }
 
@@ -173,7 +175,7 @@ impl APU {
         if self.irq_inhibit {
             return;
         }
-        self.trigger_irq = true;
+        self.signals.request_irq();
     }
 
     pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {

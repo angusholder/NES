@@ -1,4 +1,6 @@
+use std::cell::Cell;
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 use log::info;
 use crate::mapper::{Mapper};
 use crate::{input, cpu, ppu};
@@ -29,6 +31,23 @@ pub struct NES {
 
     pub input: InputState,
     pub apu: APU,
+    signals: Rc<Signals>,
+}
+
+pub struct Signals {
+    request_irq: Cell<bool>,
+}
+
+impl Signals {
+    pub fn new() -> Rc<Signals> {
+        Rc::new(Signals {
+            request_irq: Cell::new(false),
+        })
+    }
+
+    pub fn request_irq(&self) {
+        self.request_irq.set(true);
+    }
 }
 
 pub const CYCLES_PER_FRAME: u64 = 29781;
@@ -131,10 +150,11 @@ impl NES {
             remaining_cycles: 0,
             total_cycles: 0,
             ppu: PPU::new(mapper.clone()),
-            mapper,
 
             input: InputState::new(),
-            apu: APU::new(),
+            apu: APU::new(mapper.signals.clone()),
+            signals: mapper.signals.clone(),
+            mapper,
         }
     }
 
@@ -158,9 +178,9 @@ impl NES {
             if self.ppu.request_nmi {
                 self.interrupt(Interrupt::NMI);
                 self.ppu.request_nmi = false;
-            } else if self.apu.trigger_irq && !self.SR.I {
+            } else if self.signals.request_irq.get() && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
-                self.apu.trigger_irq = false;
+                self.signals.request_irq.set(false);
             }
             cpu::emulate_instruction(self);
         }

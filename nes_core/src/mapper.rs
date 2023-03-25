@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::cartridge::{Cartridge, NametableMirroring};
+use crate::nes::Signals;
 
 mod nrom;
 mod mmc1;
@@ -24,6 +25,7 @@ trait RawMapper {
 #[derive(Clone)]
 pub struct Mapper {
     mapper: Rc<RefCell<dyn RawMapper>>,
+    pub signals: Rc<Signals>,
 }
 
 impl Mapper {
@@ -44,6 +46,7 @@ impl Mapper {
     fn wrap<M: RawMapper + 'static>(raw_mapper: M) -> Mapper {
         Mapper {
             mapper: Rc::new(RefCell::new(raw_mapper)),
+            signals: Signals::new(),
         }
     }
 
