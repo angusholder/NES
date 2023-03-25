@@ -48,6 +48,10 @@ impl Signals {
     pub fn request_irq(&self) {
         self.request_irq.set(true);
     }
+
+    pub fn acknowledge_irq(&self) {
+        self.request_irq.set(false);
+    }
 }
 
 pub const CYCLES_PER_FRAME: u64 = 29781;
@@ -180,7 +184,7 @@ impl NES {
                 self.ppu.request_nmi = false;
             } else if self.signals.request_irq.get() && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
-                self.signals.request_irq.set(false);
+                self.signals.acknowledge_irq();
             }
             cpu::emulate_instruction(self);
         }

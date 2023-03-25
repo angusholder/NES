@@ -20,6 +20,11 @@ pub struct MMC3Mapper {
     /// 1: two 2KB banks at $1000-$1FFF, four 1KB banks at $0000-$0FFF
     chr_a12_inversion: bool,
 
+    irq_counter: u8,
+    irq_counter_reload_value: u8,
+    irq_counter_reload: bool,
+    irq_enable: bool,
+
     prg_banks: [usize; 4],
     chr_banks: [usize; 8],
     signals: Rc<Signals>,
@@ -58,6 +63,11 @@ impl MMC3Mapper {
             bank_reg_select: 0,
             prg_bank_mode: PRGBankMode::Swappable89,
             chr_a12_inversion: false,
+
+            irq_counter: 0,
+            irq_counter_reload_value: 0,
+            irq_counter_reload: false,
+            irq_enable: false,
 
             prg_banks: [0; 4],
             chr_banks: [0; 8],
@@ -164,19 +174,22 @@ impl MMC3Mapper {
             }
             // IRQ latch
             0xC000 => {
-                // Not implemented
+                self.irq_counter_reload_value = value;
             }
             // IRQ reload
             0xC001 => {
-                // Not implemented
+                // Triggers the counter to load the reload value upon the next scanline cycle.
+                self.irq_counter = 0;
             }
             // IRQ disable
             0xE000 => {
-                // Not implemented
+                self.irq_enable = false;
+                // TODO: Do we need a separate variable for our IRQ vs other IRQs in the system?
+                self.signals.acknowledge_irq();
             }
             // IRQ enable
             0xE001 => {
-                // Not implemented
+                self.irq_enable = true;
             }
             _ => unreachable!(),
         }
@@ -243,6 +256,17 @@ impl RawMapper for MMC3Mapper {
             _ => {
                 mapper::out_of_bounds_access("PPU memory space", addr, value, write)
             }
+        }
+    }
+
+    fn on_cycle_scanline(&mut self) {
+        if self.irq_counter == 0 && self.irq_enable {
+            self.signals.request_irq();
+        }
+        if self.irq_counter == 0 || self.irq_counter_reload {
+            self.irq_counter = self.irq_counter_reload_value;
+        } else {
+            self.irq_counter -= 1;
         }
     }
 }

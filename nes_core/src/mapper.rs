@@ -20,6 +20,8 @@ trait RawMapper {
     fn read_main_bus(&mut self, addr: u16) -> u8;
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8;
+
+    fn on_cycle_scanline(&mut self) {}
 }
 
 #[derive(Clone)]
@@ -65,6 +67,10 @@ impl Mapper {
 
     pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {
         self.mapper.borrow_mut().access_ppu_bus(mask_ppu_addr(addr), value, true);
+    }
+
+    pub fn on_cycle_scanline(&mut self) {
+        self.mapper.borrow_mut().on_cycle_scanline();
     }
 }
 

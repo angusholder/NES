@@ -475,6 +475,10 @@ fn ppu_step_scanline(ppu: &mut PPU) {
         _ => {}
     }
 
+    // TODO: This isn't totally accurate, but do we need to be more accurate? https://www.nesdev.org/wiki/MMC3#IRQ_Specifics
+    if dot == 260 {
+        ppu.mapper.on_cycle_scanline();
+    }
     if dot == 256 && ppu.rendering_enabled() {
         scroll_next_y(ppu);
     }
