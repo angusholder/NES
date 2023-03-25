@@ -241,7 +241,7 @@ impl RawMapper for MMC3Mapper {
     fn access_ppu_bus(&mut self, mut addr: u16, value: u8, write: bool) -> u8 {
         if self.chr_a12_inversion {
             // Flip address bit A12
-            addr ^= (1 << 12);
+            addr ^= 1 << 12;
         }
         match addr {
             0x0000..=0x1FFF => {

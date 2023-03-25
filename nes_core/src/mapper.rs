@@ -49,7 +49,7 @@ impl Mapper {
     fn wrap<M: RawMapper + 'static>(raw_mapper: M, signals: Rc<Signals>) -> Mapper {
         Mapper {
             mapper: Rc::new(RefCell::new(raw_mapper)),
-            signals: Signals::new(),
+            signals,
         }
     }
 

@@ -1,7 +1,6 @@
 use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
-use log::info;
 use crate::mapper::{Mapper};
 use crate::{input, cpu, ppu};
 use crate::apu::APU;
