@@ -1,7 +1,9 @@
+use std::rc::Rc;
 use log::{info, warn};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::RawMapper;
+use crate::nes::Signals;
 
 pub struct MMC3Mapper {
     chr_rom: Vec<u8>,
@@ -20,6 +22,7 @@ pub struct MMC3Mapper {
 
     prg_banks: [usize; 4],
     chr_banks: [usize; 8],
+    signals: Rc<Signals>,
 }
 
 #[derive(Debug)]
@@ -34,7 +37,7 @@ const PRG_BANK_SIZE: usize = 0x2000; // 8KB
 const CHR_BANK_SIZE: usize = 0x400; // 1KB
 
 impl MMC3Mapper {
-    pub fn new(cart: Cartridge) -> MMC3Mapper {
+    pub fn new(cart: Cartridge, signals: Rc<Signals>) -> MMC3Mapper {
         let prg_ram = match cart.prg_ram_size {
             8192 => Some([0; 8192]),
             0 => None,
@@ -58,6 +61,7 @@ impl MMC3Mapper {
 
             prg_banks: [0; 4],
             chr_banks: [0; 8],
+            signals,
         };
 
         // Initialize prg_banks and chr_banks.

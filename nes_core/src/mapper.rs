@@ -30,20 +30,21 @@ pub struct Mapper {
 
 impl Mapper {
     pub fn new(cart: Cartridge) -> Result<Mapper, String> {
+        let signals = Signals::new();
         Ok(match cart.mapper_num {
-            0 => Mapper::wrap(nrom::NRomMapper::new(cart)),
-            1 => Mapper::wrap(mmc1::MMC1Mapper::new(cart)),
-            2 => Mapper::wrap(uxrom::UxRomMapper::new(cart)),
-            3 => Mapper::wrap(cnrom::CNRomMapper::new(cart)),
-            4 => Mapper::wrap(mmc3::MMC3Mapper::new(cart)),
-            9 => Mapper::wrap(mmc2::MMC2Mapper::new(cart)),
+            0 => Mapper::wrap(nrom::NRomMapper::new(cart), signals),
+            1 => Mapper::wrap(mmc1::MMC1Mapper::new(cart), signals),
+            2 => Mapper::wrap(uxrom::UxRomMapper::new(cart), signals),
+            3 => Mapper::wrap(cnrom::CNRomMapper::new(cart), signals),
+            4 => Mapper::wrap(mmc3::MMC3Mapper::new(cart, signals.clone()), signals),
+            9 => Mapper::wrap(mmc2::MMC2Mapper::new(cart), signals),
             _ => {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }
         })
     }
 
-    fn wrap<M: RawMapper + 'static>(raw_mapper: M) -> Mapper {
+    fn wrap<M: RawMapper + 'static>(raw_mapper: M, signals: Rc<Signals>) -> Mapper {
         Mapper {
             mapper: Rc::new(RefCell::new(raw_mapper)),
             signals: Signals::new(),
