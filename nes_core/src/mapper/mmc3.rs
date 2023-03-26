@@ -244,7 +244,7 @@ impl RawMapper for MMC3Mapper {
             addr ^= 1 << 12;
         }
         match addr {
-            0x0000..=0x1FFF => {
+            0x0000..=0x1FFF if !write => {
                 // 8 banks of 0x400/1KB each
                 let bank_no = ((addr >> 0x3FFu32.count_ones()) & 0b111) as usize;
                 let low_addr = (addr & 0x3FF) as usize;
