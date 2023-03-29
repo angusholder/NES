@@ -1,5 +1,8 @@
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
+use std::fs::File;
+use std::io;
+use std::io::BufWriter;
 use std::panic::catch_unwind;
 use std::path::Path;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
@@ -21,8 +24,14 @@ use nes_core::mapper::Mapper;
 use nes_core::nes::NES;
 use nes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH, self};
 
+const TRACE_FILE: bool = false;
+
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let mut log_builder = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
+    if TRACE_FILE {
+        log_builder.target(StdoutAndFileTarget::new(File::create("trace.txt").unwrap()));
+    }
+    log_builder.init();
 
     let result = catch_unwind(main_loop);
     match result {
@@ -286,4 +295,28 @@ pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
             output_buffer: SampleBuffer::new(spec.freq as u32),
         }
     }).unwrap()
+}
+
+struct StdoutAndFileTarget {
+    file: BufWriter<File>,
+}
+
+impl StdoutAndFileTarget {
+    fn new(file: File) -> env_logger::Target {
+        env_logger::Target::Pipe(Box::new(StdoutAndFileTarget {
+            file: BufWriter::new(file),
+        }))
+    }
+}
+
+impl io::Write for StdoutAndFileTarget {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.file.write(buf)?;
+        io::stdout().write(buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.file.flush()
+    }
 }
