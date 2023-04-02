@@ -24,6 +24,10 @@ pub struct MMC1Mapper {
 
     mirroring: NametableMirroring,
     nametables: [u8; 0x800],
+
+    // Calculated mappings
+    prg_low_bank: usize,
+    prg_high_bank: usize,
 }
 
 #[derive(Debug)]
@@ -45,7 +49,7 @@ impl MMC1Mapper {
             warn!("Battery-backed PRG RAM not supported");
         }
 
-        Self {
+        let mut mapper = Self {
             prg_rom: cart.prg_rom.into_boxed_slice(),
             chr_ram: [0; 8192],
             wram: if cart.prg_ram_size == 8*1024 { Some([0; 8*1024]) } else { None },
@@ -58,7 +62,12 @@ impl MMC1Mapper {
             shift_counter: 0,
             mirroring: NametableMirroring::SingleScreenLowerBank,
             nametables: [0; 0x800],
-        }
+
+            prg_low_bank: 0,
+            prg_high_bank: 0,
+        };
+        mapper.sync_mappings();
+        mapper
     }
 
     fn write_register(&mut self, addr: u16, value: u8) {
@@ -81,14 +90,17 @@ impl MMC1Mapper {
                 0xA000 | 0xB000 => {
                     self.chr_bank_0 = self.shift_register;
                     trace!("Set CHR bank 0 = {}", self.chr_bank_0);
+                    self.sync_mappings();
                 }
                 0xC000 | 0xD000 => {
                     self.chr_bank_1 = self.shift_register;
                     trace!("Set CHR bank 1 = {}", self.chr_bank_1);
+                    self.sync_mappings();
                 }
                 0xE000 | 0xF000 => {
                     self.prg_bank = self.shift_register;
                     trace!("Set PRG bank = {}", self.prg_bank);
+                    self.sync_mappings();
                 }
                 _ => unreachable!("{addr:04X}"),
             }
@@ -100,6 +112,7 @@ impl MMC1Mapper {
         self.reset_shift_register();
         // Initially set to PRGMode::FixedLastSwitchFirst
         self.prg_mode =PRGMode::FixedLastSwitchFirst;
+        self.sync_mappings()
     }
 
     fn reset_shift_register(&mut self) {
@@ -130,6 +143,28 @@ impl MMC1Mapper {
         trace!("> mirroring = {:?}", self.mirroring);
         trace!("> PRG mode = {:?}", self.prg_mode);
         trace!("> CHR mode = {:?}", self.chr_mode);
+        self.sync_mappings();
+    }
+
+    fn sync_mappings(&mut self) {
+        const PRG_BANK_SIZE: usize = 16 * 1024;
+        match self.prg_mode {
+            PRGMode::Switch32KiB => {
+                let base_addr = (self.prg_bank & !1) as usize * PRG_BANK_SIZE;
+                self.prg_low_bank = base_addr;
+                self.prg_high_bank = base_addr + PRG_BANK_SIZE;
+            }
+            PRGMode::FixedFirstSwitchLast => {
+                self.prg_low_bank = 0;
+                let base_addr = self.prg_bank as usize * PRG_BANK_SIZE;
+                self.prg_high_bank = base_addr;
+            }
+            PRGMode::FixedLastSwitchFirst => {
+                let base_addr = self.prg_bank as usize * PRG_BANK_SIZE;
+                self.prg_low_bank = base_addr;
+                self.prg_high_bank = self.prg_rom.len() - PRG_BANK_SIZE;
+            }
+        }
     }
 }
 
@@ -148,38 +183,16 @@ impl RawMapper for MMC1Mapper {
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
-        const BANK_SIZE: usize = 16 * 1024;
-
         if WRAM_RANGE.contains(&addr) {
             if let Some(wram) = self.wram.as_ref() {
                 return wram[addr as usize & 0x1FFF];
             }
         }
 
-        let low_bank: usize;
-        let high_bank: usize;
-        match self.prg_mode {
-            PRGMode::Switch32KiB => {
-                let base_addr = (self.prg_bank & !1) as usize * BANK_SIZE;
-                low_bank = base_addr;
-                high_bank = base_addr + BANK_SIZE;
-            }
-            PRGMode::FixedFirstSwitchLast => {
-                low_bank = 0;
-                let base_addr = self.prg_bank as usize * BANK_SIZE;
-                high_bank = base_addr;
-            }
-            PRGMode::FixedLastSwitchFirst => {
-                let base_addr = self.prg_bank as usize * BANK_SIZE;
-                low_bank = base_addr;
-                high_bank = self.prg_rom.len() - BANK_SIZE;
-            }
-        }
-
         if addr >= 0x8000 && addr < 0xC000 {
-            self.prg_rom[low_bank..low_bank+BANK_SIZE][addr as usize - 0x8000]
+            self.prg_rom[self.prg_low_bank + (addr as usize - 0x8000)]
         } else if addr >= 0xC000 {
-            self.prg_rom[high_bank..high_bank+BANK_SIZE][addr as usize - 0xC000]
+            self.prg_rom[self.prg_high_bank + (addr as usize - 0xC000)]
         } else {
             mapper::out_of_bounds_read("cartridge", addr)
         }
