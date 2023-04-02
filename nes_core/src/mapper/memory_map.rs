@@ -1,7 +1,8 @@
 use std::ops::Range;
 use log::warn;
-use crate::cartridge::Cartridge;
+use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
+use crate::mapper::NameTables;
 
 type ReadHook = dyn Fn(&mut MemoryMap, u16) -> ();
 type WriteHook = dyn Fn(&mut MemoryMap, u16, u8) -> ();
@@ -22,6 +23,8 @@ pub struct MemoryMap {
     /// Covers 4 x 8K banks (0x2000), between 0x8000 and 0xFFFF.
     prg_base_addrs: [usize; 4],
     prg_rom: Box<[u8]>,
+
+    nametables: NameTables,
 }
 
 const PRG_PAGE: usize = 8 * 1024;
@@ -51,7 +54,13 @@ impl MemoryMap {
             
             prg_base_addrs: [0; 4],
             prg_rom: cart.prg_rom.clone().into_boxed_slice(),
+
+            nametables: NameTables::new(cart.mirroring),
         }
+    }
+
+    pub fn set_nametable_mirroring(&mut self, mirroring: NametableMirroring) {
+        self.nametables.update_mirroring(mirroring);
     }
     
     pub fn map_prg_32k(&mut self, page_index: i32) {
@@ -174,8 +183,10 @@ impl MemoryMap {
                     }
                 }
                 *ptr
-            },
-            // TODO: Nametable will be here too eventually.
+            }
+            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
+                self.nametables.access(addr, value, write)
+            }
             _ => {
                 mapper::out_of_bounds_access("PPU memory space", addr, value, write)
             }

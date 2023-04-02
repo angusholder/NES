@@ -2,13 +2,11 @@ use std::rc::Rc;
 use log::{info};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
-use crate::mapper::{NameTables, RawMapper};
+use crate::mapper::{RawMapper};
 use crate::mapper::memory_map::MemoryMap;
 use crate::nes::Signals;
 
 pub struct MMC3Mapper {
-    nametables: NameTables,
-
     bank_reg: [u8; 8],
     // The next write to the bank data register will affect bank_reg[bank_reg_select]
     bank_reg_select: u8,
@@ -41,8 +39,6 @@ impl MMC3Mapper {
         let map = MemoryMap::new(&cart);
 
         let mut mapper = MMC3Mapper {
-            nametables: NameTables::new(cart.mirroring),
-
             bank_reg: [0; 8],
             bank_reg_select: 0,
             prg_bank_mode: PRGBankMode::Swappable89,
@@ -132,7 +128,7 @@ impl MMC3Mapper {
                     _ => unreachable!(),
                 };
                 info!("{:?} mirroring", mirroring);
-                self.nametables.update_mirroring(mirroring);
+                self.map.set_nametable_mirroring(mirroring);
             }
             // PRG RAM protect
             0xA001 => {
@@ -182,17 +178,7 @@ impl RawMapper for MMC3Mapper {
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
-        match addr {
-            0x0000..=0x1FFF if !write => {
-                self.map.read_ppu_bus(addr)
-            }
-            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.nametables.access(addr, value, write)
-            }
-            _ => {
-                mapper::out_of_bounds_access("PPU memory space", addr, value, write)
-            }
-        }
+        self.map.access_ppu_bus(addr, value, write)
     }
 
     fn on_cycle_scanline(&mut self) {

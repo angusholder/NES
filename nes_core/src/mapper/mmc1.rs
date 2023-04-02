@@ -44,6 +44,7 @@ impl MMC1Mapper {
         }
         let mut map = MemoryMap::new(&cart);
         map.configure_chr_ram(8192);
+        map.set_nametable_mirroring(NametableMirroring::SingleScreenLowerBank);
 
         let mut mapper = Self {
             map,
@@ -118,7 +119,7 @@ impl MMC1Mapper {
             3 => NametableMirroring::Horizontal,
             _ => unreachable!(),
         };
-        self.nametables.update_mirroring(mirroring);
+        self.map.set_nametable_mirroring(mirroring);
         self.prg_mode = match byte >> 2 & 0b11 {
             0 | 1 => PRGMode::Switch32KiB,
             2 => PRGMode::FixedFirstSwitchLast,
@@ -186,17 +187,6 @@ impl RawMapper for MMC1Mapper {
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
-        match addr {
-            0x0000..=0x1FFF => {
-                self.map.access_ppu_bus(addr, value, write)
-            }
-            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.nametables.access(addr, value, write)
-            }
-            _ => {
-                mapper::out_of_bounds_access("CHR", addr, value, write)
-            }
-        }
-
+        self.map.access_ppu_bus(addr, value, write)
     }
 }

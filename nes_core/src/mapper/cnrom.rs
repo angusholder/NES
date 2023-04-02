@@ -1,13 +1,11 @@
 use crate::cartridge::{Cartridge};
-use crate::mapper;
-use crate::mapper::{NameTables, RawMapper};
+use crate::mapper::{RawMapper};
 use crate::mapper::memory_map::MemoryMap;
 
 /// Mapper 3: CNROM
 /// https://www.nesdev.org/wiki/INES_Mapper_003
 pub struct CNRomMapper {
     map: MemoryMap,
-    nametables: NameTables,
 }
 
 impl CNRomMapper {
@@ -28,7 +26,6 @@ impl CNRomMapper {
 
         CNRomMapper {
             map,
-            nametables: NameTables::new(cart.mirroring),
         }
     }
 }
@@ -43,16 +40,6 @@ impl RawMapper for CNRomMapper {
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
-        match addr {
-            0x0000..=0x1FFF => {
-                self.map.access_ppu_bus(addr, value, write)
-            },
-            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.nametables.access(addr, value, write)
-            }
-            _ => {
-                mapper::out_of_bounds_access("PPU memory space", addr, value, write)
-            }
-        }
+        self.map.access_ppu_bus(addr, value, write)
     }
 }
