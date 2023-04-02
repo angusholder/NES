@@ -2,14 +2,13 @@ use std::rc::Rc;
 use log::{info, warn};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
-use crate::mapper::RawMapper;
+use crate::mapper::{NameTables, RawMapper};
 use crate::nes::Signals;
 
 pub struct MMC3Mapper {
     chr_rom: Vec<u8>,
     prg_rom: Vec<u8>,
-    mirroring: NametableMirroring,
-    nametables: [u8; 0x800],
+    nametables: NameTables,
     prg_ram: Option<[u8; 8 * 1024]>,
 
     bank_reg: [u8; 8],
@@ -55,8 +54,7 @@ impl MMC3Mapper {
         let mut mapper = MMC3Mapper {
             chr_rom: cart.chr_rom,
             prg_rom: cart.prg_rom,
-            mirroring: cart.mirroring,
-            nametables: [0; 0x800],
+            nametables: NameTables::new(cart.mirroring),
             prg_ram,
 
             bank_reg: [0; 8],
@@ -161,12 +159,13 @@ impl MMC3Mapper {
             }
             // Mirroring
             0xA000 => {
-                self.mirroring = match value & 1 {
+                let mirroring = match value & 1 {
                     0 => NametableMirroring::Vertical,
                     1 => NametableMirroring::Horizontal,
                     _ => unreachable!(),
                 };
-                info!("{:?} mirroring", self.mirroring);
+                info!("{:?} mirroring", mirroring);
+                self.nametables.update_mirroring(mirroring);
             }
             // PRG RAM protect
             0xA001 => {
@@ -251,7 +250,7 @@ impl RawMapper for MMC3Mapper {
                 self.chr_rom[self.chr_banks[bank_no] + low_addr]
             }
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
+                self.nametables.access(addr, value, write)
             }
             _ => {
                 mapper::out_of_bounds_access("PPU memory space", addr, value, write)

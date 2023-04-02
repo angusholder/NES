@@ -1,6 +1,6 @@
-use crate::cartridge::{Cartridge, NametableMirroring};
+use crate::cartridge::{Cartridge};
 use crate::mapper;
-use crate::mapper::RawMapper;
+use crate::mapper::{NameTables, RawMapper};
 
 /// Mapper 0: NROM
 /// https://www.nesdev.org/wiki/NROM
@@ -9,8 +9,7 @@ pub struct NRomMapper {
     chr_rom: [u8; 8192],
     /// 32KiB, or 16KiB mirrored into two
     prg_rom: [u8; 32*1024],
-    mirroring: NametableMirroring,
-    nametables: [u8; 0x800],
+    nametables: NameTables,
 }
 
 impl NRomMapper {
@@ -32,8 +31,7 @@ impl NRomMapper {
         Self {
             chr_rom: cart.chr_rom.try_into().expect("CHR ROM should be 8KiB"),
             prg_rom,
-            mirroring: cart.mirroring,
-            nametables: [0; 0x800],
+            nametables: NameTables::new(cart.mirroring),
         }
     }
 }
@@ -60,7 +58,7 @@ impl RawMapper for NRomMapper {
                 self.chr_rom[addr as usize]
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
+                self.nametables.access(addr, value, write)
             }
             _ => {
                 mapper::out_of_bounds_access("PPU memory space", addr, value, write)

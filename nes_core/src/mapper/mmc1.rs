@@ -2,7 +2,7 @@ use std::ops::Range;
 use log::{trace, warn};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
-use crate::mapper::access_nametable;
+use crate::mapper::{NameTables};
 use crate::mapper::RawMapper;
 
 /// Mapper 1: MMC1
@@ -22,8 +22,7 @@ pub struct MMC1Mapper {
     shift_register: u8,
     shift_counter: u32,
 
-    mirroring: NametableMirroring,
-    nametables: [u8; 0x800],
+    nametables: NameTables,
 
     // Calculated mappings
     prg_low_bank: usize,
@@ -61,8 +60,7 @@ impl MMC1Mapper {
             prg_bank: 0,
             shift_register: 0,
             shift_counter: 0,
-            mirroring: NametableMirroring::SingleScreenLowerBank,
-            nametables: [0; 0x800],
+            nametables: NameTables::new(NametableMirroring::SingleScreenLowerBank),
 
             prg_low_bank: 0,
             prg_high_bank: 0,
@@ -123,13 +121,14 @@ impl MMC1Mapper {
     }
 
     fn write_control_register(&mut self, byte: u8) {
-        self.mirroring = match byte & 0b11 {
+        let mirroring = match byte & 0b11 {
             0 => NametableMirroring::SingleScreenLowerBank,
             1 => NametableMirroring::SingleScreenUpperBank,
             2 => NametableMirroring::Vertical,
             3 => NametableMirroring::Horizontal,
             _ => unreachable!(),
         };
+        self.nametables.update_mirroring(mirroring);
         self.prg_mode = match byte >> 2 & 0b11 {
             0 | 1 => PRGMode::Switch32KiB,
             2 => PRGMode::FixedFirstSwitchLast,
@@ -142,7 +141,7 @@ impl MMC1Mapper {
             _ => unreachable!(),
         };
         trace!("Set mapper control register to {byte:02X}:");
-        trace!("> mirroring = {:?}", self.mirroring);
+        trace!("> mirroring = {:?}", mirroring);
         trace!("> PRG mode = {:?}", self.prg_mode);
         trace!("> CHR mode = {:?}", self.chr_mode);
         self.sync_mappings();
@@ -232,7 +231,7 @@ impl RawMapper for MMC1Mapper {
                 *ptr
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
+                self.nametables.access(addr, value, write)
             }
             _ => {
                 mapper::out_of_bounds_access("CHR", addr, value, write)

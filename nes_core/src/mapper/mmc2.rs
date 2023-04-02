@@ -1,6 +1,6 @@
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
-use crate::mapper::RawMapper;
+use crate::mapper::{NameTables, RawMapper};
 
 /// https://www.nesdev.org/wiki/MMC2
 /// Only used for Mike Tyson's Punch Out - https://nescartdb.com/profile/view/317/mike-tysons-punch-out
@@ -14,8 +14,7 @@ pub struct MMC2Mapper {
     chr_selector_0: BankSelector,
     chr_selector_1: BankSelector,
 
-    mirroring: NametableMirroring,
-    nametables: [u8; 0x800],
+    nametables: NameTables,
 }
 
 impl MMC2Mapper {
@@ -30,8 +29,7 @@ impl MMC2Mapper {
             chr_selector_0: BankSelector::FE,
             chr_selector_1: BankSelector::FE,
 
-            mirroring: NametableMirroring::Horizontal,
-            nametables: [0; 0x800],
+            nametables: NameTables::new(NametableMirroring::Horizontal),
         }
     }
 }
@@ -62,11 +60,12 @@ impl RawMapper for MMC2Mapper {
                 self.chr_bank_1[BankSelector::FE as usize] = chr_bank_addr;
             }
             0xF000..=0xFFFF => {
-                self.mirroring = match value & 1 {
+                let mirroring = match value & 1 {
                     0 => NametableMirroring::Vertical,
                     1 => NametableMirroring::Horizontal,
                     _ => unreachable!(),
-                }
+                };
+                self.nametables.update_mirroring(mirroring);
             }
             _ => {
                 mapper::out_of_bounds_write("cart", addr, value);
@@ -111,7 +110,7 @@ impl RawMapper for MMC2Mapper {
                 self.chr_rom[base + (addr as usize & 0x0FFF)]
             }
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
+                self.nametables.access(addr, value, write)
             }
             _ => {
                 mapper::out_of_bounds_access("PPU memory space", addr, value, write)

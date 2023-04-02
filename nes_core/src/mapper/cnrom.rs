@@ -1,14 +1,13 @@
-use crate::cartridge::{Cartridge, NametableMirroring};
+use crate::cartridge::{Cartridge};
 use crate::mapper;
-use crate::mapper::RawMapper;
+use crate::mapper::{NameTables, RawMapper};
 
 /// Mapper 3: CNROM
 /// https://www.nesdev.org/wiki/INES_Mapper_003
 pub struct CNRomMapper {
     prg_rom: Box<[u8]>,
     chr_rom: Box<[u8]>,
-    mirroring: NametableMirroring,
-    nametables: [u8; 0x800],
+    nametables: NameTables,
     chr_bank: u8,
 }
 
@@ -17,8 +16,7 @@ impl CNRomMapper {
         CNRomMapper {
             prg_rom: cart.prg_rom.into_boxed_slice(),
             chr_rom: cart.chr_rom.into_boxed_slice(),
-            mirroring: cart.mirroring,
-            nametables: [0; 0x800],
+            nametables: NameTables::new(cart.mirroring),
             chr_bank: 0,
         }
     }
@@ -52,7 +50,7 @@ impl RawMapper for CNRomMapper {
                 self.chr_rom[base..base + CHR_BANK_SIZE][addr as usize]
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                mapper::access_nametable(&mut self.nametables, self.mirroring, addr & 0x2FFF, value, write)
+                self.nametables.access(addr, value, write)
             }
             _ => {
                 mapper::out_of_bounds_access("PPU memory space", addr, value, write)
