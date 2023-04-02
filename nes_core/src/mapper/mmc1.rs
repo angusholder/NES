@@ -183,18 +183,21 @@ impl RawMapper for MMC1Mapper {
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
-        if WRAM_RANGE.contains(&addr) {
-            if let Some(wram) = self.wram.as_ref() {
-                return wram[addr as usize & 0x1FFF];
+        match addr {
+            0x6000..=0x7FFF => {
+                if let Some(wram) = self.wram.as_ref() {
+                    wram[addr as usize & 0x1FFF]
+                } else {
+                    mapper::out_of_bounds_read("WRAM", addr)
+                }
             }
-        }
-
-        if addr >= 0x8000 && addr < 0xC000 {
-            self.prg_rom[self.prg_low_bank + (addr as usize - 0x8000)]
-        } else if addr >= 0xC000 {
-            self.prg_rom[self.prg_high_bank + (addr as usize - 0xC000)]
-        } else {
-            mapper::out_of_bounds_read("cartridge", addr)
+            0x8000..=0xBFFF => {
+                self.prg_rom[self.prg_low_bank + (addr as usize & 0x3FFF)]
+            }
+            0xC000..=0xFFFF => {
+                self.prg_rom[self.prg_high_bank + (addr as usize & 0x3FFF)]
+            }
+            _ => mapper::out_of_bounds_read("cartridge", addr),
         }
     }
 
