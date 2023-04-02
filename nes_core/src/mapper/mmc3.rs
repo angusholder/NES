@@ -1,15 +1,13 @@
 use std::rc::Rc;
-use log::{info, warn};
+use log::{info};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::{NameTables, RawMapper};
+use crate::mapper::memory_map::MemoryMap;
 use crate::nes::Signals;
 
 pub struct MMC3Mapper {
-    chr_rom: Vec<u8>,
-    prg_rom: Vec<u8>,
     nametables: NameTables,
-    prg_ram: Option<[u8; 8 * 1024]>,
 
     bank_reg: [u8; 8],
     // The next write to the bank data register will affect bank_reg[bank_reg_select]
@@ -24,8 +22,7 @@ pub struct MMC3Mapper {
     irq_counter_reload: bool,
     irq_enable: bool,
 
-    prg_banks: [usize; 4],
-    chr_banks: [usize; 8],
+    map: MemoryMap,
     signals: Rc<Signals>,
 }
 
@@ -37,25 +34,14 @@ enum PRGBankMode {
     SwappableCD = 1,
 }
 
-const PRG_BANK_SIZE: usize = 0x2000; // 8KB
 const CHR_BANK_SIZE: usize = 0x400; // 1KB
 
 impl MMC3Mapper {
     pub fn new(cart: Cartridge, signals: Rc<Signals>) -> MMC3Mapper {
-        let prg_ram = match cart.prg_ram_size {
-            8192 => Some([0; 8192]),
-            0 => None,
-            other => {
-                warn!("Unexpected PRG RAM size {other}");
-                None
-            }
-        };
+        let map = MemoryMap::new(&cart);
 
         let mut mapper = MMC3Mapper {
-            chr_rom: cart.chr_rom,
-            prg_rom: cart.prg_rom,
             nametables: NameTables::new(cart.mirroring),
-            prg_ram,
 
             bank_reg: [0; 8],
             bank_reg_select: 0,
@@ -67,8 +53,7 @@ impl MMC3Mapper {
             irq_counter_reload: false,
             irq_enable: false,
 
-            prg_banks: [0; 4],
-            chr_banks: [0; 8],
+            map,
             signals,
         };
 
@@ -79,56 +64,38 @@ impl MMC3Mapper {
     }
 
     fn sync_mappings(&mut self) {
-        let old_chr_banks = self.chr_banks;
-        self.chr_banks = [
-            // 0x0000-0x07FF
-            self.bank_reg[0] as usize * CHR_BANK_SIZE,
-            (self.bank_reg[0]+1) as usize * CHR_BANK_SIZE,
+        // Swap 0x0000-0x0FFF with 0x1000-0x1FFF
+        let flip = if self.chr_a12_inversion { 4 } else { 0 };
 
-            // 0x0800-0x0FFF
-            self.bank_reg[1] as usize * CHR_BANK_SIZE,
-            (self.bank_reg[1]+1) as usize * CHR_BANK_SIZE,
+        // CHR memory is 8 banks of 0x400/1KB each:
+        // 0x0000-0x07FF
+        self.map.map_chr_1k(0 ^ flip, self.bank_reg[0]);
+        self.map.map_chr_1k(1 ^ flip, self.bank_reg[0]+1);
+        // 0x0800-0x0FFF
+        self.map.map_chr_1k(2 ^ flip, self.bank_reg[1]);
+        self.map.map_chr_1k(3 ^ flip, self.bank_reg[1]+1);
+        // 0x1000-0x13FF
+        self.map.map_chr_1k(4 ^ flip, self.bank_reg[2]);
+        // 0x1400-0x17FF
+        self.map.map_chr_1k(5 ^ flip, self.bank_reg[3]);
+        // 0x1800-0x1BFF
+        self.map.map_chr_1k(6 ^ flip, self.bank_reg[4]);
+        // 0x1C00-0x1FFF
+        self.map.map_chr_1k(7 ^ flip, self.bank_reg[5]);
 
-            // 0x1000-0x13FF
-            self.bank_reg[2] as usize * CHR_BANK_SIZE,
-            // 0x1400-0x17FF
-            self.bank_reg[3] as usize * CHR_BANK_SIZE,
-            // 0x1800-0x1BFF
-            self.bank_reg[4] as usize * CHR_BANK_SIZE,
-            // 0x1C00-0x1FFF
-            self.bank_reg[5] as usize * CHR_BANK_SIZE,
-        ];
-
-        // if self.chr_a12_inversion {
-        //     // Flip address bit A12
-        //     let (lower, upper) = self.chr_banks.split_at_mut(4);
-        //     lower.swap_with_slice(upper);
-        // }
-
-        if self.chr_banks != old_chr_banks {
-            info!("CHR Banks: [{:05X}, {:05X}, {:05X}, {:05X}, {:05X}, {:05X}, {:05X}, {:05X}]",
-                self.chr_banks[0], self.chr_banks[1], self.chr_banks[2], self.chr_banks[3],
-                self.chr_banks[4], self.chr_banks[5], self.chr_banks[6], self.chr_banks[7]);
-        }
-
-        let old_prg_banks = self.prg_banks;
-        self.prg_banks = match self.prg_bank_mode {
-            PRGBankMode::Swappable89 => [
-                self.bank_reg[6] as usize * PRG_BANK_SIZE, // R6
-                self.bank_reg[7] as usize * PRG_BANK_SIZE, // R7
-                self.prg_rom.len() - 2*PRG_BANK_SIZE, // 2nd last page
-                self.prg_rom.len() - 1*PRG_BANK_SIZE, // Last page
-            ],
-            PRGBankMode::SwappableCD => [
-                self.prg_rom.len() - 2*PRG_BANK_SIZE, // 2nd last page
-                self.bank_reg[7] as usize * PRG_BANK_SIZE, // R7
-                self.bank_reg[6] as usize * PRG_BANK_SIZE, // R6
-                self.prg_rom.len() - 1*PRG_BANK_SIZE, // Last page
-            ],
-        };
-        if old_prg_banks != self.prg_banks {
-            info!("PRG Banks {:?}: [{:05X}, {:05X}, {:05X}, {:05X}]", self.prg_bank_mode,
-                self.prg_banks[0], self.prg_banks[1], self.prg_banks[2], self.prg_banks[3]);
+        match self.prg_bank_mode {
+            PRGBankMode::Swappable89 => {
+                self.map.map_prg_8k(0, self.bank_reg[6] as i32); // R6
+                self.map.map_prg_8k(1, self.bank_reg[7] as i32); // R7
+                self.map.map_prg_8k(2, -2); // 2nd last page
+                self.map.map_prg_8k(3, -1); // Last page
+            }
+            PRGBankMode::SwappableCD => {
+                self.map.map_prg_8k(0, -2); // 2nd last page
+                self.map.map_prg_8k(1, self.bank_reg[7] as i32); // R7
+                self.map.map_prg_8k(2, self.bank_reg[6] as i32); // R6
+                self.map.map_prg_8k(3, -1); // Last page
+            }
         }
     }
 
@@ -199,11 +166,7 @@ impl RawMapper for MMC3Mapper {
     fn write_main_bus(&mut self, addr: u16, value: u8) {
         match addr {
             0x6000..=0x7FFF => {
-                if let Some(prg_ram) = self.prg_ram.as_mut() {
-                    prg_ram[(addr & 0x1FFF) as usize] = value;
-                } else {
-                    mapper::out_of_bounds_write("PRG RAM", addr, value);
-                }
+                self.map.write_main_bus(addr, value);
             }
             0x8000..=0xFFFF => {
                 self.write_register(addr, value);
@@ -215,39 +178,13 @@ impl RawMapper for MMC3Mapper {
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
-        match addr {
-            0x6000..=0x7FFF => {
-                if let Some(prg_ram) = self.prg_ram.as_ref() {
-                    prg_ram[(addr & 0x1FFF) as usize]
-                } else {
-                    mapper::out_of_bounds_read("PRG RAM", addr)
-                }
-            }
-            0x8000..=0x9FFF => self.prg_rom[self.prg_banks[0] + (addr & 0x1FFF) as usize],
-            0xA000..=0xBFFF => self.prg_rom[self.prg_banks[1] + (addr & 0x1FFF) as usize],
-            0xC000..=0xDFFF => self.prg_rom[self.prg_banks[2] + (addr & 0x1FFF) as usize],
-            0xE000..=0xFFFF => self.prg_rom[self.prg_banks[3] + (addr & 0x1FFF) as usize],
-            // 0x8000..=0xFFFF => {
-            //     // 4 banks of 0x2000/8KB each
-            //     let bank_no = (addr >> 0x1FFFu32.count_ones() & 0b11) as usize;
-            //     let low_addr = (addr & 0x1FFF) as usize;
-            //     self.prg_rom[self.prg_banks[bank_no] + low_addr]
-            // }
-            _ => mapper::out_of_bounds_read("CPU memory space", addr)
-        }
+        self.map.read_main_bus(addr)
     }
 
-    fn access_ppu_bus(&mut self, mut addr: u16, value: u8, write: bool) -> u8 {
-        if self.chr_a12_inversion {
-            // Flip address bit A12
-            addr ^= 1 << 12;
-        }
+    fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
             0x0000..=0x1FFF if !write => {
-                // 8 banks of 0x400/1KB each
-                let bank_no = ((addr >> 0x3FFu32.count_ones()) & 0b111) as usize;
-                let low_addr = (addr & 0x3FF) as usize;
-                self.chr_rom[self.chr_banks[bank_no] + low_addr]
+                self.map.read_ppu_bus(addr)
             }
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
                 self.nametables.access(addr, value, write)

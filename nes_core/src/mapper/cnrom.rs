@@ -1,53 +1,51 @@
 use crate::cartridge::{Cartridge};
 use crate::mapper;
 use crate::mapper::{NameTables, RawMapper};
+use crate::mapper::memory_map::MemoryMap;
 
 /// Mapper 3: CNROM
 /// https://www.nesdev.org/wiki/INES_Mapper_003
 pub struct CNRomMapper {
-    prg_rom: Box<[u8]>,
-    chr_rom: Box<[u8]>,
+    map: MemoryMap,
     nametables: NameTables,
-    chr_bank: u8,
 }
 
 impl CNRomMapper {
     pub fn new(cart: Cartridge) -> CNRomMapper {
+        let mut map = MemoryMap::new(&cart);
+        map.map_chr_8k(0);
+
+        match cart.prg_rom.len() {
+            0x4000 => { // 16KiB (mirrored into two)
+                map.map_prg_16k(0, 0);
+                map.map_prg_16k(1, 0);
+            }
+            0x8000 => {  // 32KiB
+                map.map_prg_32k(0);
+            }
+            _ => panic!("PRG ROM should be 16KiB or 32KiB"),
+        }
+
         CNRomMapper {
-            prg_rom: cart.prg_rom.into_boxed_slice(),
-            chr_rom: cart.chr_rom.into_boxed_slice(),
+            map,
             nametables: NameTables::new(cart.mirroring),
-            chr_bank: 0,
         }
     }
 }
 
-const CHR_BANK_SIZE: usize = 8 * 1024;
-
 impl RawMapper for CNRomMapper {
     fn write_main_bus(&mut self, _addr: u16, value: u8) {
-        self.chr_bank = value;
+        self.map.map_chr_8k(value as u8);
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
-        match addr {
-            0x8000..=0xFFFF => {
-                self.prg_rom[(addr & 0x7FFF) as usize % self.prg_rom.len()]
-            }
-            _ => {
-                mapper::out_of_bounds_read("cart", addr)
-            }
-        }
+        self.map.read_main_bus(addr)
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
             0x0000..=0x1FFF => {
-                if write {
-                    mapper::out_of_bounds_write("CHR", addr, value);
-                }
-                let base = self.chr_bank as usize * CHR_BANK_SIZE;
-                self.chr_rom[base..base + CHR_BANK_SIZE][addr as usize]
+                self.map.access_ppu_bus(addr, value, write)
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
                 self.nametables.access(addr, value, write)

@@ -9,6 +9,7 @@ mod uxrom;
 mod cnrom;
 mod mmc2;
 mod mmc3;
+mod memory_map;
 
 /// The mapper covers two address spaces - the CPU memory map, and the PPU memory map.
 /// The CPU memory map is 16-bit, and the PPU memory map is 14-bit.

@@ -1,14 +1,13 @@
 use crate::cartridge::{Cartridge};
 use crate::mapper;
 use crate::mapper::{NameTables, RawMapper};
+use crate::mapper::memory_map::MemoryMap;
 
 /// Mapper 2: UxROM
 /// https://www.nesdev.org/wiki/UxROM
 pub struct UxRomMapper {
-    chr_ram: [u8; 8192],
-    prg_rom: Box<[u8]>,
+    map: MemoryMap,
     nametables: NameTables,
-    prg_bank_lo: u8,
 }
 
 const BANK_SIZE: usize = 16 * 1024;
@@ -16,42 +15,31 @@ const BANK_MASK: usize = BANK_SIZE - 1;
 
 impl UxRomMapper {
     pub fn new(cart: Cartridge) -> UxRomMapper {
+        let mut map = MemoryMap::new(&cart);
+        map.map_chr_8k(0);
+        map.map_prg_16k(0, 0);
+        map.map_prg_16k(1, -1);
+        map.configure_chr_ram(8192);
         UxRomMapper {
-            prg_rom: cart.prg_rom.into_boxed_slice(),
-            chr_ram: [0; 8192],
+            map,
             nametables: NameTables::new(cart.mirroring),
-            prg_bank_lo: 0,
         }
     }
 }
 
 impl RawMapper for UxRomMapper {
     fn write_main_bus(&mut self, _addr: u16, value: u8) {
-        self.prg_bank_lo = value;
+        self.map.map_prg_16k(0, value as i32);
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
-        match addr {
-            0x8000..=0xBFFF => {
-                let base = self.prg_bank_lo as usize * BANK_SIZE;
-                self.prg_rom[base..base+BANK_SIZE][addr as usize & BANK_MASK]
-            }
-            0xC000..=0xFFFF => {
-                self.prg_rom[self.prg_rom.len() - BANK_SIZE..][addr as usize & BANK_MASK]
-            }
-            _ => {
-                mapper::out_of_bounds_read("cart", addr)
-            }
-        }
+        self.map.read_main_bus(addr)
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
             0x0000..=0x1FFF => {
-                if write {
-                    self.chr_ram[addr as usize] = value;
-                }
-                self.chr_ram[addr as usize]
+                self.map.access_ppu_bus(addr, value, write)
             },
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
                 self.nametables.access(addr, value, write)
