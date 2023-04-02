@@ -28,6 +28,7 @@ pub struct MMC1Mapper {
     // Calculated mappings
     prg_low_bank: usize,
     prg_high_bank: usize,
+    chr_base_addrs: [usize; 2],
 }
 
 #[derive(Debug)]
@@ -65,6 +66,7 @@ impl MMC1Mapper {
 
             prg_low_bank: 0,
             prg_high_bank: 0,
+            chr_base_addrs: [0, 0],
         };
         mapper.sync_mappings();
         mapper
@@ -165,6 +167,18 @@ impl MMC1Mapper {
                 self.prg_high_bank = self.prg_rom.len() - PRG_BANK_SIZE;
             }
         }
+
+        match self.chr_mode {
+            CHRMode::Switch8KiB => {
+                let base_addr = ((self.chr_bank_0 >> 1) as usize * 8 * 1024) % self.chr_ram.len();
+                self.chr_base_addrs[0] = base_addr;
+                self.chr_base_addrs[1] = base_addr + 0x1000;
+            }
+            CHRMode::SwitchTwo4KiB => {
+                self.chr_base_addrs[0] = (self.chr_bank_0 as usize * 4 * 1024) % self.chr_ram.len();
+                self.chr_base_addrs[1] = (self.chr_bank_1 as usize * 4 * 1024) % self.chr_ram.len();
+            }
+        }
     }
 }
 
@@ -203,21 +217,15 @@ impl RawMapper for MMC1Mapper {
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
-            0x0000..=0x1FFF => {
-                let ptr = match self.chr_mode {
-                    CHRMode::Switch8KiB => {
-                        let base_addr = ((self.chr_bank_0 >> 1) as usize * 8 * 1024) % self.chr_ram.len();
-                        &mut self.chr_ram[base_addr + addr as usize]
-                    }
-                    CHRMode::SwitchTwo4KiB => {
-                        let base_addr = if addr < 0x1000 {
-                            self.chr_bank_0 as usize * 4 * 1024
-                        } else {
-                            self.chr_bank_1 as usize * 4 * 1024
-                        } % self.chr_ram.len();
-                        &mut self.chr_ram[base_addr + (addr&0x0FFF) as usize]
-                    }
-                };
+            0x0000..=0x0FFF => {
+                let ptr = &mut self.chr_ram[self.chr_base_addrs[0] + (addr&0x0FFF) as usize];
+                if write {
+                    *ptr = value;
+                }
+                *ptr
+            },
+            0x1000..=0x1FFF => {
+                let ptr = &mut self.chr_ram[self.chr_base_addrs[1] + (addr&0x0FFF) as usize];
                 if write {
                     *ptr = value;
                 }
