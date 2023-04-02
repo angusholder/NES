@@ -3,14 +3,13 @@ use log::{trace, warn};
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::{NameTables};
+use crate::mapper::memory_map::MemoryMap;
 use crate::mapper::RawMapper;
 
 /// Mapper 1: MMC1
 /// https://www.nesdev.org/wiki/MMC1
 pub struct MMC1Mapper {
-    prg_rom: Box<[u8]>,
-    chr_ram: [u8; 8192],
-    wram: Option<[u8; 8192]>,
+    map: MemoryMap,
 
     // See https://www.nesdev.org/wiki/MMC1#Registers
     prg_mode: PRGMode,
@@ -23,11 +22,6 @@ pub struct MMC1Mapper {
     shift_counter: u32,
 
     nametables: NameTables,
-
-    // Calculated mappings
-    prg_low_bank: usize,
-    prg_high_bank: usize,
-    chr_base_addrs: [usize; 2],
 }
 
 #[derive(Debug)]
@@ -48,11 +42,11 @@ impl MMC1Mapper {
         if cart.prg_ram_battery_backed {
             warn!("Battery-backed PRG RAM not supported");
         }
+        let mut map = MemoryMap::new(&cart);
+        map.configure_chr_ram(8192);
 
         let mut mapper = Self {
-            prg_rom: cart.prg_rom.into_boxed_slice(),
-            chr_ram: [0; 8192],
-            wram: if cart.prg_ram_size == 8*1024 { Some([0; 8*1024]) } else { None },
+            map,
             prg_mode: PRGMode::FixedLastSwitchFirst,
             chr_mode: CHRMode::Switch8KiB,
             chr_bank_0: 0,
@@ -61,10 +55,6 @@ impl MMC1Mapper {
             shift_register: 0,
             shift_counter: 0,
             nametables: NameTables::new(NametableMirroring::SingleScreenLowerBank),
-
-            prg_low_bank: 0,
-            prg_high_bank: 0,
-            chr_base_addrs: [0, 0],
         };
         mapper.sync_mappings();
         mapper
@@ -151,31 +141,26 @@ impl MMC1Mapper {
         const PRG_BANK_SIZE: usize = 16 * 1024;
         match self.prg_mode {
             PRGMode::Switch32KiB => {
-                let base_addr = (self.prg_bank & !1) as usize * PRG_BANK_SIZE;
-                self.prg_low_bank = base_addr;
-                self.prg_high_bank = base_addr + PRG_BANK_SIZE;
+                self.map.map_prg_16k(0, (self.prg_bank & !1) as i32);
+                self.map.map_prg_16k(1, (self.prg_bank & !1) as i32 + 1);
             }
             PRGMode::FixedFirstSwitchLast => {
-                self.prg_low_bank = 0;
-                let base_addr = self.prg_bank as usize * PRG_BANK_SIZE;
-                self.prg_high_bank = base_addr;
+                self.map.map_prg_16k(0, 0);
+                self.map.map_prg_16k(0, self.prg_bank as i32);
             }
             PRGMode::FixedLastSwitchFirst => {
-                let base_addr = self.prg_bank as usize * PRG_BANK_SIZE;
-                self.prg_low_bank = base_addr;
-                self.prg_high_bank = self.prg_rom.len() - PRG_BANK_SIZE;
+                self.map.map_prg_16k(0, self.prg_bank as i32);
+                self.map.map_prg_16k(0, -1);
             }
         }
 
         match self.chr_mode {
             CHRMode::Switch8KiB => {
-                let base_addr = ((self.chr_bank_0 >> 1) as usize * 8 * 1024) % self.chr_ram.len();
-                self.chr_base_addrs[0] = base_addr;
-                self.chr_base_addrs[1] = base_addr + 0x1000;
+                self.map.map_chr_8k(self.chr_bank_0 >> 1);
             }
             CHRMode::SwitchTwo4KiB => {
-                self.chr_base_addrs[0] = (self.chr_bank_0 as usize * 4 * 1024) % self.chr_ram.len();
-                self.chr_base_addrs[1] = (self.chr_bank_1 as usize * 4 * 1024) % self.chr_ram.len();
+                self.map.map_chr_4k(0, self.chr_bank_0);
+                self.map.map_chr_4k(1, self.chr_bank_1);
             }
         }
     }
@@ -185,51 +170,26 @@ const WRAM_RANGE: Range<u16> = 0x6000..0x8000;
 
 impl RawMapper for MMC1Mapper {
     fn write_main_bus(&mut self, addr: u16, value: u8) {
-        if WRAM_RANGE.contains(&addr) {
-            if let Some(wram) = self.wram.as_mut() {
-                wram[addr as usize & 0x1FFF] = value;
-                return;
+        match addr {
+            0x6000..=0x7FFF => {
+                self.map.write_main_bus(addr, value);
             }
+            0x8000..=0xFFFF => {
+                self.write_register(addr, value);
+            }
+            _ => mapper::out_of_bounds_write("CPU memory map", addr, value)
         }
-
-        self.write_register(addr, value);
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
-        match addr {
-            0x6000..=0x7FFF => {
-                if let Some(wram) = self.wram.as_ref() {
-                    wram[addr as usize & 0x1FFF]
-                } else {
-                    mapper::out_of_bounds_read("WRAM", addr)
-                }
-            }
-            0x8000..=0xBFFF => {
-                self.prg_rom[self.prg_low_bank + (addr as usize & 0x3FFF)]
-            }
-            0xC000..=0xFFFF => {
-                self.prg_rom[self.prg_high_bank + (addr as usize & 0x3FFF)]
-            }
-            _ => mapper::out_of_bounds_read("cartridge", addr),
-        }
+        self.map.read_main_bus(addr)
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
-            0x0000..=0x0FFF => {
-                let ptr = &mut self.chr_ram[self.chr_base_addrs[0] + (addr&0x0FFF) as usize];
-                if write {
-                    *ptr = value;
-                }
-                *ptr
-            },
-            0x1000..=0x1FFF => {
-                let ptr = &mut self.chr_ram[self.chr_base_addrs[1] + (addr&0x0FFF) as usize];
-                if write {
-                    *ptr = value;
-                }
-                *ptr
-            },
+            0x0000..=0x1FFF => {
+                self.map.access_ppu_bus(addr, value, write)
+            }
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
                 self.nametables.access(addr, value, write)
             }
