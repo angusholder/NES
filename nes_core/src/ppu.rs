@@ -58,9 +58,6 @@ pub struct PPU {
     tiles_hi: u16,
 }
 
-/// The 0th element in this array is not used.
-type Palette = [u8; 4];
-
 impl PPU {
     pub fn new(mapper: Mapper) -> PPU {
         PPU {
@@ -176,7 +173,6 @@ fn mask_palette_addr(addr: u16) -> usize {
 #[derive(Debug, Clone, Copy)]
 struct PPUControl {
     enable_nmi: bool,
-    slave_mode: bool,
     sprite_size: SpriteSize,
     background_pattern_table: u16,
     sprite_pattern_table: u16,
@@ -204,7 +200,6 @@ impl PPUControl {
     fn from_bits(bits: u8) -> PPUControl {
         PPUControl {
             enable_nmi: bits & 0b1000_0000 != 0,
-            slave_mode: bits & 0b0100_0000 != 0,
             sprite_size: if bits & 0b0010_0000 != 0 {
                 SpriteSize::Size8x16
             } else {
@@ -224,6 +219,7 @@ impl PPUControl {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 struct PPUMask {
     grayscale: bool,
@@ -707,15 +703,6 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
     ppu.cur_line_num_sprites = dest_index;
 }
 
-fn interleave_bits_slow(x: u8, y: u8) -> u16 {
-    let mut result = 0u16;
-    for i in 0..8 {
-        let bits = ((x >> i) & 1) as u16 | (((y >> i) & 1) as u16) << 1;
-        result |= bits << (i * 2);
-    }
-    result
-}
-
 /// Interleaves bits like so:
 /// interleave_bits(0b00, 0b11) == 0b1010
 /// interleave_bits(0b11, 0b00) == 0b0101
@@ -729,6 +716,15 @@ fn interleave_bits(lower: u8, upper: u8) -> u16 {
 
 #[test]
 fn test_interleave_bits() {
+    fn interleave_bits_slow(x: u8, y: u8) -> u16 {
+        let mut result = 0u16;
+        for i in 0..8 {
+            let bits = ((x >> i) & 1) as u16 | (((y >> i) & 1) as u16) << 1;
+            result |= bits << (i * 2);
+        }
+        result
+    }
+
     assert_eq!(interleave_bits(0b00, 0b11), 0b1010);
     assert_eq!(interleave_bits(0b11, 0b00), 0b0101);
     for x in 0..=255 {

@@ -120,6 +120,7 @@ pub struct NameTables {
 }
 
 // This is an enum so the compiler can omit the bounds check when accessing `NameTables.storage`.
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 enum NtAddr {
     Addr000 = 0x000,

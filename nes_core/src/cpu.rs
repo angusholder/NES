@@ -220,7 +220,7 @@ pub fn emulate_instruction(nes: &mut NES) {
         }
 
         // This is the only official NOP instruction
-        NOP_24 => {}
+        NOP => {}
 
         _ => {
             unimplemented!("instruction {} (0x{op:02X})", disassemble::INSTRUCTION_NAMES[op as usize]);

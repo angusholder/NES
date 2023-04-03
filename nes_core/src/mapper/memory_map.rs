@@ -25,8 +25,6 @@ pub struct MemoryMap {
 const PRG_PAGE: usize = 8 * 1024;
 const CHR_PAGE: usize = 1024;
 
-static PRG_BANK_NAMES: [&str; 4] = ["0x8000", "0xA000", "0xC000", "0xE000"];
-
 impl MemoryMap {
     pub fn new(cart: &Cartridge) -> MemoryMap {
         let wram = match cart.prg_ram_size {
