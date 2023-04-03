@@ -150,7 +150,6 @@ impl MMC1Mapper {
 
 impl RawMapper for MMC1Mapper {
     fn init_memory_map(&self, memory: &mut MemoryMap) {
-        memory.configure_chr_ram(8192);
         memory.set_nametable_mirroring(NametableMirroring::SingleScreenLowerBank);
         self.sync_mappings(memory);
     }

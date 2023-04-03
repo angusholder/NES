@@ -18,7 +18,6 @@ impl RawMapper for UxRomMapper {
         memory.map_chr_8k(0);
         memory.map_prg_16k(0, 0);
         memory.map_prg_16k(1, -1);
-        memory.configure_chr_ram(8192);
     }
 
     fn write_main_bus(&mut self, memory: &mut MemoryMap, _addr: u16, value: u8) {

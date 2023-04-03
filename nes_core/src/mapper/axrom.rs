@@ -24,7 +24,6 @@ impl AxRomMapper {
 
 impl RawMapper for AxRomMapper {
     fn init_memory_map(&self, memory: &mut MemoryMap) {
-        memory.configure_chr_ram(8192);
         memory.map_chr_8k(0);
         self.sync_mapping(memory);
     }
