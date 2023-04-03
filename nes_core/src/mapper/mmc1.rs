@@ -2,7 +2,6 @@ use std::ops::Range;
 use log::{trace};
 use crate::cartridge::{NametableMirroring};
 use crate::mapper;
-use crate::mapper::{NameTables};
 use crate::mapper::memory_map::MemoryMap;
 use crate::mapper::RawMapper;
 
@@ -18,8 +17,6 @@ pub struct MMC1Mapper {
 
     shift_register: u8,
     shift_counter: u32,
-
-    nametables: NameTables,
 }
 
 #[derive(Debug)]
@@ -45,7 +42,6 @@ impl MMC1Mapper {
             prg_bank: 0,
             shift_register: 0,
             shift_counter: 0,
-            nametables: NameTables::new(NametableMirroring::SingleScreenLowerBank),
         }
     }
 
@@ -127,7 +123,6 @@ impl MMC1Mapper {
     }
 
     fn sync_mappings(&self, memory: &mut MemoryMap) {
-        const PRG_BANK_SIZE: usize = 16 * 1024;
         match self.prg_mode {
             PRGMode::Switch32KiB => {
                 memory.map_prg_16k(0, (self.prg_bank & !1) as i32);
@@ -154,8 +149,6 @@ impl MMC1Mapper {
         }
     }
 }
-
-const WRAM_RANGE: Range<u16> = 0x6000..0x8000;
 
 impl RawMapper for MMC1Mapper {
     fn init_memory_map(&self, memory: &mut MemoryMap) {

@@ -31,8 +31,6 @@ enum PRGBankMode {
     SwappableCD = 1,
 }
 
-const CHR_BANK_SIZE: usize = 0x400; // 1KB
-
 impl MMC3Mapper {
     pub fn new(signals: Rc<Signals>) -> MMC3Mapper {
         MMC3Mapper {
