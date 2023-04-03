@@ -60,25 +60,25 @@ impl MMC1Mapper {
 
         if self.shift_counter >= 5 {
             match addr & 0xF000 {
-                0x8000 | 0x9000 => self.write_control_register(memory, self.shift_register),
+                0x8000 | 0x9000 => {
+                    self.write_control_register(memory, self.shift_register)
+                }
                 0xA000 | 0xB000 => {
                     self.chr_bank_0 = self.shift_register;
                     trace!("Set CHR bank 0 = {}", self.chr_bank_0);
-                    self.sync_mappings(memory);
                 }
                 0xC000 | 0xD000 => {
                     self.chr_bank_1 = self.shift_register;
                     trace!("Set CHR bank 1 = {}", self.chr_bank_1);
-                    self.sync_mappings(memory);
                 }
                 0xE000 | 0xF000 => {
                     self.prg_bank = self.shift_register;
                     trace!("Set PRG bank = {}", self.prg_bank);
-                    self.sync_mappings(memory);
                 }
                 _ => unreachable!("{addr:04X}"),
             }
             self.reset_shift_register();
+            self.sync_mappings(memory);
         }
     }
 
@@ -118,7 +118,6 @@ impl MMC1Mapper {
         trace!("> mirroring = {:?}", mirroring);
         trace!("> PRG mode = {:?}", self.prg_mode);
         trace!("> CHR mode = {:?}", self.chr_mode);
-        self.sync_mappings(memory);
     }
 
     fn sync_mappings(&self, memory: &mut MemoryMap) {
@@ -129,11 +128,11 @@ impl MMC1Mapper {
             }
             PRGMode::FixedFirstSwitchLast => {
                 memory.map_prg_16k(0, 0);
-                memory.map_prg_16k(0, self.prg_bank as i32);
+                memory.map_prg_16k(1, self.prg_bank as i32);
             }
             PRGMode::FixedLastSwitchFirst => {
                 memory.map_prg_16k(0, self.prg_bank as i32);
-                memory.map_prg_16k(0, -1);
+                memory.map_prg_16k(1, -1);
             }
         }
 
