@@ -52,6 +52,8 @@ impl MemoryMap {
         }
     }
 
+    pub fn prg_rom_len(&self) -> usize { self.prg_rom.len() }
+
     pub fn set_nametable_mirroring(&mut self, mirroring: NametableMirroring) {
         self.nametables.update_mirroring(mirroring);
     }

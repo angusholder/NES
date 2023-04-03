@@ -22,7 +22,7 @@ pub fn emulate_instruction(nes: &mut NES) {
         ADC_INDIRX => adc(nes, addressing_indirect_x),
         ADC_INDIRY => adc(nes, addressing_indirect_y),
 
-        SBC_IMM => sbc(nes, addressing_immediate),
+        SBC_IMM | 0xEB => sbc(nes, addressing_immediate),
         SBC_ZP => sbc(nes, addressing_zeropage),
         SBC_ZPX => sbc(nes, addressing_zeropage_x),
         SBC_ABS => sbc(nes, addressing_absolute),

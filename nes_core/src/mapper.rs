@@ -1,6 +1,8 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::cartridge::{Cartridge, NametableMirroring};
+use crate::mapper::memory_map::MemoryMap;
 use crate::nes::Signals;
 
 mod nrom;
@@ -16,58 +18,77 @@ mod memory_map;
 ///
 /// There's only one method for each address space, and the `write` parameter tells us whether we're
 /// reading or writing (so we don't have to duplicate the address logic between reads and writes).
-trait RawMapper {
-    fn write_main_bus(&mut self, addr: u16, value: u8);
-    fn read_main_bus(&mut self, addr: u16) -> u8;
+trait RawMapper : Any {
+    fn init(&mut self, memory: &mut MemoryMap);
 
-    fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8;
+    fn write_main_bus(&mut self, memory: &mut MemoryMap, addr: u16, value: u8);
+
+    fn get_ppu_read_hook(&self) -> Option<Rc<PPUReadHook>> { None }
 
     fn on_cycle_scanline(&mut self) {}
 }
 
+pub type PPUReadHook = dyn Fn(&mut MemoryMap, u16) -> u8;
+
 #[derive(Clone)]
 pub struct Mapper {
     mapper: Rc<RefCell<dyn RawMapper>>,
+    memory_map: Rc<RefCell<MemoryMap>>,
+    ppu_read_hook: Option<Rc<PPUReadHook>>,
     pub signals: Rc<Signals>,
 }
 
 impl Mapper {
     pub fn new(cart: Cartridge) -> Result<Mapper, String> {
         let signals = Signals::new();
-        Ok(match cart.mapper_num {
-            0 => Mapper::wrap(nrom::NRomMapper::new(cart), signals),
-            1 => Mapper::wrap(mmc1::MMC1Mapper::new(cart), signals),
-            2 => Mapper::wrap(uxrom::UxRomMapper::new(cart), signals),
-            3 => Mapper::wrap(cnrom::CNRomMapper::new(cart), signals),
-            4 => Mapper::wrap(mmc3::MMC3Mapper::new(cart, signals.clone()), signals),
-            9 => Mapper::wrap(mmc2::MMC2Mapper::new(cart), signals),
+        let memory_map = Rc::new(RefCell::new(MemoryMap::new(&cart)));
+
+        fn wrap(raw_mapper: impl RawMapper) -> Rc<RefCell<dyn RawMapper>> {
+            Rc::new(RefCell::new(raw_mapper))
+        }
+
+        let raw_mapper: Rc<RefCell<dyn RawMapper>> = match cart.mapper_num {
+            0 => wrap(nrom::NRomMapper::new()),
+            1 => wrap(mmc1::MMC1Mapper::new()),
+            2 => wrap(uxrom::UxRomMapper::new()),
+            3 => wrap(cnrom::CNRomMapper::new()),
+            4 => wrap(mmc3::MMC3Mapper::new(signals.clone())),
+            9 => wrap(mmc2::MMC2Mapper::new()),
             _ => {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }
-        })
-    }
+        };
+        raw_mapper.borrow_mut().init(&mut memory_map.borrow_mut());
 
-    fn wrap<M: RawMapper + 'static>(raw_mapper: M, signals: Rc<Signals>) -> Mapper {
-        Mapper {
-            mapper: Rc::new(RefCell::new(raw_mapper)),
+        let mut mapper = Mapper {
+            mapper: raw_mapper,
             signals,
-        }
+            ppu_read_hook: None,
+            memory_map,
+        };
+
+        mapper.ppu_read_hook = mapper.mapper.borrow_mut().get_ppu_read_hook();
+
+        Ok(mapper)
     }
 
     pub fn read_main_bus(&mut self, addr: u16) -> u8 {
-        self.mapper.borrow_mut().read_main_bus(addr)
+        self.memory_map.borrow_mut().read_main_bus(addr)
     }
 
     pub fn write_main_bus(&mut self, addr: u16, value: u8) {
-        self.mapper.borrow_mut().write_main_bus(addr, value);
+        self.mapper.borrow_mut().write_main_bus(&mut self.memory_map.borrow_mut(), addr, value);
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
-        self.mapper.borrow_mut().access_ppu_bus(mask_ppu_addr(addr), 0, false)
+        if let Some(read_hook) = self.ppu_read_hook.as_ref() {
+            return read_hook(&mut self.memory_map.borrow_mut(), addr);
+        }
+        self.memory_map.borrow_mut().read_ppu_bus(mask_ppu_addr(addr))
     }
 
     pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {
-        self.mapper.borrow_mut().access_ppu_bus(mask_ppu_addr(addr), value, true);
+        self.memory_map.borrow_mut().write_ppu_bus(mask_ppu_addr(addr), value);
     }
 
     pub fn on_cycle_scanline(&mut self) {
