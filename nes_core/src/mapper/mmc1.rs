@@ -166,9 +166,6 @@ impl RawMapper for MMC1Mapper {
 
     fn write_main_bus(&mut self, memory: &mut MemoryMap, addr: u16, value: u8) {
         match addr {
-            0x6000..=0x7FFF => {
-                memory.write_main_bus(addr, value);
-            }
             0x8000..=0xFFFF => {
                 self.write_register(memory, addr, value);
             }

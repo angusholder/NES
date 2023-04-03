@@ -77,7 +77,17 @@ impl Mapper {
     }
 
     pub fn write_main_bus(&mut self, addr: u16, value: u8) {
-        self.mapper.borrow_mut().write_main_bus(&mut self.memory_map.borrow_mut(), addr, value);
+        match addr {
+            0x6000..=0x7FFF => {
+                self.memory_map.borrow_mut().write_main_bus(addr, value);
+            }
+            0x8000..=0xFFFF => {
+                self.mapper.borrow_mut().write_main_bus(&mut self.memory_map.borrow_mut(), addr, value);
+            }
+            _ => {
+                out_of_bounds_write("CPU memory space", addr, value);
+            }
+        }
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
