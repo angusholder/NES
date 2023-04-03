@@ -179,15 +179,6 @@ impl NameTables {
         self.storage[offset as usize + (addr as usize & 0x3FF)] = value;
     }
 
-    pub fn access(&mut self, addr: u16, value: u8, write: bool) -> u8 {
-        if write {
-            self.write(addr, value);
-            0
-        } else {
-            self.read(addr)
-        }
-    }
-
     #[inline(always)]
     fn addr_to_offset(addr: u16) -> usize {
         match addr & 0xC00 {

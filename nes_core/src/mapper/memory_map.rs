@@ -154,34 +154,38 @@ impl MemoryMap {
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
-        self.access_ppu_bus(addr, 0, false)
-    }
-
-    pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {
-        self.access_ppu_bus(addr, value, true);
-    }
-
-    pub fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
         match addr {
             0x0000..=0x1FFF => {
                 let bank_no = (addr as usize >> 0x3FFu32.count_ones()) & 7;
                 let base_addr = self.chr_base_addrs[bank_no];
-                let ptr = &mut self.chr_storage[base_addr + (addr as usize & 0x3FF)];
-
-                if write {
-                    if self.chr_writeable {
-                        *ptr = value;
-                    } else {
-                        mapper::out_of_bounds_write("CHR ROM", addr, value);
-                    }
-                }
-                *ptr
+                self.chr_storage[base_addr + (addr as usize & 0x3FF)]
             }
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.nametables.access(addr, value, write)
+                self.nametables.read(addr)
             }
             _ => {
-                mapper::out_of_bounds_access("PPU memory space", addr, value, write)
+                mapper::out_of_bounds_read("PPU memory space", addr)
+            }
+        }
+    }
+
+    pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {
+        match addr {
+            0x0000..=0x1FFF => {
+                let bank_no = (addr as usize >> 0x3FFu32.count_ones()) & 7;
+                let base_addr = self.chr_base_addrs[bank_no];
+
+                if self.chr_writeable {
+                    self.chr_storage[base_addr + (addr as usize & 0x3FF)] = value;
+                } else {
+                    mapper::out_of_bounds_write("CHR ROM", addr, value);
+                }
+            }
+            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
+                self.nametables.write(addr, value);
+            }
+            _ => {
+                mapper::out_of_bounds_write("PPU memory space", addr, value)
             }
         }
     }
