@@ -8,10 +8,10 @@ use crate::mapper::memory_map::MemoryMap;
 /// https://www.nesdev.org/wiki/MMC2
 /// Only used for Mike Tyson's Punch Out - https://nescartdb.com/profile/view/317/mike-tysons-punch-out
 pub struct MMC2Mapper {
-    inner: Rc<Inner>,
+    inner: Rc<MMC2Inner>,
 }
 
-struct Inner {
+struct MMC2Inner {
     prg_bank: Cell<u8>,
     chr_bank_0: [Cell<u8>; 2],
     chr_bank_1: [Cell<u8>; 2],
@@ -22,7 +22,7 @@ struct Inner {
 impl MMC2Mapper {
     pub fn new() -> MMC2Mapper {
         MMC2Mapper {
-            inner: Rc::new(Inner {
+            inner: Rc::new(MMC2Inner {
                 prg_bank: Cell::new(0),
                 chr_bank_0: [Cell::new(0), Cell::new(0)],
                 chr_bank_1: [Cell::new(0), Cell::new(0)],
@@ -33,7 +33,7 @@ impl MMC2Mapper {
     }
 }
 
-impl Inner {
+impl MMC2Inner {
     fn sync_mappings(&self, memory: &mut MemoryMap) {
         memory.map_prg_8k(0, self.prg_bank.get() as i32);
         memory.map_prg_8k(1, -3);
@@ -58,7 +58,7 @@ impl RawMapper for MMC2Mapper {
     }
 
     fn get_ppu_read_hook(&self) -> Option<Rc<PPUReadHook>> {
-        let inner: Rc<Inner> = self.inner.clone();
+        let inner: Rc<MMC2Inner> = self.inner.clone();
         Some(Rc::new(move |memory: &mut MemoryMap, addr: u16| -> u8 {
             let result: u8 = memory.read_ppu_bus(addr);
 
