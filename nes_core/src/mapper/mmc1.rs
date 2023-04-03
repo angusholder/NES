@@ -126,7 +126,7 @@ impl MMC1Mapper {
         self.sync_mappings(memory);
     }
 
-    fn sync_mappings(&mut self, memory: &mut MemoryMap) {
+    fn sync_mappings(&self, memory: &mut MemoryMap) {
         const PRG_BANK_SIZE: usize = 16 * 1024;
         match self.prg_mode {
             PRGMode::Switch32KiB => {
@@ -158,7 +158,7 @@ impl MMC1Mapper {
 const WRAM_RANGE: Range<u16> = 0x6000..0x8000;
 
 impl RawMapper for MMC1Mapper {
-    fn init(&mut self, memory: &mut MemoryMap) {
+    fn init_memory_map(&self, memory: &mut MemoryMap) {
         memory.configure_chr_ram(8192);
         memory.set_nametable_mirroring(NametableMirroring::SingleScreenLowerBank);
         self.sync_mappings(memory);

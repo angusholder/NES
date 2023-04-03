@@ -52,7 +52,7 @@ enum BankSelector {
 }
 
 impl RawMapper for MMC2Mapper {
-    fn init(&mut self, memory: &mut MemoryMap) {
+    fn init_memory_map(&self, memory: &mut MemoryMap) {
         memory.set_nametable_mirroring(NametableMirroring::Horizontal);
         self.inner.sync_mappings(memory);
     }

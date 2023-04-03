@@ -14,7 +14,7 @@ impl CNRomMapper {
 }
 
 impl RawMapper for CNRomMapper {
-    fn init(&mut self, memory: &mut MemoryMap) {
+    fn init_memory_map(&self, memory: &mut MemoryMap) {
         memory.map_chr_8k(0);
 
         match memory.prg_rom_len() {

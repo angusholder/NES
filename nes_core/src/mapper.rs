@@ -19,7 +19,7 @@ mod memory_map;
 /// There's only one method for each address space, and the `write` parameter tells us whether we're
 /// reading or writing (so we don't have to duplicate the address logic between reads and writes).
 trait RawMapper : Any {
-    fn init(&mut self, memory: &mut MemoryMap);
+    fn init_memory_map(&self, memory: &mut MemoryMap);
 
     fn write_main_bus(&mut self, memory: &mut MemoryMap, addr: u16, value: u8);
 
@@ -58,7 +58,7 @@ impl Mapper {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }
         };
-        raw_mapper.borrow_mut().init(&mut memory_map.borrow_mut());
+        raw_mapper.borrow_mut().init_memory_map(&mut memory_map.borrow_mut());
 
         let mut mapper = Mapper {
             mapper: raw_mapper,

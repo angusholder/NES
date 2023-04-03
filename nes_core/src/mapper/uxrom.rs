@@ -14,7 +14,7 @@ impl UxRomMapper {
 }
 
 impl RawMapper for UxRomMapper {
-    fn init(&mut self, memory: &mut MemoryMap) {
+    fn init_memory_map(&self, memory: &mut MemoryMap) {
         memory.map_chr_8k(0);
         memory.map_prg_16k(0, 0);
         memory.map_prg_16k(1, -1);

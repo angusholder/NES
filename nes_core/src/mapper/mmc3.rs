@@ -50,7 +50,7 @@ impl MMC3Mapper {
         }
     }
 
-    fn sync_mappings(&mut self, memory: &mut MemoryMap) {
+    fn sync_mappings(&self, memory: &mut MemoryMap) {
         // Swap 0x0000-0x0FFF with 0x1000-0x1FFF
         let flip = if self.chr_a12_inversion { 4 } else { 0 };
 
@@ -150,7 +150,7 @@ impl MMC3Mapper {
 }
 
 impl RawMapper for MMC3Mapper {
-    fn init(&mut self, memory: &mut MemoryMap) {
+    fn init_memory_map(&self, memory: &mut MemoryMap) {
         // Initialize prg_banks and chr_banks.
         self.sync_mappings(memory);
     }
