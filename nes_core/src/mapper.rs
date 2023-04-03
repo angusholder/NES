@@ -219,15 +219,3 @@ pub fn out_of_bounds_read(context: &str, addr: u16) -> u8 {
 pub fn out_of_bounds_write(context: &str, addr: u16, value: u8) {
     log::warn!("Attempted to write {context} out of bounds at {addr:04X} with {value} (0x{value:02X})");
 }
-
-#[inline(never)]
-#[track_caller]
-#[cold]
-pub fn out_of_bounds_access(context: &str, addr: u16, value: u8, write: bool) -> u8 {
-    if write {
-        out_of_bounds_write(context, addr, value);
-        return 0;
-    } else {
-        out_of_bounds_read(context, addr)
-    }
-}

@@ -27,33 +27,38 @@ impl InputState {
         }
     }
 
-    pub fn handle_register_access(&mut self, addr: u16, val: u8, write: bool) -> u8 {
-        if write && addr == JOYPAD_1 {
-            if val & 1 != 0 {
-                self.is_polling = true;
-            } else {
-                if self.is_polling {
-                    self.is_polling = false;
-                    self.joypad1_shift_register = self.pressed.bits;
+    pub fn write_register(&mut self, addr: u16, val: u8) {
+        match addr {
+            JOYPAD_1 => {
+                if val & 1 != 0 {
+                    self.is_polling = true;
+                } else {
+                    if self.is_polling {
+                        self.is_polling = false;
+                        self.joypad1_shift_register = self.pressed.bits;
+                    }
                 }
             }
-            return 0;
+            JOYPAD_2 => {
+                // Ignored
+            }
+            _ => mapper::out_of_bounds_write("INPUT", addr, val),
         }
-        if write && addr == JOYPAD_2 {
-            // Ignore
-            return 0;
-        }
-        if !write && addr == JOYPAD_1 {
-            let next_bit = self.joypad1_shift_register & 1;
-            self.joypad1_shift_register >>= 1;
-            return next_bit;
-        }
-        if !write && addr == JOYPAD_2 {
-            // Controller 2 is not implemented, always return 0
-            return 0;
-        }
+    }
 
-        mapper::out_of_bounds_access("INPUT", addr, val, write)
+    pub fn read_register(&mut self, addr: u16) -> u8 {
+        match addr {
+            JOYPAD_1 => {
+                let next_bit = self.joypad1_shift_register & 1;
+                self.joypad1_shift_register >>= 1;
+                next_bit
+            }
+            JOYPAD_2 => {
+                // Controller 2 is not implemented, always return 0
+                0
+            }
+            _ => mapper::out_of_bounds_read("INPUT", addr),
+        }
     }
 }
 

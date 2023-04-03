@@ -213,7 +213,7 @@ impl NES {
         } else if addr < 0x4000 {
             return ppu::ppu_read_register(&mut self.ppu, addr);
         } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
-            return self.input.handle_register_access(addr, 0, false);
+            return self.input.read_register(addr);
         } else if addr < 0x4020 {
             // TODO: Implement APU memory reads
             return 0;
@@ -247,7 +247,7 @@ impl NES {
         } else if addr < 0x4000 {
             ppu::ppu_write_register(&mut self.ppu, addr, val);
         } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
-            self.input.handle_register_access(addr, val, true);
+            self.input.write_register(addr, val);
         } else if addr == 0x4014 {
             ppu::do_oam_dma(self, val);
         } else if addr < 0x4020 {
