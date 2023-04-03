@@ -1,6 +1,6 @@
 use std::ops::Range;
-use log::{info, warn};
-use crate::cartridge::{Cartridge, NametableMirroring};
+use log::{warn};
+use crate::cartridge::{Cartridge, CHR, NametableMirroring};
 use crate::mapper;
 use crate::mapper::NameTables;
 
@@ -35,11 +35,17 @@ impl MemoryMap {
                 None
             }
         };
+        if cart.prg_ram_battery_backed {
+            warn!("Battery-backed PRG RAM is not supported.");
+        }
 
-        let mut memory = MemoryMap {
+        MemoryMap {
             chr_base_addrs: [0; 8],
-            chr_writeable: false,
-            chr_storage: cart.chr_rom.clone().into_boxed_slice(),
+            chr_writeable: matches!(cart.chr, CHR::RAM(_)),
+            chr_storage: match &cart.chr {
+                CHR::RAM(ram_size) => vec![0; *ram_size].into_boxed_slice(),
+                CHR::ROM(rom) => rom.clone(),
+            },
 
             wram,
             
@@ -47,14 +53,7 @@ impl MemoryMap {
             prg_rom: cart.prg_rom.clone().into_boxed_slice(),
 
             nametables: NameTables::new(cart.mirroring),
-        };
-
-        if cart.chr_rom.is_empty() {
-            info!("No CHR ROM, so using 8K CHR RAM");
-            memory.configure_chr_ram(8192);
         }
-
-        memory
     }
 
     pub fn prg_rom_len(&self) -> usize { self.prg_rom.len() }
@@ -114,11 +113,6 @@ impl MemoryMap {
             let bank = bank as usize;
             self.chr_base_addrs[bank] = base_addr + i*CHR_PAGE;
         }
-    }
-
-    fn configure_chr_ram(&mut self, size: usize) {
-        self.chr_storage = vec![0; size].into_boxed_slice();
-        self.chr_writeable = true;
     }
 }
 

@@ -25,9 +25,7 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
 
     let mut submapper_num: Option<u32> = None;
     let mut prg_ram_size: u32;
-    let mut prg_nvram_size: u32 = 0;
     let mut chr_ram_size: u32 = 0;
-    let mut chr_nvram_size: u32 = 0;
 
     // Extended version of the .nes file format - https://www.nesdev.org/wiki/NES_2.0
     if ines2 {
@@ -41,7 +39,7 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
         if prg_ram_size != 0 {
             prg_ram_size = 64 << prg_ram_size;
         }
-        prg_nvram_size = header[10] as u32 >> 4;
+        let mut prg_nvram_size = header[10] as u32 >> 4;
         if prg_nvram_size != 0 {
             prg_nvram_size = 64 << prg_nvram_size;
         }
@@ -49,18 +47,25 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
         if chr_ram_size != 0 {
             chr_ram_size = 64 << chr_ram_size;
         }
-        chr_nvram_size = header[11] as u32 >> 4;
+        let mut chr_nvram_size = header[11] as u32 >> 4;
         if chr_nvram_size != 0 {
             chr_nvram_size = 64 << chr_nvram_size;
         }
+
+        if chr_nvram_size != 0 || prg_nvram_size != 0 {
+            return Err(format!("NV-RAM fields not supported (got CHR {chr_nvram_size}, PRG {prg_nvram_size})").into());
+        }
     } else {
         if header[8] == 0 {
-            // Value 0 infers 8 KB for compatibility
+            // Value 0 implies 8 KB for compatibility
             // https://www.nesdev.org/wiki/INES#Flags_8
             prg_ram_size = 8 * 1024;
         } else {
             return Err(format!("Header 8 value {} not supported", header[8]).into());
         }
+    }
+    if chr_rom_size == 0 {
+        chr_ram_size = 8192;
     }
 
     prg_rom_size *= 16 * 1024;
@@ -73,27 +78,34 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     let chr_rom = &rest[..chr_rom_size];
     rest = &rest[chr_rom.len()..];
 
+    let chr: CHR = if chr_rom.is_empty() {
+        assert_ne!(chr_ram_size, 0);
+        CHR::RAM(chr_ram_size as usize)
+    } else {
+        assert_eq!(chr_ram_size, 0);
+        CHR::ROM(chr_rom.to_vec().into_boxed_slice())
+    };
+
     if let Some(submapper_num) = submapper_num {
-        info!("Mapper #{mapper_num} (subtype {submapper_num})");
+        return Err(format!("Submapper field not supported. (got {submapper_num})").into());
     } else {
         info!("Mapper #{mapper_num}");
     }
     info!("PRG ROM size: {}K", prg_rom.len() / 1024);
-    info!("CHR ROM size: {}K", chr_rom.len() / 1024);
-    info!("PRG RAM size: {prg_ram_size}");
-    info!("PRG NVRAM size: {prg_nvram_size}");
-    info!("CHR RAM size: {chr_ram_size}");
-    info!("CHR NVRAM size: {chr_nvram_size}");
+    info!("PRG RAM size: {}K", prg_ram_size / 1024);
+    match &chr {
+        CHR::ROM(rom) => info!("CHR ROM {}K", rom.len() / 1024),
+        CHR::RAM(ram_size) => info!("CHR RAM {}K", ram_size / 1024),
+    }
     if !rest.is_empty() {
         info!("The file had {} tail bytes", rest.len());
     }
 
     let prg_ram_battery_backed = header[6] & 0b10 != 0;
 
-    if header[6] & 0b1000 != 0 {
-        return Err("Four-screen mirroring mode not supported".into());
-    }
-    let mirroring = if header[6] & 0x01 == 0 {
+    let mirroring = if header[6] & 0b1000 != 0 {
+        NametableMirroring::FourScreen
+    } else if header[6] & 0x01 == 0 {
         NametableMirroring::Horizontal
     } else {
         NametableMirroring::Vertical
@@ -101,29 +113,26 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
 
     Ok(Cartridge {
         mapper_num,
-        submapper_num,
         prg_ram_size,
         prg_ram_battery_backed,
-        prg_nvram_size,
-        chr_ram_size,
-        chr_nvram_size,
         prg_rom: prg_rom.to_vec(),
-        chr_rom: chr_rom.to_vec(),
+        chr,
         mirroring,
     })
 }
 
 pub struct Cartridge {
     pub mapper_num: u32,
-    pub submapper_num: Option<u32>,
     pub prg_rom: Vec<u8>,
-    pub chr_rom: Vec<u8>,
+    pub chr: CHR,
     pub prg_ram_size: u32,
     pub prg_ram_battery_backed: bool,
-    pub prg_nvram_size: u32,
-    pub chr_ram_size: u32,
-    pub chr_nvram_size: u32,
     pub mirroring: NametableMirroring,
+}
+
+pub enum CHR {
+    RAM(usize),
+    ROM(Box<[u8]>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -132,6 +141,7 @@ pub enum NametableMirroring {
     Vertical,
     SingleScreenLowerBank,
     SingleScreenUpperBank,
+    FourScreen,
 }
 
 #[test]

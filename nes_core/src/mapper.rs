@@ -122,7 +122,6 @@ pub struct NameTables {
 }
 
 // This is an enum so the compiler can omit the bounds check when accessing `NameTables.storage`.
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 enum NtAddr {
     Addr000 = 0x000,
@@ -168,6 +167,12 @@ impl NameTables {
             }
             NametableMirroring::SingleScreenUpperBank => {
                 self.base_addrs = [Addr400, Addr400, Addr400, Addr400];
+            }
+            NametableMirroring::FourScreen => {
+                self.base_addrs[NT_2000] = Addr000;
+                self.base_addrs[NT_2400] = Addr400;
+                self.base_addrs[NT_2800] = Addr800;
+                self.base_addrs[NT_2C00] = AddrC00;
             }
         }
     }
