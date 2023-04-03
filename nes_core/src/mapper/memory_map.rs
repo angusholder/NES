@@ -4,9 +4,6 @@ use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
 use crate::mapper::NameTables;
 
-type ReadHook = dyn Fn(&mut MemoryMap, u16) -> ();
-type WriteHook = dyn Fn(&mut MemoryMap, u16, u8) -> ();
-
 pub struct MemoryMap {
     /// Covers 8 x 1K banks (0x400) between 0x0000 and 0x1FFF.
     chr_base_addrs: [usize; 8],
@@ -14,8 +11,6 @@ pub struct MemoryMap {
     chr_writeable: bool,
     /// RAM or ROM, depending on the cartridge.
     chr_storage: Box<[u8]>,
-    chr_read_hook: Option<Box<ReadHook>>,
-    chr_write_hook: Option<Box<WriteHook>>,
 
     /// 0x6000-0x7FFF
     wram: Option<Box<[u8; 0x2000]>>,
@@ -47,8 +42,6 @@ impl MemoryMap {
             chr_base_addrs: [0; 8],
             chr_writeable: false,
             chr_storage: cart.chr_rom.clone().into_boxed_slice(),
-            chr_read_hook: None,
-            chr_write_hook: None,
 
             wram,
             
