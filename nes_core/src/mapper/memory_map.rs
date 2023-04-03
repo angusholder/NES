@@ -69,7 +69,6 @@ impl MemoryMap {
 
     pub fn map_prg_16k(&mut self, bank: u8, page_index: i32) {
         assert!(bank < 2);
-        println!("map_prg_16k({bank}, {page_index})");
         self.map_prg_range(bank*2..(bank+1)*2, page_index, 16 * 1024);
     }
 
@@ -86,8 +85,7 @@ impl MemoryMap {
 
         for (i, bank) in banks.enumerate() {
             let bank = bank as usize;
-            self.prg_base_addrs[bank as usize] = base_addr + i*PRG_PAGE;
-            println!("Mapped {} to {:05X}", PRG_BANK_NAMES[bank], self.prg_base_addrs[bank]);
+            self.prg_base_addrs[bank] = base_addr + i*PRG_PAGE;
         }
     }
 
@@ -112,9 +110,9 @@ impl MemoryMap {
 
     fn map_chr_range(&mut self, banks: Range<u8>, page_index: u8, page_size: usize) {
         let base_addr: usize = page_index as usize * page_size;
-        for i in banks {
-            let i = i as usize;
-            self.chr_base_addrs[i] = base_addr + i*CHR_PAGE;
+        for (i, bank) in banks.enumerate() {
+            let bank = bank as usize;
+            self.chr_base_addrs[bank] = base_addr + i*CHR_PAGE;
         }
     }
 
