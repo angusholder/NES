@@ -1,36 +1,45 @@
 use crate::cartridge::{Cartridge, NametableMirroring};
 use crate::mapper;
-use crate::mapper::{NameTables, RawMapper};
+use crate::mapper::{RawMapper};
+use crate::mapper::memory_map::MemoryMap;
 
 /// https://www.nesdev.org/wiki/MMC2
 /// Only used for Mike Tyson's Punch Out - https://nescartdb.com/profile/view/317/mike-tysons-punch-out
 pub struct MMC2Mapper {
-    prg_rom: Box<[u8; 128 * 1024]>,
-    chr_rom: Box<[u8; 128 * 1024]>,
+    map: MemoryMap,
 
-    prg_bank: usize,
-    chr_bank_0: [usize; 2],
-    chr_bank_1: [usize; 2],
+    prg_bank: u8,
+    chr_bank_0: [u8; 2],
+    chr_bank_1: [u8; 2],
     chr_selector_0: BankSelector,
     chr_selector_1: BankSelector,
-
-    nametables: NameTables,
 }
 
 impl MMC2Mapper {
     pub fn new(cart: Cartridge) -> MMC2Mapper {
-        MMC2Mapper {
-            prg_rom: cart.prg_rom.try_into().unwrap(),
-            chr_rom: cart.chr_rom.try_into().unwrap(),
+        let mut map = MemoryMap::new(&cart);
+        map.set_nametable_mirroring(NametableMirroring::Horizontal);
+        let mut mapper = MMC2Mapper {
+            map,
 
             prg_bank: 0,
             chr_bank_0: [0, 0],
             chr_bank_1: [0, 0],
             chr_selector_0: BankSelector::FE,
             chr_selector_1: BankSelector::FE,
+        };
+        mapper.sync_mappings();
+        mapper
+    }
 
-            nametables: NameTables::new(NametableMirroring::Horizontal),
-        }
+    fn sync_mappings(&mut self) {
+        self.map.map_prg_8k(0, self.prg_bank as i32);
+        self.map.map_prg_8k(1, -3);
+        self.map.map_prg_8k(2, -2);
+        self.map.map_prg_8k(3, -1);
+
+        self.map.map_chr_4k(0, self.chr_bank_0[self.chr_selector_0 as usize]);
+        self.map.map_chr_4k(1, self.chr_bank_1[self.chr_selector_1 as usize]);
     }
 }
 
@@ -42,10 +51,10 @@ enum BankSelector {
 
 impl RawMapper for MMC2Mapper {
     fn write_main_bus(&mut self, addr: u16, value: u8) {
-        let chr_bank_addr = (value & 0b1_1111) as usize * 4 * 1024;
+        let chr_bank_addr = value & 0b1_1111;
         match addr {
             0xA000..=0xAFFF => {
-                self.prg_bank = (value & 0xF) as usize * 8 * 1024;
+                self.prg_bank = value & 0xF;
             }
             0xB000..=0xBFFF => {
                 self.chr_bank_0[BankSelector::FD as usize] = chr_bank_addr;
@@ -65,56 +74,35 @@ impl RawMapper for MMC2Mapper {
                     1 => NametableMirroring::Horizontal,
                     _ => unreachable!(),
                 };
-                self.nametables.update_mirroring(mirroring);
+                self.map.set_nametable_mirroring(mirroring);
             }
             _ => {
                 mapper::out_of_bounds_write("cart", addr, value);
             }
         }
+        self.sync_mappings();
     }
 
     fn read_main_bus(&mut self, addr: u16) -> u8 {
-        match addr {
-            0x8000..=0x9FFF => {
-                self.prg_rom[self.prg_bank + (addr & 0x1FFF) as usize]
-            }
-            0xA000..=0xFFFF => {
-                let offset = (addr - 0xA000) as usize;
-                let base = self.prg_rom.len() - 3 * 8 * 1024;
-                self.prg_rom[base + offset]
-            }
-            _ => {
-                mapper::out_of_bounds_read("cart", addr)
-            }
-        }
+        self.map.read_main_bus(addr)
     }
 
     fn access_ppu_bus(&mut self, addr: u16, value: u8, write: bool) -> u8 {
+        let result: u8 = self.map.access_ppu_bus(addr, value, write);
+
+        // Update the selectors *after* performing the read/write
         match addr {
-            0x0000..=0x0FFF if !write => {
-                let base = self.chr_bank_0[self.chr_selector_0 as usize];
-                match addr {
-                    0x0FD0..=0x0FDF => self.chr_selector_0 = BankSelector::FD,
-                    0x0FE0..=0x0FEF => self.chr_selector_0 = BankSelector::FE,
-                    _ => {}
-                }
-                self.chr_rom[base + (addr as usize & 0x0FFF)]
-            }
-            0x1000..=0x1FFF if !write => {
-                let base = self.chr_bank_1[self.chr_selector_1 as usize];
-                match addr {
-                    0x1FD0..=0x1FDF => self.chr_selector_1 = BankSelector::FD,
-                    0x1FE0..=0x1FEF => self.chr_selector_1 = BankSelector::FE,
-                    _ => {}
-                }
-                self.chr_rom[base + (addr as usize & 0x0FFF)]
-            }
-            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.nametables.access(addr, value, write)
-            }
+            0x0FD0..=0x0FDF => self.chr_selector_0 = BankSelector::FD,
+            0x0FE0..=0x0FEF => self.chr_selector_0 = BankSelector::FE,
+            0x1FD0..=0x1FDF => self.chr_selector_1 = BankSelector::FD,
+            0x1FE0..=0x1FEF => self.chr_selector_1 = BankSelector::FE,
             _ => {
-                mapper::out_of_bounds_access("PPU memory space", addr, value, write)
+                // Skip sync_mappings()
+                return result;
             }
         }
+
+        self.sync_mappings();
+        result
     }
 }
