@@ -283,7 +283,7 @@ pub fn ppu_read_register(ppu: &mut PPU, addr: u16) -> u8 {
         PPUDATA => {
             let addr = ppu.v_addr;
             let res = ppu.read_mem(addr);
-            ppu.v_addr += ppu.control.vram_increment as u16;
+            ppu.v_addr += ppu.control.vram_increment;
 
             let previous_read = ppu.data_bus_latch;
             // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
@@ -355,7 +355,7 @@ pub fn ppu_write_register(ppu: &mut PPU, addr: u16, val: u8) {
         }
         PPUDATA => {
             ppu.write_mem(ppu.v_addr, val);
-            ppu.v_addr += ppu.control.vram_increment as u16;
+            ppu.v_addr += ppu.control.vram_increment;
         }
         _ => unreachable!(),
     }
@@ -677,7 +677,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
                     y_offset = 15 - y_offset;
                 }
                 let pattern_table = if tile_index & 1 == 1 { 0x1000 } else { 0x0000 };
-                let pattern_addr = pattern_table | (tile_index as u16 & !1) * 16 + (y_offset as u16);
+                let pattern_addr = pattern_table + (tile_index as u16 & !1) * 16 + (y_offset as u16);
                 let mut pat_lower = ppu.mapper.read_ppu_bus(pattern_addr);
                 let mut pat_upper = ppu.mapper.read_ppu_bus(pattern_addr + 8);
                 if attrs & SPRITE_ATTR_FLIP_H == 0 {

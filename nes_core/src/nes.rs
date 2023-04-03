@@ -99,25 +99,24 @@ impl StatusRegister {
 
 impl StatusRegister {
     pub fn to_byte(&self) -> u8 {
-        return
-            (self.C as u8     ) |
-            ((self.Z as u8) << 1) |
-            ((self.I as u8) << 2) |
-            ((self.D as u8) << 3) |
-            StatusRegister::FLAG_U |
-            ((self.V as u8) << 6) |
-            ((self.N as u8) << 7);
+        (self.C as u8       ) |
+        ((self.Z as u8) << 1) |
+        ((self.I as u8) << 2) |
+        ((self.D as u8) << 3) |
+        StatusRegister::FLAG_U |
+        ((self.V as u8) << 6) |
+        ((self.N as u8) << 7)
     }
 
     pub fn from_byte(value: u8) -> StatusRegister {
-        return StatusRegister {
+        StatusRegister {
             C: value & StatusRegister::FLAG_C != 0,
             Z: value & StatusRegister::FLAG_Z != 0,
             I: value & StatusRegister::FLAG_I != 0,
             D: value & StatusRegister::FLAG_D != 0,
             V: value & StatusRegister::FLAG_V != 0,
             N: value & StatusRegister::FLAG_N != 0,
-        };
+        }
     }
 }
 

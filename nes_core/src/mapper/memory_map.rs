@@ -71,7 +71,7 @@ impl MemoryMap {
     }
 
     fn map_prg_range(&mut self, banks: Range<u8>, page_index: i32, page_size: usize) {
-        let mut base_addr: usize = page_index.abs() as usize * page_size;
+        let mut base_addr: usize = page_index.unsigned_abs() as usize * page_size;
         if page_index < 0 {
             base_addr = self.prg_rom.len() - base_addr;
         }

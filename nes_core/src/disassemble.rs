@@ -91,7 +91,7 @@ pub fn disassemble(nes: &mut NES) -> String {
     let X = nes.X;
     let Y = nes.Y;
     let SP = nes.SP;
-    let SR = nes.SR.clone();
+    let SR = nes.SR;
     let PC = nes.PC;
 
     let op = nes.read8(PC);
