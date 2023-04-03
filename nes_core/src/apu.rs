@@ -11,7 +11,8 @@ mod noise;
 use crate::apu::noise::Noise;
 use crate::apu::square::SquareWave;
 use crate::apu::triangle::TriangleWave;
-use crate::nes::Signals;
+use crate::mapper;
+use crate::nes::{IRQSource, Signals};
 
 pub struct APU {
     output_buffer: Option<SampleBuffer>,
@@ -175,7 +176,7 @@ impl APU {
         if self.irq_inhibit {
             return;
         }
-        self.signals.request_irq();
+        self.signals.request_irq(IRQSource::APU_FRAME_COUNTER);
     }
 
     pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {
@@ -251,6 +252,33 @@ impl APU {
         }
 
         self.last_cpu_cycles = end_cpu_cycle;
+    }
+
+    pub fn read_register(&mut self, addr: u16, cpu_cycle: u64) -> u8 {
+        match addr {
+            0x4015 => {
+                self.read_status_register(cpu_cycle)
+            }
+            _ => {
+                mapper::out_of_bounds_read("APU", addr)
+            }
+        }
+    }
+
+    fn read_status_register(&mut self, cpu_cycle: u64) -> u8 {
+        // https://www.nesdev.org/wiki/APU#Status_($4015)
+        // TODO: Implement the rest of $4015 APU Status register
+
+        self.run_until_cycle(cpu_cycle);
+
+        let mut status = 0u8;
+
+        if self.signals.is_active(IRQSource::APU_FRAME_COUNTER) {
+            status |= 0x40;
+            self.signals.acknowledge_irq(IRQSource::APU_FRAME_COUNTER);
+        }
+
+        status
     }
 
     pub fn write_register(&mut self, addr: u16, value: u8, cpu_cycle: u64) {

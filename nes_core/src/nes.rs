@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
+use bitflags::bitflags;
 use crate::mapper::{Mapper};
 use crate::{input, cpu, ppu};
 use crate::apu::APU;
@@ -33,23 +34,49 @@ pub struct NES {
     signals: Rc<Signals>,
 }
 
+bitflags! {
+    /// The CPU IRQ will continually trigger until the IRQ handler acknowledges all active IRQ sources.
+    /// See https://www.nesdev.org/wiki/IRQ
+    pub struct IRQSource : u32 {
+        const APU_DMC = 0x01;
+        const APU_FRAME_COUNTER = 0x02;
+        const MMC3 = 0x04;
+    }
+}
+
+/// Holds all the IRQ signals for the whole console.
+/// Any subsystem can raise an IRQ, and it will continue until the IRQ handler acknowledges
+/// that specific subsystem's IRQ signal.
+/// See https://www.nesdev.org/wiki/IRQ
 pub struct Signals {
-    request_irq: Cell<bool>,
+    signal: Cell<IRQSource>,
 }
 
 impl Signals {
     pub fn new() -> Rc<Signals> {
         Rc::new(Signals {
-            request_irq: Cell::new(false),
+            signal: Cell::new(IRQSource::empty()),
         })
     }
 
-    pub fn request_irq(&self) {
-        self.request_irq.set(true);
+    /// Is any IRQ signal active
+    pub fn is_any_active(&self) -> bool {
+        !self.signal.get().is_empty()
     }
 
-    pub fn acknowledge_irq(&self) {
-        self.request_irq.set(false);
+    /// A subsystem is requesting IRQ
+    pub fn request_irq(&self, source: IRQSource) {
+        self.signal.set(self.signal.get() | source);
+    }
+
+    /// A subsystem's IRQ signal has been acknowledged, and can be dismissed now.
+    pub fn acknowledge_irq(&self, source: IRQSource) {
+        self.signal.set(self.signal.get() - source);
+    }
+
+    /// Is a specific IRQ source active
+    pub fn is_active(&self, source: IRQSource) -> bool {
+        self.signal.get().contains(source)
     }
 }
 
@@ -180,9 +207,8 @@ impl NES {
             if self.ppu.request_nmi {
                 self.interrupt(Interrupt::NMI);
                 self.ppu.request_nmi = false;
-            } else if self.signals.request_irq.get() && !self.SR.I {
+            } else if self.signals.is_any_active() && !self.SR.I {
                 self.interrupt(Interrupt::IRQ);
-                self.signals.acknowledge_irq();
             }
             cpu::emulate_instruction(self);
         }
@@ -215,8 +241,7 @@ impl NES {
         } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
             return self.input.read_register(addr);
         } else if addr < 0x4020 {
-            // TODO: Implement APU memory reads
-            return 0;
+            return self.apu.read_register(addr, self.total_cycles);
         } else {
             return self.mapper.read_main_bus(addr);
         }

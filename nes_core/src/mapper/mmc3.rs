@@ -4,7 +4,7 @@ use crate::cartridge::{NametableMirroring};
 use crate::mapper;
 use crate::mapper::{RawMapper};
 use crate::mapper::memory_map::MemoryMap;
-use crate::nes::Signals;
+use crate::nes::{IRQSource, Signals};
 
 pub struct MMC3Mapper {
     bank_reg: [u8; 8],
@@ -135,8 +135,7 @@ impl MMC3Mapper {
             // IRQ disable
             0xE000 => {
                 self.irq_enable = false;
-                // TODO: Do we need a separate variable for our IRQ vs other IRQs in the system?
-                self.signals.acknowledge_irq();
+                self.signals.acknowledge_irq(IRQSource::MMC3);
             }
             // IRQ enable
             0xE001 => {
@@ -166,7 +165,7 @@ impl RawMapper for MMC3Mapper {
 
     fn on_cycle_scanline(&mut self) {
         if self.irq_counter == 0 && self.irq_enable {
-            self.signals.request_irq();
+            self.signals.request_irq(IRQSource::MMC3);
         }
         if self.irq_counter == 0 || self.irq_counter_reload {
             self.irq_counter = self.irq_counter_reload_value;
