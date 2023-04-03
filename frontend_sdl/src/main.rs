@@ -311,8 +311,8 @@ impl StdoutAndFileTarget {
 
 impl io::Write for StdoutAndFileTarget {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.file.write(buf)?;
-        io::stdout().write(buf)?;
+        self.file.write_all(buf)?;
+        io::stdout().write_all(buf)?;
         Ok(buf.len())
     }
 
