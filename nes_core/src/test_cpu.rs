@@ -1,5 +1,5 @@
 use crate::cartridge::{Cartridge, CHR};
-use crate::mapper::{Mapper, MapperDescriptor};
+use crate::mapper::{MapperDescriptor};
 use crate::cpu_ops::*;
 use crate::nes::{ NES, StatusRegister };
 
@@ -13,7 +13,7 @@ fn new_nes() -> NES {
         prg_ram_battery_backed: false,
     };
 
-    let mut nes = NES::from_cart(cart).unwrap();
+    let mut nes = NES::from_cart(cart);
     nes.A = 0;
     nes.X = 0;
     nes.Y = 0;
