@@ -2,7 +2,7 @@ use std::ops::Range;
 use log::{warn};
 use crate::cartridge::{Cartridge, CHR, NametableMirroring};
 use crate::mapper;
-use crate::mapper::NameTables;
+use crate::mapper::{NameTables, RawMapper};
 
 pub struct MemoryMap {
     /// Covers 8 x 1K banks (0x400) between 0x0000 and 0x1FFF.
@@ -137,8 +137,11 @@ impl MemoryMap {
         }
     }
 
-    pub fn write_main_bus(&mut self, addr: u16, value: u8) {
+    pub(in crate::mapper) fn write_main_bus(&mut self, mapper: &mut dyn RawMapper, addr: u16, value: u8) {
         match addr {
+            0x8000..=0xFFFF => {
+                mapper.write_main_bus(self, addr, value);
+            }
             0x6000..=0x7FFF => {
                 if let Some(wram) = self.wram.as_mut() {
                     wram[addr as usize & 0x1FFF] = value;
