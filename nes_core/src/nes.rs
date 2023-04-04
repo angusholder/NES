@@ -189,11 +189,10 @@ impl NES {
         }
     }
 
-    pub fn from_cart(cart: Cartridge) -> Result<NES, String> {
+    pub fn from_cart(cart: Cartridge) -> NES {
         let signals = Signals::new();
-        let mapper = Mapper::new(cart, signals.clone())?;
-        let nes = NES::new(mapper, signals);
-        Ok(nes)
+        let mapper = Mapper::new(cart, signals.clone());
+        NES::new(mapper, signals)
     }
 
     pub fn power_on(&mut self) {

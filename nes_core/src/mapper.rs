@@ -19,7 +19,7 @@ mod axrom;
 ///
 /// There's only one method for each address space, and the `write` parameter tells us whether we're
 /// reading or writing (so we don't have to duplicate the address logic between reads and writes).
-trait RawMapper : Any {
+pub trait RawMapper : Any {
     fn init_memory_map(&self, memory: &mut MemoryMap);
 
     fn write_main_bus(&mut self, memory: &mut MemoryMap, addr: u16, value: u8);
@@ -31,6 +31,75 @@ trait RawMapper : Any {
 
 pub type PPUReadHook = dyn Fn(&mut MemoryMap, u16) -> u8;
 
+#[derive(Copy, Clone)]
+pub struct MapperDescriptor {
+    pub number: u32,
+    pub name: &'static str,
+    pub new_mapper: fn(Rc<Signals>) -> Rc<RefCell<dyn RawMapper>>,
+}
+
+static DESCRIPTORS: &[MapperDescriptor] = &[
+    MapperDescriptor::NROM,
+    MapperDescriptor::MMC1,
+    MapperDescriptor::UxROM,
+    MapperDescriptor::CNROM,
+    MapperDescriptor::MMC3,
+    MapperDescriptor::AxROM,
+    MapperDescriptor::MMC2,
+];
+
+fn wrap(raw_mapper: impl RawMapper) -> Rc<RefCell<dyn RawMapper>> {
+    Rc::new(RefCell::new(raw_mapper))
+}
+
+#[allow(non_upper_case_globals)]
+impl MapperDescriptor {
+    pub fn for_number(number: u32) -> Option<MapperDescriptor> {
+        for desc in DESCRIPTORS {
+            if number == desc.number {
+                return Some(*desc);
+            }
+        }
+        None
+    }
+
+    pub const NROM: MapperDescriptor = MapperDescriptor {
+        number: 0,
+        name: "NROM",
+        new_mapper: |_| wrap(nrom::NRomMapper::new()),
+    };
+    pub const MMC1: MapperDescriptor = MapperDescriptor {
+        number: 1,
+        name: "MMC1",
+        new_mapper: |_| wrap(mmc1::MMC1Mapper::new()),
+    };
+    pub const UxROM: MapperDescriptor = MapperDescriptor {
+        number: 2,
+        name: "UxROM",
+        new_mapper: |_| wrap(uxrom::UxRomMapper::new()),
+    };
+    pub const CNROM: MapperDescriptor = MapperDescriptor {
+        number: 3,
+        name: "CNROM",
+        new_mapper: |_| wrap(cnrom::CNRomMapper::new()),
+    };
+    pub const MMC3: MapperDescriptor = MapperDescriptor {
+        number: 4,
+        name: "MMC3",
+        new_mapper: |signals| wrap(mmc3::MMC3Mapper::new(signals.clone())),
+    };
+    pub const AxROM: MapperDescriptor = MapperDescriptor {
+        number: 7,
+        name: "AxROM",
+        new_mapper: |_| wrap(axrom::AxRomMapper::new()),
+    };
+    pub const MMC2: MapperDescriptor = MapperDescriptor {
+        number: 9,
+        name: "MMC2",
+        new_mapper: |_| wrap(mmc2::MMC2Mapper::new()),
+    };
+}
+
 #[derive(Clone)]
 pub struct Mapper {
     raw_mapper: Rc<RefCell<dyn RawMapper>>,
@@ -39,23 +108,8 @@ pub struct Mapper {
 }
 
 impl Mapper {
-    pub fn new(cart: Cartridge, signals: Rc<Signals>) -> Result<Mapper, String> {
-        fn wrap(raw_mapper: impl RawMapper) -> Rc<RefCell<dyn RawMapper>> {
-            Rc::new(RefCell::new(raw_mapper))
-        }
-
-        let raw_mapper: Rc<RefCell<dyn RawMapper>> = match cart.mapper_num {
-            0 => wrap(nrom::NRomMapper::new()),
-            1 => wrap(mmc1::MMC1Mapper::new()),
-            2 => wrap(uxrom::UxRomMapper::new()),
-            3 => wrap(cnrom::CNRomMapper::new()),
-            4 => wrap(mmc3::MMC3Mapper::new(signals.clone())),
-            7 => wrap(axrom::AxRomMapper::new()),
-            9 => wrap(mmc2::MMC2Mapper::new()),
-            _ => {
-                return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
-            }
-        };
+    pub fn new(cart: Cartridge, signals: Rc<Signals>) -> Mapper {
+        let raw_mapper: Rc<RefCell<dyn RawMapper>> = (cart.mapper_descriptor.new_mapper)(signals);
 
         let memory_map = Rc::new(RefCell::new(MemoryMap::new(cart)));
 
@@ -63,13 +117,11 @@ impl Mapper {
 
         let ppu_read_hook: Option<Rc<PPUReadHook>> = raw_mapper.borrow_mut().get_ppu_read_hook();
 
-        let mapper = Mapper {
+        Mapper {
             raw_mapper,
             memory_map,
             ppu_read_hook,
-        };
-
-        Ok(mapper)
+        }
     }
 
     pub fn read_main_bus(&mut self, addr: u16) -> u8 {

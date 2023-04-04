@@ -137,7 +137,7 @@ impl MemoryMap {
         }
     }
 
-    pub(in crate::mapper) fn write_main_bus(&mut self, mapper: &mut dyn RawMapper, addr: u16, value: u8) {
+    pub fn write_main_bus(&mut self, mapper: &mut dyn RawMapper, addr: u16, value: u8) {
         match addr {
             0x8000..=0xFFFF => {
                 mapper.write_main_bus(self, addr, value);

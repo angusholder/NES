@@ -180,7 +180,7 @@ fn load_nes_system(
     filename: &String,
 ) -> Result<Box<NES>, Box<dyn Error>> {
     let cart = cartridge::parse_rom(Path::new(&filename))?;
-    let mut nes = Box::new(NES::from_cart(cart)?);
+    let mut nes = Box::new(NES::from_cart(cart));
     nes.power_on();
     Ok(nes)
 }

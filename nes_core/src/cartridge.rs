@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io::Read;
 use std::path::Path;
 use log::{info};
+use crate::mapper::MapperDescriptor;
 
 pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     info!("Reading file: {}", filename.display());
@@ -86,10 +87,14 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
         CHR::ROM(chr_rom.to_vec().into_boxed_slice())
     };
 
+    let Some(mapper_descriptor) = MapperDescriptor::for_number(mapper_num) else {
+        return Err(format!("Mapper #{} not supported yet", mapper_num).into());
+    };
+
     if let Some(submapper_num) = submapper_num {
         return Err(format!("Submapper field not supported. (got {submapper_num})").into());
     } else {
-        info!("Mapper #{mapper_num}");
+        info!("Mapper #{mapper_num}: {}", mapper_descriptor.name);
     }
     info!("PRG ROM size: {}K", prg_rom.len() / 1024);
     info!("PRG RAM size: {}K", prg_ram_size / 1024);
@@ -112,7 +117,7 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     };
 
     Ok(Cartridge {
-        mapper_num,
+        mapper_descriptor,
         prg_ram_size,
         prg_ram_battery_backed,
         prg_rom: prg_rom.to_vec(),
@@ -123,7 +128,7 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
 
 #[derive(Clone)]
 pub struct Cartridge {
-    pub mapper_num: u32,
+    pub mapper_descriptor: MapperDescriptor,
     pub prg_rom: Vec<u8>,
     pub chr: CHR,
     pub prg_ram_size: u32,

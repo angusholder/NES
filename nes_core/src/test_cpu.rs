@@ -1,5 +1,5 @@
 use crate::cartridge::{Cartridge, CHR};
-use crate::mapper::Mapper;
+use crate::mapper::{Mapper, MapperDescriptor};
 use crate::cpu_ops::*;
 use crate::nes::{ NES, StatusRegister };
 
@@ -7,7 +7,7 @@ fn new_nes() -> NES {
     let cart: Cartridge = Cartridge {
         prg_rom: vec![0; 0x4000],
         chr: CHR::ROM(vec![0; 0x2000].into_boxed_slice()),
-        mapper_num: 0,
+        mapper_descriptor: MapperDescriptor::NROM,
         mirroring: crate::cartridge::NametableMirroring::Horizontal,
         prg_ram_size: 0,
         prg_ram_battery_backed: false,
