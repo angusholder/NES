@@ -36,12 +36,10 @@ pub struct Mapper {
     mapper: Rc<RefCell<dyn RawMapper>>,
     memory_map: Rc<RefCell<MemoryMap>>,
     ppu_read_hook: Option<Rc<PPUReadHook>>,
-    pub signals: Rc<Signals>,
 }
 
 impl Mapper {
-    pub fn new(cart: Cartridge) -> Result<Mapper, String> {
-        let signals = Signals::new();
+    pub fn new(cart: Cartridge, signals: Rc<Signals>) -> Result<Mapper, String> {
         let memory_map = Rc::new(RefCell::new(MemoryMap::new(&cart)));
 
         fn wrap(raw_mapper: impl RawMapper) -> Rc<RefCell<dyn RawMapper>> {
@@ -64,7 +62,6 @@ impl Mapper {
 
         let mut mapper = Mapper {
             mapper: raw_mapper,
-            signals,
             ppu_read_hook: None,
             memory_map,
         };

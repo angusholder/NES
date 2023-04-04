@@ -169,7 +169,7 @@ impl Interrupt {
 }
 
 impl NES {
-    fn new(mapper: Mapper) -> NES {
+    fn new(mapper: Mapper, signals: Rc<Signals>) -> NES {
         NES {
             A: 0,
             X: 0,
@@ -183,15 +183,16 @@ impl NES {
             ppu: PPU::new(mapper.clone()),
 
             input: InputState::new(),
-            apu: APU::new(mapper.signals.clone()),
-            signals: mapper.signals.clone(),
+            apu: APU::new(signals.clone()),
+            signals,
             mapper,
         }
     }
 
     pub fn from_cart(cart: Cartridge) -> Result<NES, String> {
-        let mapper = Mapper::new(cart)?;
-        let nes = NES::new(mapper);
+        let signals = Signals::new();
+        let mapper = Mapper::new(cart, signals.clone())?;
+        let nes = NES::new(mapper, signals);
         Ok(nes)
     }
 
