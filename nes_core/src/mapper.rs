@@ -33,7 +33,7 @@ pub type PPUReadHook = dyn Fn(&mut MemoryMap, u16) -> u8;
 
 #[derive(Clone)]
 pub struct Mapper {
-    mapper: Rc<RefCell<dyn RawMapper>>,
+    raw_mapper: Rc<RefCell<dyn RawMapper>>,
     memory_map: Rc<RefCell<MemoryMap>>,
     ppu_read_hook: Option<Rc<PPUReadHook>>,
 }
@@ -58,15 +58,16 @@ impl Mapper {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }
         };
+
         raw_mapper.borrow_mut().init_memory_map(&mut memory_map.borrow_mut());
 
-        let mut mapper = Mapper {
-            mapper: raw_mapper,
-            ppu_read_hook: None,
-            memory_map,
-        };
+        let ppu_read_hook: Option<Rc<PPUReadHook>> = raw_mapper.borrow_mut().get_ppu_read_hook();
 
-        mapper.ppu_read_hook = mapper.mapper.borrow_mut().get_ppu_read_hook();
+        let mapper = Mapper {
+            raw_mapper,
+            memory_map,
+            ppu_read_hook,
+        };
 
         Ok(mapper)
     }
@@ -76,7 +77,7 @@ impl Mapper {
     }
 
     pub fn write_main_bus(&mut self, addr: u16, value: u8) {
-        self.memory_map.borrow_mut().write_main_bus(&mut *self.mapper.borrow_mut(), addr, value);
+        self.memory_map.borrow_mut().write_main_bus(&mut *self.raw_mapper.borrow_mut(), addr, value);
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
@@ -91,7 +92,7 @@ impl Mapper {
     }
 
     pub fn on_cycle_scanline(&mut self) {
-        self.mapper.borrow_mut().on_cycle_scanline();
+        self.raw_mapper.borrow_mut().on_cycle_scanline();
     }
 }
 
