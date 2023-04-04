@@ -121,6 +121,7 @@ pub fn parse_rom(filename: &Path) -> Result<Cartridge, Box<dyn Error>> {
     })
 }
 
+#[derive(Clone)]
 pub struct Cartridge {
     pub mapper_num: u32,
     pub prg_rom: Vec<u8>,
@@ -130,6 +131,7 @@ pub struct Cartridge {
     pub mirroring: NametableMirroring,
 }
 
+#[derive(Clone)]
 pub enum CHR {
     RAM(usize),
     ROM(Box<[u8]>),

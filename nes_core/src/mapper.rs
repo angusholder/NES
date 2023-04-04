@@ -40,8 +40,6 @@ pub struct Mapper {
 
 impl Mapper {
     pub fn new(cart: Cartridge, signals: Rc<Signals>) -> Result<Mapper, String> {
-        let memory_map = Rc::new(RefCell::new(MemoryMap::new(&cart)));
-
         fn wrap(raw_mapper: impl RawMapper) -> Rc<RefCell<dyn RawMapper>> {
             Rc::new(RefCell::new(raw_mapper))
         }
@@ -58,6 +56,8 @@ impl Mapper {
                 return Err(format!("Mapper #{} not supported yet", cart.mapper_num))
             }
         };
+
+        let memory_map = Rc::new(RefCell::new(MemoryMap::new(cart)));
 
         raw_mapper.borrow_mut().init_memory_map(&mut memory_map.borrow_mut());
 

@@ -26,7 +26,7 @@ const PRG_PAGE: usize = 8 * 1024;
 const CHR_PAGE: usize = 1024;
 
 impl MemoryMap {
-    pub fn new(cart: &Cartridge) -> MemoryMap {
+    pub fn new(cart: Cartridge) -> MemoryMap {
         let wram = match cart.prg_ram_size {
             8192 => Some(Box::new([0; 8192])),
             0 => None,
@@ -42,15 +42,15 @@ impl MemoryMap {
         MemoryMap {
             chr_base_addrs: [0; 8],
             chr_writeable: matches!(cart.chr, CHR::RAM(_)),
-            chr_storage: match &cart.chr {
-                CHR::RAM(ram_size) => vec![0; *ram_size].into_boxed_slice(),
-                CHR::ROM(rom) => rom.clone(),
+            chr_storage: match cart.chr {
+                CHR::RAM(ram_size) => vec![0; ram_size].into_boxed_slice(),
+                CHR::ROM(rom) => rom,
             },
 
             wram,
             
             prg_base_addrs: [0; 4],
-            prg_rom: cart.prg_rom.clone().into_boxed_slice(),
+            prg_rom: cart.prg_rom.into_boxed_slice(),
 
             nametables: NameTables::new(cart.mirroring),
         }
