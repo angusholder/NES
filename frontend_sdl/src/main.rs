@@ -20,7 +20,6 @@ use sdl2::video::Window;
 use nes_core::apu::{AudioChannels, SampleBuffer};
 use nes_core::cartridge;
 use nes_core::input::JoypadButtons;
-use nes_core::mapper::Mapper;
 use nes_core::nes::NES;
 use nes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH, self};
 
@@ -181,8 +180,7 @@ fn load_nes_system(
     filename: &String,
 ) -> Result<Box<NES>, Box<dyn Error>> {
     let cart = cartridge::parse_rom(Path::new(&filename))?;
-    let mapper = Mapper::new(cart)?;
-    let mut nes = Box::new(NES::new(mapper));
+    let mut nes = Box::new(NES::from_cart(cart)?);
     nes.power_on();
     Ok(nes)
 }

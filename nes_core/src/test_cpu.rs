@@ -1,19 +1,19 @@
-use crate::cartridge::CHR;
+use crate::cartridge::{Cartridge, CHR};
 use crate::mapper::Mapper;
 use crate::cpu_ops::*;
 use crate::nes::{ NES, StatusRegister };
 
 fn new_nes() -> NES {
-    let mapper: Mapper = Mapper::new(crate::cartridge::Cartridge {
+    let cart: Cartridge = Cartridge {
         prg_rom: vec![0; 0x4000],
         chr: CHR::ROM(vec![0; 0x2000].into_boxed_slice()),
         mapper_num: 0,
         mirroring: crate::cartridge::NametableMirroring::Horizontal,
         prg_ram_size: 0,
         prg_ram_battery_backed: false,
-    }).unwrap();
+    };
 
-    let mut nes = NES::new(mapper);
+    let mut nes = NES::from_cart(cart).unwrap();
     nes.A = 0;
     nes.X = 0;
     nes.Y = 0;

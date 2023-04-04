@@ -48,8 +48,7 @@ fn load_nes_system(
     filename: &str,
 ) -> Box<NES> {
     let cart = cartridge::parse_rom(Path::new(&filename)).unwrap();
-    let mapper = Mapper::new(cart).unwrap();
-    let mut nes = Box::new(NES::new(mapper));
+    let mut nes = Box::new(NES::from_cart(cart).unwrap());
     nes.power_on();
     nes
 }

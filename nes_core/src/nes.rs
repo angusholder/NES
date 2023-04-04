@@ -6,6 +6,7 @@ use crate::input::{JOYPAD_1, JOYPAD_2};
 use crate::mapper::{Mapper};
 use crate::{cpu, ppu};
 use crate::apu::APU;
+use crate::cartridge::Cartridge;
 use crate::input::InputState;
 use crate::ppu::PPU;
 
@@ -168,7 +169,7 @@ impl Interrupt {
 }
 
 impl NES {
-    pub fn new(mapper: Mapper) -> NES {
+    fn new(mapper: Mapper) -> NES {
         NES {
             A: 0,
             X: 0,
@@ -186,6 +187,12 @@ impl NES {
             signals: mapper.signals.clone(),
             mapper,
         }
+    }
+
+    pub fn from_cart(cart: Cartridge) -> Result<NES, String> {
+        let mapper = Mapper::new(cart)?;
+        let nes = NES::new(mapper);
+        Ok(nes)
     }
 
     pub fn power_on(&mut self) {
