@@ -2,8 +2,9 @@ use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use bitflags::bitflags;
+use crate::input::{JOYPAD_1, JOYPAD_2};
 use crate::mapper::{Mapper};
-use crate::{input, cpu, ppu};
+use crate::{cpu, ppu};
 use crate::apu::APU;
 use crate::input::InputState;
 use crate::ppu::PPU;
@@ -234,16 +235,17 @@ impl NES {
 
     pub fn read8(&mut self, addr: u16) -> u8 {
         self.tick();
-        if addr < 0x2000 {
-            return self.ram[addr as usize % 0x800];
-        } else if addr < 0x4000 {
-            return ppu::ppu_read_register(&mut self.ppu, addr);
-        } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
-            return self.input.read_register(addr);
-        } else if addr < 0x4020 {
-            return self.apu.read_register(addr, self.total_cycles);
-        } else {
-            return self.mapper.read_main_bus(addr);
+        match addr {
+            0x0000..=0x1FFF =>
+                self.ram[addr as usize % 0x800],
+            0x4020..=0xFFFF =>
+                self.mapper.read_main_bus(addr),
+            0x2000..=0x3FFF =>
+                ppu::ppu_read_register(&mut self.ppu, addr),
+            JOYPAD_1 | JOYPAD_2 =>
+                self.input.read_register(addr),
+            0x4000..=0x401F =>
+                self.apu.read_register(addr, self.total_cycles),
         }
     }
 
@@ -267,18 +269,17 @@ impl NES {
 
     pub fn write8(&mut self, addr: u16, val: u8) {
         self.tick();
-        if addr < 0x2000 {
-            self.ram[addr as usize % 0x800] = val;
-        } else if addr < 0x4000 {
-            ppu::ppu_write_register(&mut self.ppu, addr, val);
-        } else if addr == input::JOYPAD_1 || addr == input::JOYPAD_2 {
-            self.input.write_register(addr, val);
-        } else if addr == 0x4014 {
-            ppu::do_oam_dma(self, val);
-        } else if addr < 0x4020 {
-            self.apu.write_register(addr, val, self.total_cycles);
-        } else {
-            self.mapper.write_main_bus(addr, val);
+        match addr {
+            0x0000..=0x1FFF =>
+                self.ram[addr as usize % 0x800] = val,
+            0x4020..=0xFFFF =>
+                self.mapper.write_main_bus(addr, val),
+            0x2000..=0x3FFF =>
+                ppu::ppu_write_register(&mut self.ppu, addr, val),
+            JOYPAD_1 | JOYPAD_2 =>
+                self.input.write_register(addr, val),
+            0x4000..=0x401F =>
+                self.apu.write_register(addr, val, self.total_cycles),
         }
     }
 

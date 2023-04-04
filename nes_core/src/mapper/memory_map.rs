@@ -119,17 +119,17 @@ impl MemoryMap {
 impl MemoryMap {
     pub fn read_main_bus(&mut self, addr: u16) -> u8 {
         match addr {
+            0x8000..=0xFFFF => {
+                let bank_no = (addr as usize >> 0x1FFFu32.count_ones()) & 3;
+                let base_addr = self.prg_base_addrs[bank_no];
+                self.prg_rom[base_addr + (addr as usize & 0x1FFF)]
+            }
             0x6000..=0x7FFF => {
                 if let Some(wram) = self.wram.as_ref() {
                     wram[addr as usize & 0x1FFF]
                 } else {
                     mapper::out_of_bounds_read("WRAM", addr)
                 }
-            }
-            0x8000..=0xFFFF => {
-                let bank_no = (addr as usize >> 0x1FFFu32.count_ones()) & 3;
-                let base_addr = self.prg_base_addrs[bank_no];
-                self.prg_rom[base_addr + (addr as usize & 0x1FFF)]
             }
             _ => {
                 mapper::out_of_bounds_read("CPU memory space", addr)
