@@ -16,6 +16,7 @@ use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::surface::Surface;
+use sdl2::sys::SDL_WindowFlags;
 use sdl2::video::Window;
 use nes_core::apu::{AudioChannels, SampleBuffer};
 use nes_core::cartridge;
@@ -147,7 +148,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        if !paused {
+        let has_focus = window.window_flags() & SDL_WindowFlags::SDL_WINDOW_INPUT_GRABBED != 0;
+        if !paused && has_focus {
             if let Some(nes) = &mut nes {
                 nes.input.update_key_state(get_pressed_buttons(&event_pump, &keymap, game_controller.as_ref()));
 
