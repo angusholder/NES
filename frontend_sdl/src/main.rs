@@ -148,7 +148,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        let has_focus = window.window_flags() & SDL_WindowFlags::SDL_WINDOW_INPUT_GRABBED != 0;
+        let has_focus = canvas.window().window_flags() & SDL_WindowFlags::SDL_WINDOW_INPUT_GRABBED as u32 != 0;
         if !paused && has_focus {
             if let Some(nes) = &mut nes {
                 nes.input.update_key_state(get_pressed_buttons(&event_pump, &keymap, game_controller.as_ref()));
