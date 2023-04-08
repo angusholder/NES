@@ -167,7 +167,7 @@ impl APU {
                 return;
             }
         }
-        //self.run_until_cycle(cpu_cycle);
+        self.run_until_cycle(cpu_cycle);
     }
 
     fn tick_envelope_and_triangle(&mut self) {
