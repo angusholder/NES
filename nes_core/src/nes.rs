@@ -2,7 +2,6 @@ use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use bitflags::bitflags;
-use crate::input::{JOYPAD_1, JOYPAD_2};
 use crate::mapper::{Mapper};
 use crate::{cpu, ppu};
 use crate::apu::APU;
@@ -253,8 +252,10 @@ impl NES {
                 self.mapper.read_main_bus(addr),
             0x2000..=0x3FFF =>
                 ppu::ppu_read_register(&mut self.ppu, addr),
-            JOYPAD_1 | JOYPAD_2 =>
-                self.input.read_register(addr),
+            0x4016 =>
+                self.input.read_joypad_1(),
+            0x4017 =>
+                self.input.read_joypad_2(),
             0x4000..=0x401F =>
                 self.apu.read_register(addr, self.total_cycles),
         }
@@ -287,8 +288,8 @@ impl NES {
                 self.mapper.write_main_bus(addr, val),
             0x2000..=0x3FFF =>
                 ppu::ppu_write_register(&mut self.ppu, addr, val),
-            JOYPAD_1 | JOYPAD_2 =>
-                self.input.write_register(addr, val),
+            0x4016 =>
+                self.input.write_joypad_strobe(val),
             0x4014 =>
                 ppu::do_oam_dma(self, val),
             0x4000..=0x401F =>
