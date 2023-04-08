@@ -288,6 +288,15 @@ impl APU {
             status |= 0x40;
             self.signals.acknowledge_irq(IRQSource::APU_FRAME_COUNTER);
         }
+        if !self.square_wave1.length_counter.is_zero() {
+            status |= 0b0001;
+        }
+        if !self.square_wave2.length_counter.is_zero() {
+            status |= 0b0010;
+        }
+        if !self.triangle_wave.length_counter.is_zero() {
+            status |= 0b0100;
+        }
 
         status
     }
