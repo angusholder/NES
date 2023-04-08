@@ -66,10 +66,6 @@ impl TriangleWave {
         }
     }
 
-    pub fn set_enabled(&mut self, enabled: bool) {
-        self.length_counter.set_channel_enabled(enabled);
-    }
-
     // $4008
     pub fn write_control(&mut self, value: u8) {
         self.linear_counter.control_flag = value & 0b1000_0000 != 0;

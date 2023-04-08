@@ -69,10 +69,6 @@ impl SquareWave {
         }
     }
 
-    pub fn set_enabled(&mut self, enabled: bool) {
-        self.length_counter.set_channel_enabled(enabled);
-    }
-
     // $4003/$4007
     // Side effect:
     //   The (square duty) sequencer is immediately restarted at the first value of the current

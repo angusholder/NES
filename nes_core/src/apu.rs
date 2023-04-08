@@ -299,6 +299,9 @@ impl APU {
         if !self.triangle_wave.length_counter.is_zero() {
             status |= 0b0100;
         }
+        if !self.noise.length_counter.is_zero() {
+            status |= 0b1000;
+        }
 
         status
     }
@@ -327,9 +330,10 @@ impl APU {
 
             0x4015 => {
                 self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
-                self.square_wave1.set_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
-                self.square_wave2.set_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
-                self.triangle_wave.set_enabled(self.guest_enabled_channels.contains(AudioChannels::TRIANGLE));
+                self.square_wave1.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
+                self.square_wave2.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
+                self.triangle_wave.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::TRIANGLE));
+                self.noise.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::NOISE));
             }
             0x4017 => {
                 self.write_frame_counter(value)
