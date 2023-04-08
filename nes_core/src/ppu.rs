@@ -247,117 +247,121 @@ impl PPUMask {
     }
 }
 
-fn mask_register_addr(addr: u16) -> u16 { addr & 0x2007 }
+impl PPU {
+    pub fn read_register(&mut self, addr: u16) -> u8 {
+        let ppu = self;
 
-pub fn ppu_read_register(ppu: &mut PPU, addr: u16) -> u8 {
-    match mask_register_addr(addr) {
-        PPUSTATUS => {
-            ppu.write_toggle_w = false;
+        match addr & 0x2007 {
+            PPUSTATUS => {
+                ppu.write_toggle_w = false;
 
-            let mut status = 0u8;
-            // TODO: Sprite overflow not implemented
+                let mut status = 0u8;
+                // TODO: Sprite overflow not implemented
 
-            if ppu.vblank_started {
-                status |= 0b1000_0000;
-                ppu.vblank_started = false;
+                if ppu.vblank_started {
+                    status |= 0b1000_0000;
+                    ppu.vblank_started = false;
+                }
+                if ppu.sprite_0_hit {
+                    status |= 0b0100_0000;
+                }
+
+                // PPU open bus. Returns stale PPU bus contents
+                status |= ppu.data_bus_latch & 0b0001_1111;
+
+                // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
+                ppu.data_bus_latch = status;
+                status
             }
-            if ppu.sprite_0_hit {
-                status |= 0b0100_0000;
-            }
+            OAMDATA => {
+                let res = ppu.oam[ppu.oam_addr as usize];
 
-            // PPU open bus. Returns stale PPU bus contents
-            status |= ppu.data_bus_latch & 0b0001_1111;
+                // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
+                ppu.data_bus_latch = res;
 
-            // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
-            ppu.data_bus_latch = status;
-            status
-        }
-        OAMDATA => {
-            let res = ppu.oam[ppu.oam_addr as usize];
-
-            // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
-            ppu.data_bus_latch = res;
-
-            res
-        }
-        PPUDATA => {
-            let addr = ppu.v_addr;
-            let res = ppu.read_mem(addr);
-            ppu.v_addr += ppu.control.vram_increment;
-
-            let previous_read = ppu.data_bus_latch;
-            // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
-            ppu.data_bus_latch = res;
-
-            if addr >= 0x3EFF {
-                // The palette memory responds immediately
                 res
-            } else {
-                // The rest of PPU memory has an intermediate buffer, so we return the data
-                // that was read from memory on the previous PPUDATA read
-                previous_read
             }
+            PPUDATA => {
+                let addr = ppu.v_addr;
+                let res = ppu.read_mem(addr);
+                ppu.v_addr += ppu.control.vram_increment;
+
+                let previous_read = ppu.data_bus_latch;
+                // "Reading any readable port (PPUSTATUS, OAMDATA, or PPUDATA) also fills the latch with the bits read" - https://www.nesdev.org/wiki/PPU_registers#Ports
+                ppu.data_bus_latch = res;
+
+                if addr >= 0x3EFF {
+                    // The palette memory responds immediately
+                    res
+                } else {
+                    // The rest of PPU memory has an intermediate buffer, so we return the data
+                    // that was read from memory on the previous PPUDATA read
+                    previous_read
+                }
+            }
+            PPUCTRL |
+            PPUMASK |
+            OAMADDR |
+            PPUSCROLL |
+            PPUADDR => {
+                // Reading a nominally "write-only" register returns the latch's current value, as do the unused bits of PPUSTATUS. - https://www.nesdev.org/wiki/PPU_registers#Ports
+                ppu.data_bus_latch
+            }
+            _ => unreachable!(),
         }
-        PPUCTRL |
-        PPUMASK |
-        OAMADDR |
-        PPUSCROLL |
-        PPUADDR => {
-            // Reading a nominally "write-only" register returns the latch's current value, as do the unused bits of PPUSTATUS. - https://www.nesdev.org/wiki/PPU_registers#Ports
-            ppu.data_bus_latch
-        }
-        _ => unreachable!(),
     }
-}
 
-pub fn ppu_write_register(ppu: &mut PPU, addr: u16, val: u8) {
-    // "Writing any value to any PPU port, even to the nominally read-only PPUSTATUS, will fill this latch" - https://www.nesdev.org/wiki/PPU_registers#Ports
-    ppu.data_bus_latch = val;
+    pub fn write_register(&mut self, addr: u16, val: u8) {
+        let ppu = self;
 
-    match mask_register_addr(addr) {
-        PPUCTRL => {
-            ppu.control = PPUControl::from_bits(val);
-            let nt_mask = 0b11_00000_00000;
-            ppu.t_addr = (ppu.t_addr & !nt_mask) | (ppu.control.base_nametable_addr & nt_mask);
-        }
-        PPUMASK => {
-            ppu.mask = PPUMask::from_bits(val);
-        }
-        PPUSTATUS => {
-            // Do nothing, the only effect of writing PPUSTATUS is that of filling data_bus_latch.
-        }
-        OAMADDR => {
-            ppu.oam_addr = val;
-        }
-        OAMDATA => {
-            ppu.oam[ppu.oam_addr as usize] = val;
-            ppu.oam_addr = ppu.oam_addr.wrapping_add(1);
-        }
-        PPUSCROLL => {
-            if !ppu.write_toggle_w {
-                ppu.fine_x = val & 0b111;
-                ppu.t_addr = (ppu.t_addr & 0b111_11_11111_00000) | (val >> 3) as u16;
-            } else {
-                let val = val as u16;
-                ppu.t_addr = (ppu.t_addr & 0b000_11_00000_11111) | ((val & 0b11111000) << 2) | ((val & 0b111) << 12);
+        // "Writing any value to any PPU port, even to the nominally read-only PPUSTATUS, will fill this latch" - https://www.nesdev.org/wiki/PPU_registers#Ports
+        ppu.data_bus_latch = val;
+
+        match addr & 0x2007 {
+            PPUCTRL => {
+                ppu.control = PPUControl::from_bits(val);
+                let nt_mask = 0b11_00000_00000;
+                ppu.t_addr = (ppu.t_addr & !nt_mask) | (ppu.control.base_nametable_addr & nt_mask);
             }
-            ppu.write_toggle_w = !ppu.write_toggle_w;
-        }
-        PPUADDR => {
-            if !ppu.write_toggle_w {
-                // Write upper byte first
-                ppu.v_addr = (ppu.v_addr & 0x00FF) | ((val as u16) << 8);
-            } else {
-                // Then lower byte
-                ppu.v_addr = (ppu.v_addr & 0xFF00) | (val as u16);
+            PPUMASK => {
+                ppu.mask = PPUMask::from_bits(val);
             }
-            ppu.write_toggle_w = !ppu.write_toggle_w;
+            PPUSTATUS => {
+                // Do nothing, the only effect of writing PPUSTATUS is that of filling data_bus_latch.
+            }
+            OAMADDR => {
+                ppu.oam_addr = val;
+            }
+            OAMDATA => {
+                ppu.oam[ppu.oam_addr as usize] = val;
+                ppu.oam_addr = ppu.oam_addr.wrapping_add(1);
+            }
+            PPUSCROLL => {
+                if !ppu.write_toggle_w {
+                    ppu.fine_x = val & 0b111;
+                    ppu.t_addr = (ppu.t_addr & 0b111_11_11111_00000) | (val >> 3) as u16;
+                } else {
+                    let val = val as u16;
+                    ppu.t_addr = (ppu.t_addr & 0b000_11_00000_11111) | ((val & 0b11111000) << 2) | ((val & 0b111) << 12);
+                }
+                ppu.write_toggle_w = !ppu.write_toggle_w;
+            }
+            PPUADDR => {
+                if !ppu.write_toggle_w {
+                    // Write upper byte first
+                    ppu.v_addr = (ppu.v_addr & 0x00FF) | ((val as u16) << 8);
+                } else {
+                    // Then lower byte
+                    ppu.v_addr = (ppu.v_addr & 0xFF00) | (val as u16);
+                }
+                ppu.write_toggle_w = !ppu.write_toggle_w;
+            }
+            PPUDATA => {
+                ppu.write_mem(ppu.v_addr, val);
+                ppu.v_addr += ppu.control.vram_increment;
+            }
+            _ => unreachable!(),
         }
-        PPUDATA => {
-            ppu.write_mem(ppu.v_addr, val);
-            ppu.v_addr += ppu.control.vram_increment;
-        }
-        _ => unreachable!(),
     }
 }
 

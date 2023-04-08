@@ -251,7 +251,7 @@ impl NES {
             0x4020..=0xFFFF =>
                 self.mapper.read_main_bus(addr),
             0x2000..=0x3FFF =>
-                ppu::ppu_read_register(&mut self.ppu, addr),
+                self.ppu.read_register(addr),
             0x4016 =>
                 self.input.read_joypad_1(),
             0x4017 =>
@@ -287,7 +287,7 @@ impl NES {
             0x4020..=0xFFFF =>
                 self.mapper.write_main_bus(addr, val),
             0x2000..=0x3FFF =>
-                ppu::ppu_write_register(&mut self.ppu, addr, val),
+                self.ppu.write_register(addr, val),
             0x4016 =>
                 self.input.write_joypad_strobe(val),
             0x4014 =>
