@@ -352,7 +352,11 @@ impl APU {
         self.irq_inhibit = value & 0x40 != 0;
         self.frame_counter_mode = if value & 0x80 == 0 { FrameCountMode::Step4 } else { FrameCountMode::Step5 };
         self.apu_cycle = 0;
-        info!("IRQ inhibit = {}, frame counter mode = {:?}", self.irq_inhibit, self.frame_counter_mode);
+        if self.frame_counter_mode == FrameCountMode::Step5 {
+            // If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated
+            self.tick_envelope_and_triangle();
+            self.tick_length_counters_and_sweep();
+        }
     }
 
     fn channel_enabled(&self, channel: AudioChannels) -> bool {
