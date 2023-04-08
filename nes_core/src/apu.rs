@@ -350,22 +350,22 @@ impl APU {
             0x4012 => self.dmc.write_sample_address(value),
             0x4013 => self.dmc.write_sample_length(value),
 
-            0x4015 => {
-                self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
-                self.square_wave1.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
-                self.square_wave2.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
-                self.triangle_wave.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::TRIANGLE));
-                self.noise.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::NOISE));
-                self.dmc.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::DMC));
-                // Writing to this register clears the DMC interrupt flag.
-                self.signals.acknowledge_irq(IRQSource::APU_DMC);
-            }
-            0x4017 => {
-                self.write_frame_counter(value)
-            }
+            0x4015 => self.write_status_register(value),
+            0x4017 => self.write_frame_counter(value),
 
             _ => {}
         }
+    }
+
+    pub fn write_status_register(&mut self, value: u8) {
+        self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
+        self.square_wave1.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
+        self.square_wave2.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
+        self.triangle_wave.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::TRIANGLE));
+        self.noise.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::NOISE));
+        self.dmc.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::DMC));
+        // Writing to this register clears the DMC interrupt flag.
+        self.signals.acknowledge_irq(IRQSource::APU_DMC);
     }
 
     fn write_frame_counter(&mut self, value: u8) {

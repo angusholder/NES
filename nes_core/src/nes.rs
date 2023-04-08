@@ -208,7 +208,7 @@ impl NES {
         self.interrupt(Interrupt::RESET);
 
         // Power-up and reset have the effect of writing $00, silencing all channels.
-        self.apu.write_register(0x4015, 0x00, 0);
+        self.apu.write_status_register(0x00);
     }
 
     pub fn simulate_frame(&mut self) {
