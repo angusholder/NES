@@ -285,6 +285,8 @@ impl NES {
                 ppu::ppu_write_register(&mut self.ppu, addr, val),
             JOYPAD_1 | JOYPAD_2 =>
                 self.input.write_register(addr, val),
+            0x4014 =>
+                ppu::do_oam_dma(self, val),
             0x4000..=0x401F =>
                 self.apu.write_register(addr, val, self.total_cycles),
         }
