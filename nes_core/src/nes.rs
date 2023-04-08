@@ -332,9 +332,7 @@ impl NES {
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
-        if self.total_cycles & 1 == 0 { // every other cycle
-            self.apu.step_cycle();
-        }
+        self.apu.step_cycle(self.total_cycles);
     }
 
     pub fn get_cycles(&self) -> u64 {
