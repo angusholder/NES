@@ -85,7 +85,9 @@ impl SampleBuffer {
 
     pub fn output_samples(&mut self, out: &mut [f32]) {
         let mut buffer = self.buffer.lock().unwrap();
-        if buffer.len() < out.len() {
+        // Don't bother logging warning if the buffer is totally empty;
+        // that probably means the emulator is paused...
+        if buffer.len() < out.len() && buffer.len() > 0 {
             warn!("Not enough samples in buffer - needed {}, got {}", out.len(), buffer.len());
         }
         for x in out.iter_mut() {
