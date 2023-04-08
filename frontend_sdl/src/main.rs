@@ -138,6 +138,9 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                             new_nes.apu.attach_output_device(sample_buffer);
                             audio_device.resume();
                             nes = Some(new_nes);
+
+                            canvas.clear();
+                            canvas.present();
                         }
                         Err(e) => {
                             display_error_dialog("Failed to load the ROM", &e.to_string());
@@ -157,12 +160,12 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
                 render_nes_to_surface(&mut display_buffer_paletted, nes);
                 display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
+                display_texture.update(None, display_buffer_rgb.without_lock().unwrap(), display_buffer_rgb.pitch() as usize)?;
+
+                canvas.copy(&display_texture, None, None)?;
             }
         }
-        display_texture.update(None, display_buffer_rgb.without_lock().unwrap(), display_buffer_rgb.pitch() as usize)?;
-
-        canvas.clear();
-        canvas.copy(&display_texture, None, None)?;
+        // Wait for next frame
         canvas.present();
 
         let pause_text = if paused { " - PAUSED" } else { "" };
