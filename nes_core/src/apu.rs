@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use bitflags::bitflags;
 use log::{info, warn};
+use crate::apu::dmc::DMC;
 
 mod square;
 mod triangle;
@@ -12,6 +13,7 @@ mod sweep;
 mod divider;
 mod length_counter;
 mod linear_counter;
+mod dmc;
 
 use crate::apu::noise::Noise;
 use crate::apu::square::{SquareUnit, SquareWave};
@@ -26,6 +28,7 @@ pub struct APU {
     square_wave2: SquareWave,
     triangle_wave: TriangleWave,
     noise: Noise,
+    dmc: DMC,
 
     /// Which channels the game wants enabled currently.
     guest_enabled_channels: AudioChannels,
@@ -115,6 +118,7 @@ impl APU {
             square_wave2: SquareWave::new(SquareUnit::Pulse2),
             triangle_wave: TriangleWave::new(),
             noise: Noise::new(),
+            dmc: DMC::new(),
 
             guest_enabled_channels: AudioChannels::empty(),
             host_enabled_channels: AudioChannels::all(),
@@ -226,6 +230,9 @@ impl APU {
         if self.channel_enabled(AudioChannels::NOISE) {
             self.noise.output_samples(samples_per_second, &mut self.noise_samples);
         }
+        if self.host_enabled_channels.contains(AudioChannels::DMC) {
+            self.dmc.output_samples(&mut self.dmc_samples);
+        }
 
         // Lookup table from https://www.nesdev.org/wiki/APU_Mixer
         static PULSE_OUT: [f32; 31] = {
@@ -285,7 +292,6 @@ impl APU {
 
     fn read_status_register(&mut self, cpu_cycle: u64) -> u8 {
         // https://www.nesdev.org/wiki/APU#Status_($4015)
-        // TODO: Implement the rest of $4015 APU Status register
 
         self.run_until_cycle(cpu_cycle);
 
@@ -294,6 +300,9 @@ impl APU {
         if self.signals.is_active(IRQSource::APU_FRAME_COUNTER) {
             status |= 0x40;
             self.signals.acknowledge_irq(IRQSource::APU_FRAME_COUNTER);
+        }
+        if self.signals.is_active(IRQSource::APU_DMC) {
+            status |= 0x80;
         }
         if !self.square_wave1.length_counter.is_zero() {
             status |= 0b0001;
@@ -306,6 +315,9 @@ impl APU {
         }
         if !self.noise.length_counter.is_zero() {
             status |= 0b1000;
+        }
+        if self.dmc.has_bytes_remaining() {
+            status |= 0b1_0000;
         }
 
         status
@@ -333,12 +345,20 @@ impl APU {
             0x400E => self.noise.write_noise_freq1(value),
             0x400F => self.noise.write_noise_freq2(value),
 
+            0x4010 => self.dmc.write_control(value),
+            0x4011 => self.dmc.write_direct_load(value),
+            0x4012 => self.dmc.write_sample_address(value),
+            0x4013 => self.dmc.write_sample_length(value),
+
             0x4015 => {
                 self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
                 self.square_wave1.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
                 self.square_wave2.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
                 self.triangle_wave.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::TRIANGLE));
                 self.noise.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::NOISE));
+                self.dmc.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::DMC));
+                // Writing to this register clears the DMC interrupt flag.
+                self.signals.acknowledge_irq(IRQSource::APU_DMC);
             }
             0x4017 => {
                 self.write_frame_counter(value)
