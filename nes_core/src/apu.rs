@@ -7,9 +7,13 @@ use log::{info, warn};
 mod square;
 mod triangle;
 mod noise;
+mod envelope;
+mod sweep;
+mod divider;
+mod length_counter;
 
 use crate::apu::noise::Noise;
-use crate::apu::square::SquareWave;
+use crate::apu::square::{SquareUnit, SquareWave};
 use crate::apu::triangle::TriangleWave;
 use crate::mapper;
 use crate::nes::{IRQSource, Signals};
@@ -104,8 +108,8 @@ impl APU {
         APU {
             output_buffer: None,
 
-            square_wave1: SquareWave::new(),
-            square_wave2: SquareWave::new(),
+            square_wave1: SquareWave::new(SquareUnit::Pulse1),
+            square_wave2: SquareWave::new(SquareUnit::Pulse2),
             triangle_wave: TriangleWave::new(),
             noise: Noise::new(),
 
@@ -163,13 +167,17 @@ impl APU {
                 return;
             }
         }
-        self.run_until_cycle(cpu_cycle);
+        //self.run_until_cycle(cpu_cycle);
     }
 
     fn tick_envelope_and_triangle(&mut self) {
+        self.square_wave1.envelope.tick();
+        self.square_wave2.envelope.tick();
     }
 
     fn tick_length_counters_and_sweep(&mut self) {
+        self.square_wave1.tick_length_and_swap();
+        self.square_wave2.tick_length_and_swap();
     }
 
     fn trigger_irq(&mut self) {
@@ -305,6 +313,8 @@ impl APU {
 
             0x4015 => {
                 self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
+                self.square_wave1.set_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
+                self.square_wave2.set_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
             }
             0x4017 => {
                 self.write_frame_counter(value)
