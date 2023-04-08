@@ -220,6 +220,7 @@ impl NES {
             }
             cpu::emulate_instruction(self);
         }
+        // At the end of the frame, flush any remaining audio samples.
         self.apu.run_until_cycle(self.total_cycles);
     }
 
@@ -332,7 +333,7 @@ impl NES {
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
         if self.total_cycles & 1 == 0 { // every other cycle
-            self.apu.step_cycle(self.total_cycles);
+            self.apu.step_cycle();
         }
     }
 

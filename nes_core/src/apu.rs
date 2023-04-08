@@ -137,7 +137,7 @@ impl APU {
         self.output_buffer = Some(output_buffer);
     }
 
-    pub fn step_cycle(&mut self, cpu_cycle: u64) {
+    pub fn step_cycle(&mut self) {
         self.apu_cycle += 1;
 
         // See https://www.nesdev.org/wiki/APU_Frame_Counter
@@ -168,7 +168,6 @@ impl APU {
                 return;
             }
         }
-        self.run_until_cycle(cpu_cycle);
     }
 
     fn tick_envelope_and_triangle(&mut self) {
