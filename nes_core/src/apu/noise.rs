@@ -1,13 +1,15 @@
 use crate::apu::CPU_FREQ;
+use crate::apu::envelope::Envelope;
+use crate::apu::length_counter::LengthCounter;
 
 /// https://www.nesdev.org/wiki/APU_Noise
 pub struct Noise {
     period: u32,
     feedback_bit_6: bool,
     shift_register: u16, // 15 bits
-    volume: u8, // 0 to 15 (4-bit)
-    constant_volume: bool,
-    length_counter_halt: bool,
+
+    pub envelope: Envelope,
+    pub length_counter: LengthCounter,
 }
 
 impl Noise {
@@ -18,16 +20,16 @@ impl Noise {
             period: Self::PERIOD_LUT[0],
             feedback_bit_6: false,
             shift_register: 1,
-            volume: 0,
-            constant_volume: true,
-            length_counter_halt: true,
+
+            envelope: Envelope::new(),
+            length_counter: LengthCounter::new(),
         }
     }
 
     pub fn write_control(&mut self, value: u8) {
-        self.volume = value & 0xF;
-        self.constant_volume = value & 0x10 != 0;
-        self.length_counter_halt = value & 0x20 != 0;
+        self.envelope.volume_or_envelope = value & 0xF;
+        self.envelope.constant_volume_flag = value & 0x10 != 0;
+        self.length_counter.halt = value & 0x20 != 0;
     }
 
     pub fn write_noise_freq1(&mut self, value: u8) {
@@ -36,8 +38,9 @@ impl Noise {
         self.feedback_bit_6 = value & 0x80 != 0; // otherwise bit 1
     }
 
-    pub fn write_noise_freq2(&mut self, _value: u8) {
-
+    pub fn write_noise_freq2(&mut self, value: u8) {
+        self.length_counter.set_value(value >> 3);
+        self.envelope.set_start_flag();
     }
 
     pub fn output_samples(
@@ -56,7 +59,14 @@ impl Noise {
                 self.do_feedback();
                 cycles_until_feedback += self.period as i64;
             }
-            *sample = if self.shift_register & 1 == 1 { 0 } else { self.volume };
+            let mut volume = self.envelope.get_volume();
+            if self.shift_register & 1 == 1 {
+                volume = 0;
+            }
+            if self.length_counter.is_zero() {
+                volume = 0;
+            }
+            *sample = volume;
         }
     }
 

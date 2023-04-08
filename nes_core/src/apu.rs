@@ -175,12 +175,14 @@ impl APU {
         self.square_wave1.envelope.tick();
         self.square_wave2.envelope.tick();
         self.triangle_wave.linear_counter.tick();
+        self.noise.envelope.tick();
     }
 
     fn tick_length_counters_and_sweep(&mut self) {
         self.square_wave1.tick_length_and_swap();
         self.square_wave2.tick_length_and_swap();
         self.triangle_wave.length_counter.tick();
+        self.noise.length_counter.tick();
     }
 
     fn trigger_irq(&mut self) {
