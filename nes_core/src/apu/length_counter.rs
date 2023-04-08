@@ -29,10 +29,9 @@ impl LengthCounter {
         }
     }
 
-    pub fn set_value(&mut self, value: u8) {
+    pub fn set_value(&mut self, index: u8) {
         if self.channel_enabled {
-            let index = value as usize >> 3;
-            self.length = LENGTH_LUT[index];
+            self.length = LENGTH_LUT[index as usize];
         } else {
             self.length = 0;
         }

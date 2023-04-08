@@ -1,13 +1,19 @@
 use crate::apu::CPU_FREQ;
+use crate::apu::length_counter::LengthCounter;
+use crate::apu::linear_counter::LinearCounter;
 
 pub struct TriangleWave {
     period: u32,
+    pub length_counter: LengthCounter,
+    pub linear_counter: LinearCounter,
 }
 
 impl TriangleWave {
     pub fn new() -> TriangleWave {
         TriangleWave {
             period: 0,
+            length_counter: LengthCounter::new(),
+            linear_counter: LinearCounter::new(),
         }
     }
 
@@ -41,19 +47,34 @@ impl TriangleWave {
                 _ => unreachable!(),
             };
             let step_0_1 = (step_m1_1 + 1.0) / 2.0;
-            *sample = if step_0_1 >= 1.0 {
+            let mut volume = if step_0_1 >= 1.0 {
                 15
             } else if step_0_1 <= 0.0 {
                 0
             } else {
                 (step_0_1 * 16.0).floor() as u8
             };
+
+            if self.length_counter.is_zero() {
+                volume = 0;
+            }
+            if self.linear_counter.is_zero() {
+                volume = 0;
+            }
+
+            *sample = volume;
         }
     }
 
-    // $4008
-    pub fn write_control(&mut self, _value: u8) {
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.length_counter.set_channel_enabled(enabled);
+    }
 
+    // $4008
+    pub fn write_control(&mut self, value: u8) {
+        self.linear_counter.control_flag = value & 0b1000_0000 != 0;
+        self.length_counter.halt = value & 0b1000_0000 != 0;
+        self.linear_counter.counter_reload_value = value & 0b0111_1111;
     }
 
     // $400A
@@ -64,5 +85,8 @@ impl TriangleWave {
     // $400B
     pub fn write_coarse_tune(&mut self, value: u8) {
         self.period = self.period & 0x00FF | ((value as u32 & 0x7) << 8);
+        self.length_counter.set_value(value >> 3);
+        // Side-effect: set the linear counter reload flag
+        self.linear_counter.reload_flag = true;
     }
 }

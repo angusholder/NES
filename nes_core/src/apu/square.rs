@@ -80,7 +80,7 @@ impl SquareWave {
     pub fn write_coarse_tune(&mut self, value: u8) {
         self.period = self.period & 0x00FF | ((value as u32 & 0x7) << 8);
         self.envelope.set_start_flag();
-        self.length_counter.set_value(value);
+        self.length_counter.set_value(value >> 3);
     }
 
     // $4002/$4006

@@ -11,6 +11,7 @@ mod envelope;
 mod sweep;
 mod divider;
 mod length_counter;
+mod linear_counter;
 
 use crate::apu::noise::Noise;
 use crate::apu::square::{SquareUnit, SquareWave};
@@ -173,11 +174,13 @@ impl APU {
     fn tick_envelope_and_triangle(&mut self) {
         self.square_wave1.envelope.tick();
         self.square_wave2.envelope.tick();
+        self.triangle_wave.linear_counter.tick();
     }
 
     fn tick_length_counters_and_sweep(&mut self) {
         self.square_wave1.tick_length_and_swap();
         self.square_wave2.tick_length_and_swap();
+        self.triangle_wave.length_counter.tick();
     }
 
     fn trigger_irq(&mut self) {
@@ -315,6 +318,7 @@ impl APU {
                 self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
                 self.square_wave1.set_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
                 self.square_wave2.set_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
+                self.triangle_wave.set_enabled(self.guest_enabled_channels.contains(AudioChannels::TRIANGLE));
             }
             0x4017 => {
                 self.write_frame_counter(value)
