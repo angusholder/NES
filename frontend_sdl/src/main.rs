@@ -1,10 +1,10 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{VecDeque};
 use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::BufWriter;
 use std::panic::catch_unwind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use log::info;
 use minifb::{Key, KeyRepeat, Menu, MENU_KEY_CTRL, Scale, ScaleMode, Window, WindowOptions};
@@ -16,7 +16,7 @@ use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_me
 use nes_core::apu::{AudioChannels, SampleBuffer};
 use nes_core::cartridge;
 use nes_core::input::JoypadButtons;
-use nes_core::nes::NES;
+use nes_core::nes::{Interrupt, NES};
 use nes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_PIXELS};
 
 const TRACE_FILE: bool = false;
@@ -63,9 +63,11 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
     let mut file_menu = Menu::new("File")?;
     file_menu.add_item("Open", ACTION_OPEN).shortcut(Key::O, MENU_KEY_CTRL).build();
+    file_menu.add_item("Reset", ACTION_RESET).build();
+    file_menu.add_item("Stop", ACTION_STOP).build();
     window.add_menu(&file_menu);
 
-    let mut audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
+    let audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
     info!("Got audio device: {:?}", audio_device.spec());
 
     let mut controller_mappings = &include_bytes!("../gamecontrollerdb.txt")[..];
@@ -75,16 +77,15 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     let mut event_pump: EventPump = sdl_context.event_pump()?;
 
     let mut frame_stats = FrameStats::new();
-    let mut nes: Option<Box<NES>> = None;
-    let mut paused = false;
+    let mut app = App::new(audio_device);
     while window.is_open() {
         let start_time = Instant::now();
 
         if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
-            paused = !paused;
+            app.toggle_pause();
         }
         let mut toggle_channel = |channel: AudioChannels| {
-            if let Some(nes) = nes.as_mut() {
+            if let Some(nes) = app.nes.as_mut() {
                 nes.apu.toggle_channel(channel);
             }
         };
@@ -95,9 +96,9 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
         if window.is_key_pressed(Key::Key5, KeyRepeat::No) { toggle_channel(AudioChannels::DMC); }
 
         match window.is_menu_pressed().unwrap_or(usize::MAX) {
-            ACTION_OPEN => {
-                handle_open_file(&mut audio_device, &mut nes);
-            }
+            ACTION_OPEN => app.open_file_dialog(),
+            ACTION_STOP => app.close_rom(),
+            ACTION_RESET => app.reset(),
             _ => {}
         }
         for event in event_pump.poll_iter() {
@@ -123,8 +124,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
         }
 
         let has_focus = window.is_active();
-        if !paused && has_focus {
-            if let Some(nes) = &mut nes {
+        if !app.paused && has_focus {
+            if let Some(nes) = app.nes.as_mut() {
                 nes.input.update_key_state(get_pressed_buttons(&window, game_controller.as_ref()));
 
                 nes.simulate_frame();
@@ -139,8 +140,12 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
             window.update();
         }
 
-        let pause_text = if paused { " - PAUSED" } else { "" };
-        window.set_title(&format!("NES Emulator - {:.2}ms{}", frame_stats.get_avg_frame_time_ms(), pause_text));
+        let pause_text = if app.paused { " - PAUSED" } else { "" };
+        let mut game_text = String::new();
+        if let Some(filename) = app.rom_filename.as_ref().map(|i| i.file_name()).flatten() {
+            game_text = format!("- {}", filename.to_string_lossy());
+        }
+        window.set_title(&format!("NES Emulator{game_text} - {:.2}ms{}", frame_stats.get_avg_frame_time_ms(), pause_text));
         let frame_time = start_time.elapsed();
         frame_stats.add_reading(frame_time);
     }
@@ -148,27 +153,69 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn handle_open_file(audio_device: &mut AudioDevice<NesAudioCallback>, nes: &mut Option<Box<NES>>) {
-    let Some(filename) = rfd::FileDialog::new()
-        .set_title("Open NES ROM")
-        .add_filter(".NES", &["nes"])
-        .pick_file() else { return; };
+struct App {
+    audio_device: AudioDevice<NesAudioCallback>,
+    nes: Option<Box<NES>>,
+    rom_filename: Option<PathBuf>,
+    paused: bool,
+}
 
-    match load_nes_system(&filename) {
-        Ok(mut new_nes) => {
-            let mut sample_buffer = audio_device.lock().get_output_buffer();
-            sample_buffer.clear();
-            new_nes.apu.attach_output_device(sample_buffer);
-            audio_device.resume();
-            *nes = Some(new_nes);
+impl App {
+    fn new(audio_device: AudioDevice<NesAudioCallback>) -> App {
+        App {
+            audio_device,
+            nes: None,
+            rom_filename: None,
+            paused: false,
         }
-        Err(e) => {
-            display_error_dialog("Failed to load the ROM", &e.to_string());
+    }
+
+    fn open_file_dialog(&mut self) {
+        let Some(filename) = rfd::FileDialog::new()
+            .set_title("Open NES ROM")
+            .add_filter(".NES", &["nes"])
+            .pick_file() else { return; };
+
+        self.load_rom(filename);
+    }
+
+    fn load_rom(&mut self, rom_filename: PathBuf) {
+        match load_nes_system(&rom_filename) {
+            Ok(mut nes) => {
+                let mut sample_buffer = self.audio_device.lock().get_output_buffer();
+                sample_buffer.clear();
+                nes.apu.attach_output_device(sample_buffer);
+                self.audio_device.resume();
+                self.nes = Some(nes);
+                self.rom_filename = Some(rom_filename);
+            }
+            Err(e) => {
+                display_error_dialog("Failed to load the ROM", &e.to_string());
+            }
         }
+    }
+
+    fn close_rom(&mut self) {
+        self.nes = None;
+        self.rom_filename = None;
+        self.audio_device.pause();
+        self.audio_device.lock().get_output_buffer().clear();
+    }
+
+    fn reset(&mut self) {
+        if let Some(nes) = self.nes.as_mut() {
+            nes.interrupt(Interrupt::RESET);
+        }
+    }
+
+    fn toggle_pause(&mut self) {
+        self.paused = !self.paused;
     }
 }
 
 const ACTION_OPEN: usize = 1;
+const ACTION_STOP: usize = 2;
+const ACTION_RESET: usize = 3;
 
 fn load_nes_system(
     filename: &Path,
