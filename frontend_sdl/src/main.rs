@@ -5,24 +5,18 @@ use std::io;
 use std::io::BufWriter;
 use std::panic::catch_unwind;
 use std::path::Path;
-use sdl2::pixels::{Color, Palette, PixelFormatEnum};
-use sdl2::event::Event;
-use sdl2::keyboard::{Keycode, Scancode};
 use std::time::{Duration, Instant};
 use log::info;
+use minifb::{Key, KeyRepeat, Menu, MENU_KEY_CTRL, Scale, Window, WindowOptions};
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 use sdl2::controller::{Button, GameController};
 use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
-use sdl2::render::{Texture, TextureCreator, WindowCanvas};
-use sdl2::surface::Surface;
-use sdl2::sys::SDL_WindowFlags;
-use sdl2::video::Window;
 use nes_core::apu::{AudioChannels, SampleBuffer};
 use nes_core::cartridge;
 use nes_core::input::JoypadButtons;
 use nes_core::nes::NES;
-use nes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH, self};
+use nes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_PIXELS};
 
 const TRACE_FILE: bool = false;
 
@@ -55,30 +49,17 @@ fn main() {
 
 fn main_loop() -> Result<(), Box<dyn Error>> {
     let sdl_context = sdl2::init()?;
-    let video_subsystem = sdl_context.video()?;
     let controller_subsystem = sdl_context.game_controller().unwrap();
-    info!("Video driver: {}", video_subsystem.current_video_driver());
 
-    let window: Window = video_subsystem.window("NES Emulator", SCREEN_WIDTH*3, SCREEN_HEIGHT*3)
-        .position_centered()
-        .build()?;
-    info!("Window {:?}", window.display_mode()?);
+    let mut window = Window::new("NES Emulator", SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize, WindowOptions {
+        scale: Scale::X2,
+        ..WindowOptions::default()
+    })?;
+    window.limit_update_rate(Some(Duration::from_micros(16_666)));
 
-    let mut canvas: WindowCanvas = window.into_canvas()
-        .accelerated()
-        .present_vsync()
-        .build()?;
-    info!("Renderer {:?}", canvas.info());
-
-    let texture_creator: TextureCreator<_> = canvas.texture_creator();
-
-    let mut display_texture: Texture = texture_creator.create_texture_streaming(PixelFormatEnum::ARGB8888, SCREEN_WIDTH, SCREEN_HEIGHT)?;
-
-    let mut display_buffer_paletted = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::Index8)?;
-    let colors = ppu::get_palette_colors().map(|c| Color { r: c.r, g: c.g, b: c.b, a: 255 });
-    let palette = Palette::with_colors(&colors)?;
-    display_buffer_paletted.set_palette(&palette)?;
-    let mut display_buffer_rgb = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)?;
+    let mut file_menu = Menu::new("File")?;
+    file_menu.add_item("Open", ACTION_OPEN).shortcut(Key::O, MENU_KEY_CTRL).build();
+    window.add_menu(&file_menu);
 
     let mut audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
     info!("Got audio device: {:?}", audio_device.spec());
@@ -90,86 +71,72 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     let mut game_controller: Option<GameController> = None;
 
     let mut frame_stats = FrameStats::new();
-    let mut event_pump = sdl_context.event_pump()?;
     let mut nes: Option<Box<NES>> = None;
     let mut paused = false;
-    'running: loop {
+    while window.is_open() {
         let start_time = Instant::now();
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit {..} => {
-                    break 'running;
-                }
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    paused = !paused;
-                }
-                Event::KeyDown { keycode: Some(keycode), .. } => {
-                    let Some(nes) = nes.as_mut() else { continue; };
-                    match keycode {
-                        Keycode::Num1 => nes.apu.toggle_channel(AudioChannels::SQUARE1),
-                        Keycode::Num2 => nes.apu.toggle_channel(AudioChannels::SQUARE2),
-                        Keycode::Num3 => nes.apu.toggle_channel(AudioChannels::TRIANGLE),
-                        Keycode::Num4 => nes.apu.toggle_channel(AudioChannels::NOISE),
-                        Keycode::Num5 => nes.apu.toggle_channel(AudioChannels::DMC),
-                        _ => {}
-                    }
-                }
-                Event::ControllerDeviceAdded { which: joystick_index, .. } => {
-                    let controller = controller_subsystem.open(joystick_index).unwrap();
-                    if controller.instance_id() == 0 {
-                        info!("P1 game controller plugged in: {}, attached={}, joystick_index={joystick_index}, instance_id={}", controller.name(), controller.attached(), controller.instance_id());
-                        game_controller = Some(controller);
-                    } else {
-                        info!("Other game controller plugged in, ignoring ({}, attached={}, joystick_index={joystick_index}, instance_id={})", controller.name(), controller.attached(), controller.instance_id());
-                    }
-                }
-                Event::ControllerDeviceRemoved { which: instance_id, .. } => {
-                    info!("Controller device {instance_id} removed");
-                    if game_controller.as_ref().map(|c| c.instance_id()) == Some(instance_id) {
-                        game_controller = None;
-                        info!("No game controller present now");
-                    }
-                }
-                Event::DropFile { filename, .. } => {
-                    match load_nes_system(&filename) {
-                        Ok(mut new_nes) => {
-                            let mut sample_buffer = audio_device.lock().get_output_buffer();
-                            sample_buffer.clear();
-                            new_nes.apu.attach_output_device(sample_buffer);
-                            audio_device.resume();
-                            nes = Some(new_nes);
 
-                            canvas.clear();
-                            canvas.present();
-                        }
-                        Err(e) => {
-                            display_error_dialog("Failed to load the ROM", &e.to_string());
-                        }
-                    }
-                }
-                _ => {}
-            }
+        if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
+            paused = !paused;
         }
+        let mut toggle_channel = |channel: AudioChannels| {
+            if let Some(nes) = nes.as_mut() {
+                nes.apu.toggle_channel(channel);
+            }
+        };
+        if window.is_key_pressed(Key::Key1, KeyRepeat::No) { toggle_channel(AudioChannels::SQUARE1); }
+        if window.is_key_pressed(Key::Key2, KeyRepeat::No) { toggle_channel(AudioChannels::SQUARE2); }
+        if window.is_key_pressed(Key::Key3, KeyRepeat::No) { toggle_channel(AudioChannels::TRIANGLE); }
+        if window.is_key_pressed(Key::Key4, KeyRepeat::No) { toggle_channel(AudioChannels::NOISE); }
+        if window.is_key_pressed(Key::Key5, KeyRepeat::No) { toggle_channel(AudioChannels::DMC); }
 
-        let has_focus = canvas.window().window_flags() & SDL_WindowFlags::SDL_WINDOW_INPUT_FOCUS as u32 != 0;
+        match window.is_menu_pressed().unwrap_or(usize::MAX) {
+            ACTION_OPEN => {
+                handle_open_file(&mut audio_device, &mut nes);
+            }
+            _ => {}
+        }
+        // for event in event_pump.poll_iter() {
+        //     match event {
+        //         Event::ControllerDeviceAdded { which: joystick_index, .. } => {
+        //             let controller = controller_subsystem.open(joystick_index).unwrap();
+        //             if controller.instance_id() == 0 {
+        //                 info!("P1 game controller plugged in: {}, attached={}, joystick_index={joystick_index}, instance_id={}", controller.name(), controller.attached(), controller.instance_id());
+        //                 game_controller = Some(controller);
+        //             } else {
+        //                 info!("Other game controller plugged in, ignoring ({}, attached={}, joystick_index={joystick_index}, instance_id={})", controller.name(), controller.attached(), controller.instance_id());
+        //             }
+        //         }
+        //         Event::ControllerDeviceRemoved { which: instance_id, .. } => {
+        //             info!("Controller device {instance_id} removed");
+        //             if game_controller.as_ref().map(|c| c.instance_id()) == Some(instance_id) {
+        //                 game_controller = None;
+        //                 info!("No game controller present now");
+        //             }
+        //         }
+        //         _ => {}
+        //     }
+        // }
+
+        let has_focus = window.is_active();
         if !paused && has_focus {
             if let Some(nes) = &mut nes {
-                nes.input.update_key_state(get_pressed_buttons(&event_pump, &keymap, game_controller.as_ref()));
+                nes.input.update_key_state(get_pressed_buttons(&window, &keymap, game_controller.as_ref()));
 
                 nes.simulate_frame();
 
-                render_nes_to_surface(&mut display_buffer_paletted, nes);
-                display_buffer_paletted.blit(None, &mut display_buffer_rgb, None).unwrap();
-                display_texture.update(None, display_buffer_rgb.without_lock().unwrap(), display_buffer_rgb.pitch() as usize)?;
-
-                canvas.copy(&display_texture, None, None)?;
+                let mut display_buffer = [0u32; SCREEN_PIXELS];
+                nes.ppu.output_display_buffer_u32_argb(&mut display_buffer);
+                window.update_with_buffer(&display_buffer, SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
+            } else {
+                window.update_with_buffer(&[0; SCREEN_PIXELS], SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
             }
+        } else {
+            window.update();
         }
-        // Wait for next frame
-        canvas.present();
 
         let pause_text = if paused { " - PAUSED" } else { "" };
-        canvas.window_mut().set_title(&format!("NES Emulator - {:.2}ms{}", frame_stats.get_avg_frame_time_ms(), pause_text))?;
+        window.set_title(&format!("NES Emulator - {:.2}ms{}", frame_stats.get_avg_frame_time_ms(), pause_text));
         let frame_time = start_time.elapsed();
         frame_stats.add_reading(frame_time);
     }
@@ -177,14 +144,32 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn render_nes_to_surface(display_buffer_rgb: &mut Surface, nes: &mut NES) {
-    nes.ppu.output_display_buffer_indexed(display_buffer_rgb.without_lock_mut().unwrap().try_into().unwrap());
+fn handle_open_file(audio_device: &mut AudioDevice<NesAudioCallback>, nes: &mut Option<Box<NES>>) {
+    let Some(filename) = rfd::FileDialog::new()
+        .set_title("Open NES ROM")
+        .add_filter(".NES", &["nes"])
+        .pick_file() else { return; };
+
+    match load_nes_system(&filename) {
+        Ok(mut new_nes) => {
+            let mut sample_buffer = audio_device.lock().get_output_buffer();
+            sample_buffer.clear();
+            new_nes.apu.attach_output_device(sample_buffer);
+            audio_device.resume();
+            *nes = Some(new_nes);
+        }
+        Err(e) => {
+            display_error_dialog("Failed to load the ROM", &e.to_string());
+        }
+    }
 }
 
+const ACTION_OPEN: usize = 1;
+
 fn load_nes_system(
-    filename: &String,
+    filename: &Path,
 ) -> Result<Box<NES>, Box<dyn Error>> {
-    let cart = cartridge::parse_rom(Path::new(&filename))?;
+    let cart = cartridge::parse_rom(filename)?;
     let mut nes = Box::new(NES::from_cart(cart));
     nes.power_on();
     Ok(nes)
@@ -200,26 +185,26 @@ fn display_error_dialog(title: &str, message: &str) {
     ).unwrap();
 }
 
-type Keymap = HashMap<Scancode, JoypadButtons>;
+type Keymap = HashMap<Key, JoypadButtons>;
 
 fn get_key_map() -> Keymap {
     let mut map = HashMap::new();
-    map.insert(Scancode::Z, JoypadButtons::A);
-    map.insert(Scancode::X, JoypadButtons::B);
-    map.insert(Scancode::A, JoypadButtons::SELECT);
-    map.insert(Scancode::S, JoypadButtons::START);
-    map.insert(Scancode::Return, JoypadButtons::START);
-    map.insert(Scancode::Up, JoypadButtons::UP);
-    map.insert(Scancode::Down, JoypadButtons::DOWN);
-    map.insert(Scancode::Left, JoypadButtons::LEFT);
-    map.insert(Scancode::Right, JoypadButtons::RIGHT);
+    map.insert(Key::Z, JoypadButtons::A);
+    map.insert(Key::X, JoypadButtons::B);
+    map.insert(Key::A, JoypadButtons::SELECT);
+    map.insert(Key::S, JoypadButtons::START);
+    map.insert(Key::Enter, JoypadButtons::START);
+    map.insert(Key::Up, JoypadButtons::UP);
+    map.insert(Key::Down, JoypadButtons::DOWN);
+    map.insert(Key::Left, JoypadButtons::LEFT);
+    map.insert(Key::Right, JoypadButtons::RIGHT);
     map
 }
 
-pub fn get_pressed_buttons(event_pump: &EventPump, keymap: &Keymap, controller: Option<&GameController>) -> JoypadButtons {
+pub fn get_pressed_buttons(window: &Window, keymap: &Keymap, controller: Option<&GameController>) -> JoypadButtons {
     let mut pressed = JoypadButtons::empty();
-    for (scan_code, button) in keymap.iter() {
-        if event_pump.keyboard_state().is_scancode_pressed(*scan_code) {
+    for (key, button) in keymap.iter() {
+        if window.is_key_down(*key) {
             pressed.insert(*button);
         }
     }

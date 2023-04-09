@@ -10,5 +10,7 @@ build = "build.rs"
 [dependencies]
 log = "0.4.17"
 env_logger = { version = "0.10.0", features = ["humantime"], default-features = false }
-sdl2 = "0.35.2"
+sdl2 = { version = "0.35.2", default-features = false }
 nes_core = { path = "../nes_core" }
+minifb = "0.24.0"
+rfd = "0.11.3"
