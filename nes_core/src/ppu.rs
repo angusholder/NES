@@ -121,13 +121,15 @@ impl PPU {
 
     pub fn output_display_buffer_rgb(&self, output: &mut [Color; SCREEN_PIXELS]) {
         for (i, palette_index) in self.finished_display_buffer.iter().enumerate() {
-            output[i] = get_output_color(*palette_index);
+            // wrap into range of 64 colors
+            output[i] = get_output_color(*palette_index & 63);
         }
     }
 
     pub fn output_display_buffer_u32_argb(&self, output: &mut [u32; SCREEN_PIXELS]) {
         for (i, palette_index) in self.finished_display_buffer.iter().enumerate() {
-            let Color { r, g, b } = get_output_color(*palette_index);
+            // wrap into range of 64 colors
+            let Color { r, g, b } = get_output_color(*palette_index & 63);
             output[i] = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
         }
     }
