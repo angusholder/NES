@@ -175,7 +175,11 @@ pub fn emulate_instruction(nes: &mut NES) {
         }
         JMP_INDIR => {
             let addr = nes.read_code_addr();
-            nes.PC = nes.read_addr(addr);
+            let low = nes.read8(addr);
+            // The second read wraps around within the same page of memory, eg: we read $02FF, then $0200 (instead of $0300).
+            let high_addr = (addr & 0xFF00) + (addr.wrapping_add(1) & 0xFF);
+            let high = nes.read8(high_addr);
+            nes.PC = (high as u16) << 8 | (low as u16);
         }
 
         BCC_REL => branch_cond(nes, nes.SR.C == false),
@@ -282,7 +286,9 @@ fn addressing_indirect_x(nes: &mut NES) -> u16 {
 
 fn addressing_indirect_y(nes: &mut NES) -> u16 {
     let zp_addr = nes.read_code();
-    let base = nes.read_addr(zp_addr as u16);
+    let low = nes.read8(zp_addr as u16);
+    let high = nes.read8(zp_addr.wrapping_add(1) as u16);
+    let base = (high as u16) << 8 | (low as u16);
     let addr = base.wrapping_add(nes.Y as u16);
     if pages_differ(base, addr) {
         nes.tick();

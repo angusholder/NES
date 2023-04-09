@@ -2737,6 +2737,19 @@ mod jmp_indirect {
         emulate_instructions(nes, 2);
         assert_eq!(true, nes.SR.D);
     }
+
+    #[test]
+    fn page_wrap() {
+        let mut nes = &mut new_nes();
+        nes.SR.D = false;
+        nes.ram[0] = JMP_INDIR; // JMP ($02FF)
+        nes.ram[1] = 0xFF;
+        nes.ram[2] = 0x02;
+        nes.ram[0x2FF] = 0x65; // Jump target $0765
+        nes.ram[0x200] = 0x07;
+        emulate_instructions(nes, 1);
+        assert_eq!(0x0765, nes.PC);
+    }
 }
 
 mod jsr_absolute {
