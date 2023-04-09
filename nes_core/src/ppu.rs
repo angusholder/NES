@@ -125,6 +125,13 @@ impl PPU {
         }
     }
 
+    pub fn output_display_buffer_u32_argb(&self, output: &mut [u32; SCREEN_PIXELS]) {
+        for (i, palette_index) in self.finished_display_buffer.iter().enumerate() {
+            let Color { r, g, b } = get_output_color(*palette_index);
+            output[i] = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
+        }
+    }
+
     pub fn output_display_buffer_indexed(&self, output: &mut[u8; SCREEN_PIXELS]) {
         output.copy_from_slice(&self.finished_display_buffer)
     }
