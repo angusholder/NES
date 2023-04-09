@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use bitflags::bitflags;
+use log::Level::Trace;
 use crate::mapper::{Mapper};
 use crate::{cpu, ppu};
 use crate::apu::APU;
@@ -24,6 +25,8 @@ pub struct NES {
     pub SR: StatusRegister,
 
     pub PC: u16,
+
+    pub trace_instructions: bool,
 
     pub ram: [u8; 2048],
     pub ppu: PPU,
@@ -179,6 +182,7 @@ impl NES {
             ram: [0; 0x800],
             remaining_cycles: 0,
             total_cycles: 0,
+            trace_instructions: log::log_enabled!(Trace),
             ppu: PPU::new(mapper.clone()),
 
             input: InputState::new(),

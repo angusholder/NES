@@ -1,11 +1,10 @@
-use log::{log_enabled, trace};
-use log::Level::Trace;
+use log::{trace};
 use crate::nes::{NES, StatusRegister};
 use crate::cpu_ops::*;
 use crate::disassemble;
 
 pub fn emulate_instruction(nes: &mut NES) {
-    if log_enabled!(Trace) {
+    if nes.trace_instructions {
         let disassembly: String = disassemble::disassemble(nes);
         trace!("{}", disassembly);
     }
