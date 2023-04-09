@@ -68,8 +68,6 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     let mut audio_device: AudioDevice<NesAudioCallback> = create_audio_device(&sdl_context);
     info!("Got audio device: {:?}", audio_device.spec());
 
-    let keymap: Keymap = get_key_map();
-
     let mut controller_mappings = &include_bytes!("../gamecontrollerdb.txt")[..];
     controller_subsystem.load_mappings_from_read(&mut controller_mappings).unwrap();
     let mut game_controller: Option<GameController> = None;
@@ -127,7 +125,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
         let has_focus = window.is_active();
         if !paused && has_focus {
             if let Some(nes) = &mut nes {
-                nes.input.update_key_state(get_pressed_buttons(&window, &keymap, game_controller.as_ref()));
+                nes.input.update_key_state(get_pressed_buttons(&window, game_controller.as_ref()));
 
                 nes.simulate_frame();
 
@@ -191,29 +189,26 @@ fn display_error_dialog(title: &str, message: &str) {
     ).unwrap();
 }
 
-type Keymap = HashMap<Key, JoypadButtons>;
-
-fn get_key_map() -> Keymap {
-    let mut map = HashMap::new();
-    map.insert(Key::Z, JoypadButtons::A);
-    map.insert(Key::X, JoypadButtons::B);
-    map.insert(Key::A, JoypadButtons::SELECT);
-    map.insert(Key::S, JoypadButtons::START);
-    map.insert(Key::Enter, JoypadButtons::START);
-    map.insert(Key::Up, JoypadButtons::UP);
-    map.insert(Key::Down, JoypadButtons::DOWN);
-    map.insert(Key::Left, JoypadButtons::LEFT);
-    map.insert(Key::Right, JoypadButtons::RIGHT);
-    map
-}
-
-pub fn get_pressed_buttons(window: &Window, keymap: &Keymap, controller: Option<&GameController>) -> JoypadButtons {
+pub fn get_pressed_buttons(window: &Window, controller: Option<&GameController>) -> JoypadButtons {
     let mut pressed = JoypadButtons::empty();
+
+    let keymap = &[
+        (Key::Z, JoypadButtons::A),
+        (Key::X, JoypadButtons::B),
+        (Key::A, JoypadButtons::SELECT),
+        (Key::S, JoypadButtons::START),
+        (Key::Enter, JoypadButtons::START),
+        (Key::Up, JoypadButtons::UP),
+        (Key::Down, JoypadButtons::DOWN),
+        (Key::Left, JoypadButtons::LEFT),
+        (Key::Right, JoypadButtons::RIGHT),
+    ];
     for (key, button) in keymap.iter() {
         if window.is_key_down(*key) {
             pressed.insert(*button);
         }
     }
+
     if let Some(con) = controller {
         if con.button(Button::A) { pressed |= JoypadButtons::A; }
         if con.button(Button::B) { pressed |= JoypadButtons::B; }
@@ -223,6 +218,7 @@ pub fn get_pressed_buttons(window: &Window, keymap: &Keymap, controller: Option<
         if con.button(Button::DPadRight) { pressed |= JoypadButtons::RIGHT; }
         if con.button(Button::Start) { pressed |= JoypadButtons::START; }
     }
+
     pressed
 }
 
