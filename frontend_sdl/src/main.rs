@@ -7,7 +7,7 @@ use std::panic::catch_unwind;
 use std::path::Path;
 use std::time::{Duration, Instant};
 use log::info;
-use minifb::{Key, KeyRepeat, Menu, MENU_KEY_CTRL, Scale, Window, WindowOptions};
+use minifb::{Key, KeyRepeat, Menu, MENU_KEY_CTRL, Scale, ScaleMode, Window, WindowOptions};
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 use sdl2::controller::{Button, GameController};
 use sdl2::event::Event;
@@ -54,8 +54,11 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
     let mut window = Window::new("NES Emulator", SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize, WindowOptions {
         scale: Scale::X2,
+        resize: true,
+        scale_mode: ScaleMode::AspectRatioStretch,
         ..WindowOptions::default()
     })?;
+    window.set_background_color(0x20, 0x20, 0x20);
     window.limit_update_rate(Some(Duration::from_micros(16_666)));
 
     let mut file_menu = Menu::new("File")?;
