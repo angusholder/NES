@@ -275,8 +275,9 @@ fn addressing_absolute_y(nes: &mut NES) -> u16 {
 
 fn addressing_indirect_x(nes: &mut NES) -> u16 {
     let zp_addr = nes.read_code().wrapping_add(nes.X);
-    let addr = nes.read_addr(zp_addr as u16);
-    addr
+    let low = nes.read8(zp_addr as u16);
+    let high = nes.read8(zp_addr.wrapping_add(1) as u16);
+    (high as u16) << 8 | (low as u16)
 }
 
 fn addressing_indirect_y(nes: &mut NES) -> u16 {
