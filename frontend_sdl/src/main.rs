@@ -291,7 +291,7 @@ pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
     let audio_spec = AudioSpecDesired {
         freq: Some(48_000),
         channels: Some(1),
-        samples: None,
+        samples: Some(735 * 3),
     };
     audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
         NesAudioCallback {
