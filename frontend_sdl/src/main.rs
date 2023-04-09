@@ -10,6 +10,7 @@ use log::info;
 use minifb::{Key, KeyRepeat, Menu, MENU_KEY_CTRL, Scale, Window, WindowOptions};
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 use sdl2::controller::{Button, GameController};
+use sdl2::event::Event;
 use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
 use nes_core::apu::{AudioChannels, SampleBuffer};
@@ -70,6 +71,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
     controller_subsystem.load_mappings_from_read(&mut controller_mappings).unwrap();
     let mut game_controller: Option<GameController> = None;
 
+    let mut event_pump: EventPump = sdl_context.event_pump()?;
+
     let mut frame_stats = FrameStats::new();
     let mut nes: Option<Box<NES>> = None;
     let mut paused = false;
@@ -96,27 +99,27 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
             }
             _ => {}
         }
-        // for event in event_pump.poll_iter() {
-        //     match event {
-        //         Event::ControllerDeviceAdded { which: joystick_index, .. } => {
-        //             let controller = controller_subsystem.open(joystick_index).unwrap();
-        //             if controller.instance_id() == 0 {
-        //                 info!("P1 game controller plugged in: {}, attached={}, joystick_index={joystick_index}, instance_id={}", controller.name(), controller.attached(), controller.instance_id());
-        //                 game_controller = Some(controller);
-        //             } else {
-        //                 info!("Other game controller plugged in, ignoring ({}, attached={}, joystick_index={joystick_index}, instance_id={})", controller.name(), controller.attached(), controller.instance_id());
-        //             }
-        //         }
-        //         Event::ControllerDeviceRemoved { which: instance_id, .. } => {
-        //             info!("Controller device {instance_id} removed");
-        //             if game_controller.as_ref().map(|c| c.instance_id()) == Some(instance_id) {
-        //                 game_controller = None;
-        //                 info!("No game controller present now");
-        //             }
-        //         }
-        //         _ => {}
-        //     }
-        // }
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::ControllerDeviceAdded { which: joystick_index, .. } => {
+                    let controller = controller_subsystem.open(joystick_index).unwrap();
+                    if controller.instance_id() == 0 {
+                        info!("P1 game controller plugged in: {}, attached={}, joystick_index={joystick_index}, instance_id={}", controller.name(), controller.attached(), controller.instance_id());
+                        game_controller = Some(controller);
+                    } else {
+                        info!("Other game controller plugged in, ignoring ({}, attached={}, joystick_index={joystick_index}, instance_id={})", controller.name(), controller.attached(), controller.instance_id());
+                    }
+                }
+                Event::ControllerDeviceRemoved { which: instance_id, .. } => {
+                    info!("Controller device {instance_id} removed");
+                    if game_controller.as_ref().map(|c| c.instance_id()) == Some(instance_id) {
+                        game_controller = None;
+                        info!("No game controller present now");
+                    }
+                }
+                _ => {}
+            }
+        }
 
         let has_focus = window.is_active();
         if !paused && has_focus {
