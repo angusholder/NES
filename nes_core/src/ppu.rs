@@ -582,17 +582,14 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
             let dx = x - sprite.start_x as u32;
             let mut sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
             if sprite_color_index != 0 { // Sprite pixel not blank
-                if bg_color_index == 0 { // Background pixel is blank
+                // Background pixel is blank, or sprite takes priority
+                if bg_color_index == 0 || sprite.above_bg {
                     pixel_index = sprite_color_index | sprite.palette_base_addr;
-                } else {
-                    if !sprite.behind_bg { // This sprite takes proprity over the background
-                        pixel_index = sprite_color_index | sprite.palette_base_addr;
-                    }
+                }
 
-                    // Sprite 0 hit occurs when both sprite and background are non-transparent (regardless of priority).
-                    if sprite.is_sprite_0 && x != 255 {
-                        ppu.sprite_0_hit = true;
-                    }
+                // Sprite 0 hit occurs when both sprite and background are non-transparent (regardless of priority).
+                if sprite.is_sprite_0 && bg_color_index != 0 && x != 255 {
+                    ppu.sprite_0_hit = true;
                 }
 
                 break;
@@ -629,7 +626,7 @@ struct SpriteRowSlice {
     end_x: u16,
     // two bits per pixel
     pattern2: u16,
-    behind_bg: bool,
+    above_bg: bool,
     palette_base_addr: u8,
     is_sprite_0: bool,
 }
@@ -640,7 +637,7 @@ impl SpriteRowSlice {
             start_x: 0xFF,
             end_x: 0xFF,
             pattern2: 0x0000,
-            behind_bg: true,
+            above_bg: false,
             palette_base_addr: 0,
             is_sprite_0: false,
         }
@@ -708,7 +705,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
             start_x,
             end_x: start_x as u16 + 8,
             pattern2,
-            behind_bg: (attrs & SPRITE_ATTR_BEHIND_BG) != 0,
+            above_bg: (attrs & SPRITE_ATTR_BEHIND_BG) == 0,
             palette_base_addr: 0x10 | ((attrs & SPRITE_ATTR_PALETTE) << 2),
             is_sprite_0: src_index == 0,
         };
