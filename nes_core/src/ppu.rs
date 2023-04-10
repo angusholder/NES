@@ -96,7 +96,7 @@ impl PPU {
     }
 
     fn rendering_enabled(&self) -> bool {
-        self.mask.show_background || self.mask.show_sprites
+        self.mask.show_background_or_sprites
     }
 
     fn write_mem(&mut self, addr: u16, val: u8) {
@@ -236,6 +236,7 @@ struct PPUMask {
     show_sprites_left: bool,
     show_background: bool,
     show_sprites: bool,
+    show_background_or_sprites: bool,
     emphasize_red: bool,
     emphasize_green: bool,
     emphasize_blue: bool,
@@ -249,6 +250,7 @@ impl PPUMask {
             show_sprites_left: val & 0b0000_0100 != 0,
             show_background: val & 0b0000_1000 != 0,
             show_sprites: val & 0b0001_0000 != 0,
+            show_background_or_sprites: val & 0b0001_1000 != 0,
             emphasize_red: val & 0b0010_0000 != 0,
             emphasize_green: val & 0b0100_0000 != 0,
             emphasize_blue: val & 0b1000_0000 != 0,
