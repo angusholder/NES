@@ -579,7 +579,7 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
                 let dx = x - sx;
                 let mut sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
                 if sprite_color_index != 0 { // Sprite pixel not blank
-                    sprite_color_index |= 0x10 | (sprite.palette_index << 2);
+                    sprite_color_index |= sprite.palette_base_addr;
 
                     if bg_color_index == 0 { // Background pixel is blank
                         pixel_index = sprite_color_index;
@@ -590,7 +590,7 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
 
                         // Sprite 0 hit ignores priority, it only requires that both sprite pixel and
                         // bg pixel be non-transparent.
-                        if sprite.is_sprite_0 && x != 255 && !ppu.sprite_0_hit {
+                        if sprite.is_sprite_0 && x != 255 {
                             ppu.sprite_0_hit = true;
                         }
                     }
@@ -629,7 +629,7 @@ struct SpriteRowSlice {
     // two bits per pixel
     pattern2: u16,
     behind_bg: bool,
-    palette_index: u8,
+    palette_base_addr: u8,
     is_sprite_0: bool,
 }
 
@@ -639,7 +639,7 @@ impl SpriteRowSlice {
             x: 0xFF,
             pattern2: 0x0000,
             behind_bg: true,
-            palette_index: 0,
+            palette_base_addr: 0,
             is_sprite_0: false,
         }
     }
@@ -705,7 +705,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
             x: sprite_data[SPRITE_X],
             pattern2,
             behind_bg: (attrs & SPRITE_ATTR_BEHIND_BG) != 0,
-            palette_index: (attrs & SPRITE_ATTR_PALETTE),
+            palette_base_addr: 0x10 | ((attrs & SPRITE_ATTR_PALETTE) << 2),
             is_sprite_0: src_index == 0,
         };
         dest_index += 1;
