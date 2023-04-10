@@ -249,6 +249,10 @@ impl NES {
 
     pub fn read8(&mut self, addr: u16) -> u8 {
         self.tick();
+        self.read8_no_tick(addr)
+    }
+
+    pub fn read8_no_tick(&mut self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x1FFF =>
                 self.ram[addr as usize % 0x800],

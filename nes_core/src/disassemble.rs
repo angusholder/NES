@@ -93,12 +93,12 @@ pub fn disassemble(nes: &mut NES) -> String {
     let SR = nes.SR;
     let PC = nes.PC;
 
-    let op = nes.read8(PC);
+    let op = nes.read8_no_tick(PC);
     let op_name = INSTRUCTION_NAMES[op as usize];
     let addr_mode = INSTRUCTION_ADDRESS_MODES[op as usize];
     let size = get_addr_mode_instruction_size(addr_mode);
     let op_bytes = &mut [0u8; 3][..size];
-    for i in 0..size { op_bytes[i] = nes.read8(PC + i as u16); }
+    for i in 0..size { op_bytes[i] = nes.read8_no_tick(PC + i as u16); }
 
     write!(output, "c{:08}  ", nes.get_cycles()).unwrap();
     write!(output, "A:{A:02X} X:{X:02X} Y:{Y:02X} S:{SP:02X} {SR} ").unwrap();
@@ -116,55 +116,55 @@ pub fn disassemble(nes: &mut NES) -> String {
 
     match addr_mode {
         ADDR_ABSOLUTE => {
-            let addr = nes.read_addr(PC+1);
+            let addr = read_addr(nes, PC+1);
             write!(output, "{op_name} ${addr:04X}").unwrap();
         }
         ADDR_ABSOLUTE_X => {
-            let addr = nes.read_addr(PC+1);
+            let addr = read_addr(nes, PC+1);
             write!(output, "{op_name} ${addr:04X},X").unwrap();
         }
         ADDR_ABSOLUTE_Y => {
-            let addr = nes.read_addr(PC+1);
+            let addr = read_addr(nes, PC+1);
             write!(output, "{op_name} ${addr:04X},Y").unwrap();
         }
         ADDR_ACCUMULATOR => {
             write!(output, "{op_name}").unwrap();
         }
         ADDR_IMMEDIATE => {
-            let arg = nes.read8(PC+1);
+            let arg = nes.read8_no_tick(PC+1);
             write!(output, "{op_name} #${arg:02X}").unwrap();
         }
         ADDR_IMPLIED => {
             write!(output, "{op_name}").unwrap();
         }
         ADDR_INDEXED_INDIRECT => {
-            let addr = nes.read_addr(PC+1);
+            let addr = read_addr(nes, PC+1);
             write!(output, "{op_name} (${addr:04X},X)").unwrap();
         }
         // JMP_INDIR
         ADDR_INDIRECT => {
-            let addr = nes.read_addr(PC+1);
+            let addr = read_addr(nes, PC+1);
             write!(output, "{op_name} (${addr:04X})").unwrap();
         }
         ADDR_INDIRECT_INDEXED => {
-            let addr = nes.read_addr(PC+1);
+            let addr = read_addr(nes, PC+1);
             write!(output, "{op_name} (${addr:04X}),Y").unwrap();
         }
         ADDR_RELATIVE => {
-            let offset = nes.read8(PC+1) as i8 as i16;
+            let offset = nes.read8_no_tick(PC+1) as i8 as i16;
             let target = (PC+1).wrapping_add_signed(offset);
             write!(output, "{op_name} ${target:04X}").unwrap();
         }
         ADDR_ZERO_PAGE => {
-            let addr = nes.read8(PC+1) as u16;
+            let addr = nes.read8_no_tick(PC+1) as u16;
             write!(output, "{op_name} ${addr:04X}").unwrap();
         }
         ADDR_ZERO_PAGE_X => {
-            let addr = nes.read8(PC+1) as u16;
+            let addr = nes.read8_no_tick(PC+1) as u16;
             write!(output, "{op_name} ${addr:04X},X").unwrap();
         }
         ADDR_ZERO_PAGE_Y => {
-            let addr = nes.read8(PC+1) as u16;
+            let addr = nes.read8_no_tick(PC+1) as u16;
             write!(output, "{op_name} ${addr:04X},Y").unwrap();
         }
         _ => unreachable!(),
@@ -172,6 +172,12 @@ pub fn disassemble(nes: &mut NES) -> String {
     assert_eq!(nes.PC, PC);
 
     output
+}
+
+pub fn read_addr(nes: &mut NES, addr: u16) -> u16 {
+    let low = nes.read8_no_tick(addr);
+    let high = nes.read8_no_tick(addr.wrapping_add(1));
+    (high as u16) << 8 | (low as u16)
 }
 
 fn get_addr_mode_instruction_size(addr_mode: u8) -> usize {
