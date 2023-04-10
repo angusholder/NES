@@ -445,9 +445,9 @@ fn ppu_step_scanline(ppu: &mut PPU) {
 
     // See the cycles here https://www.nesdev.org/wiki/PPU_rendering#Visible_scanlines_(0-239)
     match dot {
-        1..=256 | 321..=336 => {
+        0..=256 | 321..=336 => {
             // Background fetches - https://www.nesdev.org/wiki/File:Ppu.svg
-            if dot % 8 == 0 {
+            if dot > 0 && dot % 8 == 0 {
                 // Cycles 1 & 2
                 let tile_addr = 0x2000 | (ppu.v_addr & 0x0FFF);
                 let tile_index: u8 = ppu.mapper.read_ppu_bus(tile_addr);
@@ -480,10 +480,12 @@ fn ppu_step_scanline(ppu: &mut PPU) {
 
             // These shift registers need to shift even if we're not rendering pixels, so that cycles
             // 321-336 correctly prefetch the first two tiles for the next scanline
-            ppu.tiles_lo <<= 1;
-            ppu.tiles_hi <<= 1;
-            ppu.tiles_palette_lo <<= 1;
-            ppu.tiles_palette_hi <<= 1;
+            if dot > 0 {
+                ppu.tiles_lo <<= 1;
+                ppu.tiles_hi <<= 1;
+                ppu.tiles_palette_lo <<= 1;
+                ppu.tiles_palette_hi <<= 1;
+            }
         }
         // Sprite-loading interval
         257..=320 => {
@@ -493,8 +495,13 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 // We totally ignore the real cycles here, & just do all evaluation in one cycle.
                 // I don't think there's an observable difference between this and the real thing.
                 // https://www.nesdev.org/wiki/PPU_sprite_evaluation
-                if dot == 257 {
-                    evaluate_sprites_for_line(ppu, ppu.scanline);
+                if dot == 257 && ppu.scanline != 261 { // Sprite evaluation doesn't happen on the pre-render scanline
+                    // We're evaluating the sprites for the next line, but since sprite evaluation
+                    // doesn't occur on the pre-render scanline, no sprites can appear on line 0,
+                    // so the sprite Y values are offset by one. This means at the end of line 0 we
+                    // evaluate sprites for Y=0 then display them on line 1.
+                    let line = ppu.scanline;
+                    evaluate_sprites_for_line(ppu, line);
                 }
             }
         }
