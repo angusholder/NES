@@ -571,7 +571,12 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
         while i < ppu.cur_line_num_sprites {
             let sprite = &ppu.cur_line_sprites[i];
             let sx = sprite.x as u32;
-            if sx <= x && x < sx + 8 {
+            if sx > x {
+                // The sprites are ordered by X, so if we've reached one with an X higher than us,
+                // there's definitely no match, and we can bail out early.
+                break;
+            }
+            if x < sx + 8 {
                 let dx = x - sx;
                 sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
                 if sprite_color_index != 0 {
