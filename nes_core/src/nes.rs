@@ -346,18 +346,4 @@ impl NES {
     pub fn get_cycles(&self) -> u64 {
         self.total_cycles
     }
-
-    pub fn save_cycles(&self) -> CycleSavepoint {
-        CycleSavepoint {
-            remaining_cycles: self.remaining_cycles,
-        }
-    }
-
-    pub fn restore_cycles(&mut self, savepoint: CycleSavepoint) {
-        self.remaining_cycles = savepoint.remaining_cycles;
-    }
-}
-
-pub struct CycleSavepoint {
-    remaining_cycles: i64,
 }

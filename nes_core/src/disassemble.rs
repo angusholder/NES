@@ -84,7 +84,6 @@ c226879716   A:00 X:01 Y:FC S:F5 P:nvUbdIZc           $BEDB: D0 21     BNE $BEFE
 */
 #[allow(non_snake_case)]
 pub fn disassemble(nes: &mut NES) -> String {
-    let savepoint = nes.save_cycles();
     let mut output = String::with_capacity(100);
 
     let A = nes.A;
@@ -171,8 +170,6 @@ pub fn disassemble(nes: &mut NES) -> String {
         _ => unreachable!(),
     }
     assert_eq!(nes.PC, PC);
-
-    nes.restore_cycles(savepoint);
 
     output
 }
