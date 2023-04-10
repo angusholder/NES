@@ -563,9 +563,8 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
         }
     }
 
-    let mut sprite_color_index: u8 = 0;
-    let mut sprite_behind_bg: bool = true;
-    let mut is_sprite_0 = false;
+    let mut pixel_index = bg_color_index;
+
     if ppu.mask.show_sprites && (ppu.mask.show_sprites_left || x > 8) && ppu.scanline > 0 {
         let mut i = 0;
         while i < ppu.cur_line_num_sprites {
@@ -578,33 +577,28 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
             }
             if x < sx + 8 {
                 let dx = x - sx;
-                sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
-                if sprite_color_index != 0 {
+                let mut sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
+                if sprite_color_index != 0 { // Sprite pixel not blank
                     sprite_color_index |= 0x10 | (sprite.palette_index << 2);
-                    sprite_behind_bg = sprite.behind_bg;
-                    is_sprite_0 = sprite.is_sprite_0;
+
+                    if bg_color_index == 0 { // Background pixel is blank
+                        pixel_index = sprite_color_index;
+                    } else {
+                        if !sprite.behind_bg {
+                            pixel_index = sprite_color_index;
+                        }
+
+                        // Sprite 0 hit ignores priority, it only requires that both sprite pixel and
+                        // bg pixel be non-transparent.
+                        if sprite.is_sprite_0 && x != 255 && !ppu.sprite_0_hit {
+                            ppu.sprite_0_hit = true;
+                        }
+                    }
+
                     break;
                 }
             }
             i += 1;
-        }
-    }
-
-    // Choose a pixel based on priority
-    let mut pixel_index = bg_color_index;
-    if sprite_color_index != 0 { // Sprite pixel not blank
-        if bg_color_index == 0 { // Background pixel is blank
-            pixel_index = sprite_color_index;
-        } else {
-            if !sprite_behind_bg {
-                pixel_index = sprite_color_index;
-            }
-
-            // Sprite 0 hit ignores priority, it only requires that both sprite pixel and
-            // bg pixel be non-transparent.
-            if is_sprite_0 && x != 255 && !ppu.sprite_0_hit {
-                ppu.sprite_0_hit = true;
-            }
         }
     }
 
