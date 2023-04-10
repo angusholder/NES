@@ -101,7 +101,7 @@ impl PPU {
 
     fn write_mem(&mut self, addr: u16, val: u8) {
         if addr >= 0x3F00 && addr < 0x4000 {
-            self.palettes[mask_palette_addr(addr)] = val;
+            self.palettes[mask_palette_addr(addr)] = val & 0b11_1111;
         } else {
             self.mapper.write_ppu_bus(addr, val);
         }
@@ -122,14 +122,14 @@ impl PPU {
     pub fn output_display_buffer_rgb(&self, output: &mut [Color; SCREEN_PIXELS]) {
         for (i, palette_index) in self.finished_display_buffer.iter().enumerate() {
             // wrap into range of 64 colors
-            output[i] = get_output_color(*palette_index & 63);
+            output[i] = get_output_color(*palette_index);
         }
     }
 
     pub fn output_display_buffer_u32_argb(&self, output: &mut [u32; SCREEN_PIXELS]) {
         for (i, palette_index) in self.finished_display_buffer.iter().enumerate() {
             // wrap into range of 64 colors
-            let Color { r, g, b } = get_output_color(*palette_index & 63);
+            let Color { r, g, b } = get_output_color(*palette_index);
             output[i] = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
         }
     }
