@@ -420,6 +420,11 @@ pub fn ppu_step(ppu: &mut PPU) {
                 ppu.sprite_0_hit = false;
             }
             ppu_step_scanline(ppu);
+
+            // Copy vertical bits from t to v
+            if matches!(ppu.dot, 280..=304) && ppu.rendering_enabled() {
+                update_y_from_temp(ppu);
+            }
         }
         _ => {}
     }
@@ -437,7 +442,6 @@ pub fn ppu_step(ppu: &mut PPU) {
 
 fn ppu_step_scanline(ppu: &mut PPU) {
     let dot = ppu.dot;
-    let scanline = ppu.scanline;
 
     // See the cycles here https://www.nesdev.org/wiki/PPU_rendering#Visible_scanlines_(0-239)
     match dot {
@@ -490,7 +494,7 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 // I don't think there's an observable difference between this and the real thing.
                 // https://www.nesdev.org/wiki/PPU_sprite_evaluation
                 if dot == 257 {
-                    evaluate_sprites_for_line(ppu, scanline);
+                    evaluate_sprites_for_line(ppu, ppu.scanline);
                 }
             }
         }
@@ -506,10 +510,6 @@ fn ppu_step_scanline(ppu: &mut PPU) {
     }
     if dot == 257 && ppu.rendering_enabled() {
         update_x_from_temp(ppu);
-    }
-    // Pre-render scanline, copy vertical bits from t to v
-    if scanline == 261 && matches!(dot, 280..=304) && ppu.rendering_enabled() {
-        update_y_from_temp(ppu);
     }
 }
 
