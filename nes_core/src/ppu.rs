@@ -457,10 +457,10 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 // Cycles 7 & 0
                 let next_tile_hi: u8 = ppu.mapper.read_ppu_bus(pattern_addr + 8);
 
-                ppu.tiles_palette_lo = (ppu.tiles_palette_lo & 0x00FF) | if palette_index & 1 != 0 { 0xFF00 } else { 0x0000 };
-                ppu.tiles_palette_hi = (ppu.tiles_palette_hi & 0x00FF) | if palette_index & 2 != 0 { 0xFF00 } else { 0x0000 };
-                ppu.tiles_lo = (ppu.tiles_lo & 0x00FF) | (next_tile_lo.reverse_bits() as u16) << 8;
-                ppu.tiles_hi = (ppu.tiles_hi & 0x00FF) | (next_tile_hi.reverse_bits() as u16) << 8;
+                ppu.tiles_palette_lo = (ppu.tiles_palette_lo & 0xFF00) | if palette_index & 1 != 0 { 0x00FF } else { 0x0000 };
+                ppu.tiles_palette_hi = (ppu.tiles_palette_hi & 0xFF00) | if palette_index & 2 != 0 { 0x00FF } else { 0x0000 };
+                ppu.tiles_lo = (ppu.tiles_lo & 0xFF00) | next_tile_lo as u16;
+                ppu.tiles_hi = (ppu.tiles_hi & 0xFF00) | next_tile_hi as u16;
 
                 if ppu.rendering_enabled() {
                     scroll_next_x(ppu);
@@ -474,10 +474,10 @@ fn ppu_step_scanline(ppu: &mut PPU) {
 
             // These shift registers need to shift even if we're not rendering pixels, so that cycles
             // 321-336 correctly prefetch the first two tiles for the next scanline
-            ppu.tiles_lo >>= 1;
-            ppu.tiles_hi >>= 1;
-            ppu.tiles_palette_lo >>= 1;
-            ppu.tiles_palette_hi >>= 1;
+            ppu.tiles_lo <<= 1;
+            ppu.tiles_hi <<= 1;
+            ppu.tiles_palette_lo <<= 1;
+            ppu.tiles_palette_hi <<= 1;
         }
         // Sprite-loading interval
         257..=320 => {
@@ -555,8 +555,9 @@ fn scroll_next_y(ppu: &mut PPU) {
 fn render_pixel(ppu: &mut PPU, x: u32) {
     let mut bg_color_index = 0;
     if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
-        let palette_index = (ppu.tiles_palette_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_palette_hi >> ppu.fine_x & 1) << 1) as u8;
-        bg_color_index = (ppu.tiles_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_hi >> ppu.fine_x & 1) << 1) as u8;
+        let x_shift: u8 = 15 - ppu.fine_x;
+        let palette_index = (ppu.tiles_palette_lo >> x_shift & 1) as u8 | ((ppu.tiles_palette_hi >> x_shift & 1) << 1) as u8;
+        bg_color_index = (ppu.tiles_lo >> x_shift & 1) as u8 | ((ppu.tiles_hi >> x_shift & 1) << 1) as u8;
         if bg_color_index != 0 {
             bg_color_index |= palette_index << 2;
         }
