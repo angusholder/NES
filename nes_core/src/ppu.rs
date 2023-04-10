@@ -44,10 +44,10 @@ pub struct PPU {
 
     /// Filled with values 0-63, which are indices into "ntscpalette_24bpp.pal".
     /// This is the in-progress frame that is being drawn.
-    cur_display_buffer: [u8; SCREEN_PIXELS],
+    cur_display_buffer: Box<[u8; SCREEN_PIXELS]>,
     /// Filled with values 0-63, which are indices into "ntscpalette_24bpp.pal".
     /// This is the finished frame, ready to be displayed.
-    finished_display_buffer: [u8; SCREEN_PIXELS],
+    finished_display_buffer: Box<[u8; SCREEN_PIXELS]>,
     frame_num: u64,
 
     dot: u32, // 0-340
@@ -82,8 +82,8 @@ impl PPU {
             vblank_started: true,
             request_nmi: false,
 
-            cur_display_buffer: [0; 256 * 240],
-            finished_display_buffer: [0; 256 * 240],
+            cur_display_buffer: Box::new([0; 256 * 240]),
+            finished_display_buffer: Box::new([0; 256 * 240]),
             frame_num: 0,
 
             dot: 0,
@@ -116,7 +116,7 @@ impl PPU {
     }
 
     fn flip_frame(&mut self) {
-        self.finished_display_buffer.copy_from_slice(&self.cur_display_buffer)
+        self.finished_display_buffer.copy_from_slice(&self.cur_display_buffer[..])
     }
 
     pub fn output_display_buffer_rgb(&self, output: &mut [Color; SCREEN_PIXELS]) {
@@ -135,7 +135,7 @@ impl PPU {
     }
 
     pub fn output_display_buffer_indexed(&self, output: &mut[u8; SCREEN_PIXELS]) {
-        output.copy_from_slice(&self.finished_display_buffer)
+        output.copy_from_slice(&self.finished_display_buffer[..])
     }
 }
 
