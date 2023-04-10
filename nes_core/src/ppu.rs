@@ -556,9 +556,9 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
     let mut bg_color_index = 0;
     if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
         let x_shift: u8 = 15 - ppu.fine_x;
-        let palette_index = (ppu.tiles_palette_lo >> x_shift & 1) as u8 | ((ppu.tiles_palette_hi >> x_shift & 1) << 1) as u8;
         bg_color_index = (ppu.tiles_lo >> x_shift & 1) as u8 | ((ppu.tiles_hi >> x_shift & 1) << 1) as u8;
         if bg_color_index != 0 {
+            let palette_index = (ppu.tiles_palette_lo >> x_shift & 1) as u8 | ((ppu.tiles_palette_hi >> x_shift & 1) << 1) as u8;
             bg_color_index |= palette_index << 2;
         }
     }
@@ -569,34 +569,33 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
         let mut i = 0;
         while i < ppu.cur_line_num_sprites {
             let sprite = &ppu.cur_line_sprites[i];
-            let sx = sprite.x as u32;
-            if sx > x {
-                // The sprites are ordered by X, so if we've reached one with an X higher than us,
-                // there's definitely no match, and we can bail out early.
-                break;
+            if sprite.start_x as u32 > x {
+                i += 1;
+                continue;
             }
-            if x < sx + 8 {
-                let dx = x - sx;
-                let mut sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
-                if sprite_color_index != 0 { // Sprite pixel not blank
-                    sprite_color_index |= sprite.palette_base_addr;
+            if x >= sprite.end_x as u32 {
+                i += 1;
+                continue;
+            }
 
-                    if bg_color_index == 0 { // Background pixel is blank
-                        pixel_index = sprite_color_index;
-                    } else {
-                        if !sprite.behind_bg {
-                            pixel_index = sprite_color_index;
-                        }
-
-                        // Sprite 0 hit ignores priority, it only requires that both sprite pixel and
-                        // bg pixel be non-transparent.
-                        if sprite.is_sprite_0 && x != 255 {
-                            ppu.sprite_0_hit = true;
-                        }
+            // We've checked that start_x is less than or equal to x, so dx is always positive.
+            let dx = x - sprite.start_x as u32;
+            let mut sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
+            if sprite_color_index != 0 { // Sprite pixel not blank
+                if bg_color_index == 0 { // Background pixel is blank
+                    pixel_index = sprite_color_index | sprite.palette_base_addr;
+                } else {
+                    if !sprite.behind_bg { // This sprite takes proprity over the background
+                        pixel_index = sprite_color_index | sprite.palette_base_addr;
                     }
 
-                    break;
+                    // Sprite 0 hit occurs when both sprite and background are non-transparent (regardless of priority).
+                    if sprite.is_sprite_0 && x != 255 {
+                        ppu.sprite_0_hit = true;
+                    }
                 }
+
+                break;
             }
             i += 1;
         }
@@ -625,7 +624,9 @@ const NUM_SPRITES: usize = 64;
 
 #[derive(Clone, Copy, Debug)]
 struct SpriteRowSlice {
-    x: u8,
+    start_x: u8,
+    // Larger than start_x in case of overflow
+    end_x: u16,
     // two bits per pixel
     pattern2: u16,
     behind_bg: bool,
@@ -636,7 +637,8 @@ struct SpriteRowSlice {
 impl SpriteRowSlice {
     fn hidden() -> SpriteRowSlice {
         SpriteRowSlice {
-            x: 0xFF,
+            start_x: 0xFF,
+            end_x: 0xFF,
             pattern2: 0x0000,
             behind_bg: true,
             palette_base_addr: 0,
@@ -701,8 +703,10 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
             }
         };
 
+        let start_x: u8 = sprite_data[SPRITE_X];
         ppu.cur_line_sprites[dest_index] = SpriteRowSlice {
-            x: sprite_data[SPRITE_X],
+            start_x,
+            end_x: start_x as u16 + 8,
             pattern2,
             behind_bg: (attrs & SPRITE_ATTR_BEHIND_BG) != 0,
             palette_base_addr: 0x10 | ((attrs & SPRITE_ATTR_PALETTE) << 2),
