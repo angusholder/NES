@@ -466,7 +466,18 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                     scroll_next_x(ppu);
                 }
             }
-            render_pixel(ppu);
+
+            let x = ppu.dot;
+            if ppu.scanline < 240 && x < 256 {
+                render_pixel(ppu, x);
+            }
+
+            // These shift registers need to shift even if we're not rendering pixels, so that cycles
+            // 321-336 correctly prefetch the first two tiles for the next scanline
+            ppu.tiles_lo >>= 1;
+            ppu.tiles_hi >>= 1;
+            ppu.tiles_palette_lo >>= 1;
+            ppu.tiles_palette_hi >>= 1;
         }
         // Sprite-loading interval
         257..=320 => {
@@ -541,68 +552,57 @@ fn scroll_next_y(ppu: &mut PPU) {
     }
 }
 
-fn render_pixel(ppu: &mut PPU) {
-    let x = ppu.dot;
-    if ppu.scanline < 240 && x < 256 {
-        let mut bg_color_index = 0;
-        if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
-            let palette_index = (ppu.tiles_palette_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_palette_hi >> ppu.fine_x & 1) << 1) as u8;
-            bg_color_index = (ppu.tiles_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_hi >> ppu.fine_x & 1) << 1) as u8;
-            if bg_color_index != 0 {
-                bg_color_index |= palette_index << 2;
-            }
+fn render_pixel(ppu: &mut PPU, x: u32) {
+    let mut bg_color_index = 0;
+    if ppu.mask.show_background && (ppu.mask.show_background_left || x > 8) {
+        let palette_index = (ppu.tiles_palette_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_palette_hi >> ppu.fine_x & 1) << 1) as u8;
+        bg_color_index = (ppu.tiles_lo >> ppu.fine_x & 1) as u8 | ((ppu.tiles_hi >> ppu.fine_x & 1) << 1) as u8;
+        if bg_color_index != 0 {
+            bg_color_index |= palette_index << 2;
         }
-
-        let mut sprite_color_index: u8 = 0;
-        let mut sprite_behind_bg: bool = true;
-        let mut is_sprite_0 = false;
-        if ppu.mask.show_sprites && (ppu.mask.show_sprites_left || x > 8) && ppu.scanline > 0 {
-            let mut i = 0;
-            while i < ppu.cur_line_num_sprites {
-                let sprite = &ppu.cur_line_sprites[i];
-                let sx = sprite.x as u32;
-                if sx <= x && x < sx + 8 {
-                    let dx = x - sx;
-                    sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
-                    if sprite_color_index != 0 {
-                        sprite_color_index |= 0x10 | (sprite.palette_index << 2);
-                        sprite_behind_bg = sprite.behind_bg;
-                        is_sprite_0 = sprite.is_sprite_0;
-                        break;
-                    }
-                }
-                i += 1;
-            }
-        }
-
-        // Choose a pixel based on priority
-        let mut pixel_index = bg_color_index;
-        if sprite_color_index != 0 { // Sprite pixel not blank
-            if bg_color_index == 0 { // Background pixel is blank
-                pixel_index = sprite_color_index;
-            } else {
-                if !sprite_behind_bg {
-                    pixel_index = sprite_color_index;
-                }
-
-                // Sprite 0 hit ignores priority, it only requires that both sprite pixel and
-                // bg pixel be non-transparent.
-                if is_sprite_0 && x != 255 && !ppu.sprite_0_hit {
-                    ppu.sprite_0_hit = true;
-                }
-            }
-
-        }
-
-        ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = ppu.palettes[pixel_index as usize];
     }
 
-    // These shift registers need to shift even if we're not rendering pixels, so that cycles
-    // 321-336 correctly prefetch the first two tiles for the next scanline
-    ppu.tiles_lo >>= 1;
-    ppu.tiles_hi >>= 1;
-    ppu.tiles_palette_lo >>= 1;
-    ppu.tiles_palette_hi >>= 1;
+    let mut sprite_color_index: u8 = 0;
+    let mut sprite_behind_bg: bool = true;
+    let mut is_sprite_0 = false;
+    if ppu.mask.show_sprites && (ppu.mask.show_sprites_left || x > 8) && ppu.scanline > 0 {
+        let mut i = 0;
+        while i < ppu.cur_line_num_sprites {
+            let sprite = &ppu.cur_line_sprites[i];
+            let sx = sprite.x as u32;
+            if sx <= x && x < sx + 8 {
+                let dx = x - sx;
+                sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
+                if sprite_color_index != 0 {
+                    sprite_color_index |= 0x10 | (sprite.palette_index << 2);
+                    sprite_behind_bg = sprite.behind_bg;
+                    is_sprite_0 = sprite.is_sprite_0;
+                    break;
+                }
+            }
+            i += 1;
+        }
+    }
+
+    // Choose a pixel based on priority
+    let mut pixel_index = bg_color_index;
+    if sprite_color_index != 0 { // Sprite pixel not blank
+        if bg_color_index == 0 { // Background pixel is blank
+            pixel_index = sprite_color_index;
+        } else {
+            if !sprite_behind_bg {
+                pixel_index = sprite_color_index;
+            }
+
+            // Sprite 0 hit ignores priority, it only requires that both sprite pixel and
+            // bg pixel be non-transparent.
+            if is_sprite_0 && x != 255 && !ppu.sprite_0_hit {
+                ppu.sprite_0_hit = true;
+            }
+        }
+    }
+
+    ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = ppu.palettes[pixel_index as usize];
 }
 
 fn read_next_palette_index(ppu: &mut PPU) -> u8 {
