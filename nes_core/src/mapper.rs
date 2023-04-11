@@ -15,6 +15,8 @@ mod memory_map;
 mod axrom;
 mod dxrom;
 
+const DEBUG_MAPPINGS: bool = false;
+
 /// The mapper covers two address spaces - the CPU memory map, and the PPU memory map.
 /// The CPU memory map is 16-bit, and the PPU memory map is 14-bit.
 ///
@@ -262,7 +264,9 @@ fn test_nametable_addr_to_offset() {
 #[track_caller]
 #[cold]
 pub fn out_of_bounds_read(context: &str, addr: u16) -> u8 {
-    log::warn!("Attempted to read {context} out of bounds at {addr:04X}");
+    if DEBUG_MAPPINGS {
+        log::warn!("Attempted to read {context} out of bounds at {addr:04X}");
+    }
 
     return 0;
 }
@@ -271,5 +275,7 @@ pub fn out_of_bounds_read(context: &str, addr: u16) -> u8 {
 #[track_caller]
 #[cold]
 pub fn out_of_bounds_write(context: &str, addr: u16, value: u8) {
-    log::warn!("Attempted to write {context} out of bounds at {addr:04X} with {value} (0x{value:02X})");
+    if DEBUG_MAPPINGS {
+        log::warn!("Attempted to write {context} out of bounds at {addr:04X} with {value} (0x{value:02X})");
+    }
 }
