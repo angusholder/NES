@@ -12,67 +12,67 @@ pub fn emulate_instruction(nes: &mut NES) {
     let op = nes.read_code();
 
     match op {
-        ADC_IMM => adc(nes, addressing_immediate),
-        ADC_ZP => adc(nes, addressing_zeropage),
-        ADC_ZPX => adc(nes, addressing_zeropage_x),
-        ADC_ABS => adc(nes, addressing_absolute),
-        ADC_ABSX => adc(nes, addressing_absolute_x),
-        ADC_ABSY => adc(nes, addressing_absolute_y),
-        ADC_INDIRX => adc(nes, addressing_indirect_x),
-        ADC_INDIRY => adc(nes, addressing_indirect_y),
+        ADC_IMM => adc(nes, addressing_immediate_rd),
+        ADC_ZP => adc(nes, addressing_zeropage_rd),
+        ADC_ZPX => adc(nes, addressing_zeropage_x_rd),
+        ADC_ABS => adc(nes, addressing_absolute_rd),
+        ADC_ABSX => adc(nes, addressing_absolute_x_rd),
+        ADC_ABSY => adc(nes, addressing_absolute_y_rd),
+        ADC_INDIRX => adc(nes, addressing_indirect_x_rd),
+        ADC_INDIRY => adc(nes, addressing_indirect_y_rd),
 
-        SBC_IMM | 0xEB => sbc(nes, addressing_immediate),
-        SBC_ZP => sbc(nes, addressing_zeropage),
-        SBC_ZPX => sbc(nes, addressing_zeropage_x),
-        SBC_ABS => sbc(nes, addressing_absolute),
-        SBC_ABSX => sbc(nes, addressing_absolute_x),
-        SBC_ABSY => sbc(nes, addressing_absolute_y),
-        SBC_INDIRX => sbc(nes, addressing_indirect_x),
-        SBC_INDIRY => sbc(nes, addressing_indirect_y),
+        SBC_IMM | 0xEB => sbc(nes, addressing_immediate_rd),
+        SBC_ZP => sbc(nes, addressing_zeropage_rd),
+        SBC_ZPX => sbc(nes, addressing_zeropage_x_rd),
+        SBC_ABS => sbc(nes, addressing_absolute_rd),
+        SBC_ABSX => sbc(nes, addressing_absolute_x_rd),
+        SBC_ABSY => sbc(nes, addressing_absolute_y_rd),
+        SBC_INDIRX => sbc(nes, addressing_indirect_x_rd),
+        SBC_INDIRY => sbc(nes, addressing_indirect_y_rd),
 
-        AND_IMM => and(nes, addressing_immediate),
-        AND_ZP => and(nes, addressing_zeropage),
-        AND_ZPX => and(nes, addressing_zeropage_x),
-        AND_ABS => and(nes, addressing_absolute),
-        AND_ABSX => and(nes, addressing_absolute_x),
-        AND_ABSY => and(nes, addressing_absolute_y),
-        AND_INDIRX => and(nes, addressing_indirect_x),
-        AND_INDIRY => and(nes, addressing_indirect_y),
+        AND_IMM => and(nes, addressing_immediate_rd),
+        AND_ZP => and(nes, addressing_zeropage_rd),
+        AND_ZPX => and(nes, addressing_zeropage_x_rd),
+        AND_ABS => and(nes, addressing_absolute_rd),
+        AND_ABSX => and(nes, addressing_absolute_x_rd),
+        AND_ABSY => and(nes, addressing_absolute_y_rd),
+        AND_INDIRX => and(nes, addressing_indirect_x_rd),
+        AND_INDIRY => and(nes, addressing_indirect_y_rd),
 
-        EOR_IMM => eor(nes, addressing_immediate),
-        EOR_ZP => eor(nes, addressing_zeropage),
-        EOR_ZPX => eor(nes, addressing_zeropage_x),
-        EOR_ABS => eor(nes, addressing_absolute),
-        EOR_ABSX => eor(nes, addressing_absolute_x),
-        EOR_ABSY => eor(nes, addressing_absolute_y),
-        EOR_INDIRX => eor(nes, addressing_indirect_x),
-        EOR_INDIRY => eor(nes, addressing_indirect_y),
+        EOR_IMM => eor(nes, addressing_immediate_rd),
+        EOR_ZP => eor(nes, addressing_zeropage_rd),
+        EOR_ZPX => eor(nes, addressing_zeropage_x_rd),
+        EOR_ABS => eor(nes, addressing_absolute_rd),
+        EOR_ABSX => eor(nes, addressing_absolute_x_rd),
+        EOR_ABSY => eor(nes, addressing_absolute_y_rd),
+        EOR_INDIRX => eor(nes, addressing_indirect_x_rd),
+        EOR_INDIRY => eor(nes, addressing_indirect_y_rd),
 
-        ORA_IMM => ora(nes, addressing_immediate),
-        ORA_ZP => ora(nes, addressing_zeropage),
-        ORA_ZPX => ora(nes, addressing_zeropage_x),
-        ORA_ABS => ora(nes, addressing_absolute),
-        ORA_ABSX => ora(nes, addressing_absolute_x),
-        ORA_ABSY => ora(nes, addressing_absolute_y),
-        ORA_INDIRX => ora(nes, addressing_indirect_x),
-        ORA_INDIRY => ora(nes, addressing_indirect_y),
+        ORA_IMM => ora(nes, addressing_immediate_rd),
+        ORA_ZP => ora(nes, addressing_zeropage_rd),
+        ORA_ZPX => ora(nes, addressing_zeropage_x_rd),
+        ORA_ABS => ora(nes, addressing_absolute_rd),
+        ORA_ABSX => ora(nes, addressing_absolute_x_rd),
+        ORA_ABSY => ora(nes, addressing_absolute_y_rd),
+        ORA_INDIRX => ora(nes, addressing_indirect_x_rd),
+        ORA_INDIRY => ora(nes, addressing_indirect_y_rd),
 
-        CMP_IMM => cmp(nes, addressing_immediate),
-        CMP_ZP => cmp(nes, addressing_zeropage),
-        CMP_ZPX => cmp(nes, addressing_zeropage_x),
-        CMP_ABS => cmp(nes, addressing_absolute),
-        CMP_ABSX => cmp(nes, addressing_absolute_x),
-        CMP_ABSY => cmp(nes, addressing_absolute_y),
-        CMP_INDIRX => cmp(nes, addressing_indirect_x),
-        CMP_INDIRY => cmp(nes, addressing_indirect_y),
+        CMP_IMM => cmp(nes, addressing_immediate_rd),
+        CMP_ZP => cmp(nes, addressing_zeropage_rd),
+        CMP_ZPX => cmp(nes, addressing_zeropage_x_rd),
+        CMP_ABS => cmp(nes, addressing_absolute_rd),
+        CMP_ABSX => cmp(nes, addressing_absolute_x_rd),
+        CMP_ABSY => cmp(nes, addressing_absolute_y_rd),
+        CMP_INDIRX => cmp(nes, addressing_indirect_x_rd),
+        CMP_INDIRY => cmp(nes, addressing_indirect_y_rd),
 
-        CPX_IMM => cpx(nes, addressing_immediate),
-        CPX_ZP => cpx(nes, addressing_zeropage),
-        CPX_ABS => cpx(nes, addressing_absolute),
+        CPX_IMM => cpx(nes, addressing_immediate_rd),
+        CPX_ZP => cpx(nes, addressing_zeropage_rd),
+        CPX_ABS => cpx(nes, addressing_absolute_rd),
 
-        CPY_IMM => cpy(nes, addressing_immediate),
-        CPY_ZP => cpy(nes, addressing_zeropage),
-        CPY_ABS => cpy(nes, addressing_absolute),
+        CPY_IMM => cpy(nes, addressing_immediate_rd),
+        CPY_ZP => cpy(nes, addressing_zeropage_rd),
+        CPY_ABS => cpy(nes, addressing_absolute_rd),
 
         DEX => dex(nes),
         DEY => dey(nes),
@@ -80,52 +80,52 @@ pub fn emulate_instruction(nes: &mut NES) {
         INX => inx(nes),
         INY => iny(nes),
 
-        DEC_ZP => dec(nes, addressing_zeropage),
-        DEC_ZPX => dec(nes, addressing_zeropage_x),
-        DEC_ABS => dec(nes, addressing_absolute),
-        DEC_ABSX => dec(nes, addressing_absolute_x),
+        DEC_ZP => addressing_zeropage_rmw(nes, dec),
+        DEC_ZPX => addressing_zeropage_x_rmw(nes, dec),
+        DEC_ABS => addressing_absolute_rmw(nes, dec),
+        DEC_ABSX => addressing_absolute_x_rmw(nes, dec),
 
-        INC_ZP => inc(nes, addressing_zeropage),
-        INC_ZPX => inc(nes, addressing_zeropage_x),
-        INC_ABS => inc(nes, addressing_absolute),
-        INC_ABSX => inc(nes, addressing_absolute_x),
+        INC_ZP => addressing_zeropage_rmw(nes, inc),
+        INC_ZPX => addressing_zeropage_x_rmw(nes, inc),
+        INC_ABS => addressing_absolute_rmw(nes, inc),
+        INC_ABSX => addressing_absolute_x_rmw(nes, inc),
 
-        LDA_IMM => lda(nes, addressing_immediate),
-        LDA_ZP => lda(nes, addressing_zeropage),
-        LDA_ZPX => lda(nes, addressing_zeropage_x),
-        LDA_ABS => lda(nes, addressing_absolute),
-        LDA_ABSX => lda(nes, addressing_absolute_x),
-        LDA_ABSY => lda(nes, addressing_absolute_y),
-        LDA_INDIRX => lda(nes, addressing_indirect_x),
-        LDA_INDIRY => lda(nes, addressing_indirect_y),
+        LDA_IMM => lda(nes, addressing_immediate_rd),
+        LDA_ZP => lda(nes, addressing_zeropage_rd),
+        LDA_ZPX => lda(nes, addressing_zeropage_x_rd),
+        LDA_ABS => lda(nes, addressing_absolute_rd),
+        LDA_ABSX => lda(nes, addressing_absolute_x_rd),
+        LDA_ABSY => lda(nes, addressing_absolute_y_rd),
+        LDA_INDIRX => lda(nes, addressing_indirect_x_rd),
+        LDA_INDIRY => lda(nes, addressing_indirect_y_rd),
 
-        LDX_IMM => ldx(nes, addressing_immediate),
-        LDX_ZP => ldx(nes, addressing_zeropage),
-        LDX_ZPY => ldx(nes, addressing_zeropage_y),
-        LDX_ABS => ldx(nes, addressing_absolute),
-        LDX_ABSY => ldx(nes, addressing_absolute_y),
+        LDX_IMM => ldx(nes, addressing_immediate_rd),
+        LDX_ZP => ldx(nes, addressing_zeropage_rd),
+        LDX_ZPY => ldx(nes, addressing_zeropage_y_rd),
+        LDX_ABS => ldx(nes, addressing_absolute_rd),
+        LDX_ABSY => ldx(nes, addressing_absolute_y_rd),
 
-        LDY_IMM => ldy(nes, addressing_immediate),
-        LDY_ZP => ldy(nes, addressing_zeropage),
-        LDY_ZPX => ldy(nes, addressing_zeropage_x),
-        LDY_ABS => ldy(nes, addressing_absolute),
-        LDY_ABSX => ldy(nes, addressing_absolute_x),
+        LDY_IMM => ldy(nes, addressing_immediate_rd),
+        LDY_ZP => ldy(nes, addressing_zeropage_rd),
+        LDY_ZPX => ldy(nes, addressing_zeropage_x_rd),
+        LDY_ABS => ldy(nes, addressing_absolute_rd),
+        LDY_ABSX => ldy(nes, addressing_absolute_x_rd),
 
-        STA_ZP => sta(nes, addressing_zeropage),
-        STA_ZPX => sta(nes, addressing_zeropage_x),
-        STA_ABS => sta(nes, addressing_absolute),
-        STA_ABSX => sta(nes, addressing_absolute_x),
-        STA_ABSY => sta(nes, addressing_absolute_y),
-        STA_INDIRX => sta(nes, addressing_indirect_x),
-        STA_INDIRY => sta(nes, addressing_indirect_y),
+        STA_ZP => sta(nes, addressing_zeropage_wr),
+        STA_ZPX => sta(nes, addressing_zeropage_x_wr),
+        STA_ABS => sta(nes, addressing_absolute_wr),
+        STA_ABSX => sta(nes, addressing_absolute_x_wr),
+        STA_ABSY => sta(nes, addressing_absolute_y_wr),
+        STA_INDIRX => sta(nes, addressing_indirect_x_wr),
+        STA_INDIRY => sta(nes, addressing_indirect_y_wr),
 
-        STX_ZP => stx(nes, addressing_zeropage),
-        STX_ZPY => stx(nes, addressing_zeropage_y),
-        STX_ABS => stx(nes, addressing_absolute),
+        STX_ZP => stx(nes, addressing_zeropage_wr),
+        STX_ZPY => stx(nes, addressing_zeropage_y_wr),
+        STX_ABS => stx(nes, addressing_absolute_wr),
 
-        STY_ZP => sty(nes, addressing_zeropage),
-        STY_ZPX => sty(nes, addressing_zeropage_x),
-        STY_ABS => sty(nes, addressing_absolute),
+        STY_ZP => sty(nes, addressing_zeropage_wr),
+        STY_ZPX => sty(nes, addressing_zeropage_x_wr),
+        STY_ABS => sty(nes, addressing_absolute_wr),
 
         TAX => { nes.X = nes.A;  update_zn(nes, nes.X); nes.tick(); }
         TAY => { nes.Y = nes.A;  update_zn(nes, nes.Y); nes.tick(); }
@@ -142,32 +142,32 @@ pub fn emulate_instruction(nes: &mut NES) {
         SED => { nes.SR.D = true; nes.tick(); }
         SEI => { nes.SR.I = true; nes.tick(); }
 
-        LSR_ZP => lsr(nes, addressing_zeropage),
-        LSR_ZPX => lsr(nes, addressing_zeropage_x),
-        LSR_ABS => lsr(nes, addressing_absolute),
-        LSR_ABSX => lsr(nes, addressing_absolute_x),
+        LSR_ZP => addressing_zeropage_rmw(nes, lsr),
+        LSR_ZPX => addressing_zeropage_x_rmw(nes, lsr),
+        LSR_ABS => addressing_absolute_rmw(nes, lsr),
+        LSR_ABSX => addressing_absolute_x_rmw(nes, lsr),
         LSR_ACC => lsr_acc(nes),
 
-        ASL_ZP => asl(nes, addressing_zeropage),
-        ASL_ZPX => asl(nes, addressing_zeropage_x),
-        ASL_ABS => asl(nes, addressing_absolute),
-        ASL_ABSX => asl(nes, addressing_absolute_x),
+        ASL_ZP => addressing_zeropage_rmw(nes, asl),
+        ASL_ZPX => addressing_zeropage_x_rmw(nes, asl),
+        ASL_ABS => addressing_absolute_rmw(nes, asl),
+        ASL_ABSX => addressing_absolute_x_rmw(nes, asl),
         ASL_ACC => asl_acc(nes),
 
-        ROL_ZP => rol(nes, addressing_zeropage),
-        ROL_ZPX => rol(nes, addressing_zeropage_x),
-        ROL_ABS => rol(nes, addressing_absolute),
-        ROL_ABSX => rol(nes, addressing_absolute_x),
+        ROL_ZP => addressing_zeropage_rmw(nes, rol),
+        ROL_ZPX => addressing_zeropage_x_rmw(nes, rol),
+        ROL_ABS => addressing_absolute_rmw(nes, rol),
+        ROL_ABSX => addressing_absolute_x_rmw(nes, rol),
         ROL_ACC => rol_acc(nes),
 
-        ROR_ZP => ror(nes, addressing_zeropage),
-        ROR_ZPX => ror(nes, addressing_zeropage_x),
-        ROR_ABS => ror(nes, addressing_absolute),
-        ROR_ABSX => ror(nes, addressing_absolute_x),
+        ROR_ZP => addressing_zeropage_rmw(nes, ror),
+        ROR_ZPX => addressing_zeropage_x_rmw(nes, ror),
+        ROR_ABS => addressing_absolute_rmw(nes, ror),
+        ROR_ABSX => addressing_absolute_x_rmw(nes, ror),
         ROR_ACC => ror_acc(nes),
 
-        BIT_ZP => bit(nes, addressing_zeropage),
-        BIT_ABS => bit(nes, addressing_absolute),
+        BIT_ZP => bit(nes, addressing_zeropage_rd),
+        BIT_ABS => bit(nes, addressing_absolute_rd),
 
         JMP_ABS => {
             nes.PC = nes.read_code_addr();
@@ -248,72 +248,214 @@ fn pop_status_register(nes: &mut NES) {
     nes.set_status_register(new_sr);
 }
 
-fn addressing_immediate(nes: &mut NES) -> u16 {
-    let addr = nes.PC;
-    nes.PC += 1;
-    addr
+type ReadAddressing = fn(&mut NES) -> u8;
+type WriteAddressing = fn(&mut NES, u8);
+type RMWInstruction = fn(&mut NES, arg: u8) -> u8;
+
+//
+// Read addressing modes
+//
+
+fn addressing_immediate_rd(nes: &mut NES) -> u8 {
+    nes.read_code()
 }
 
-fn addressing_zeropage(nes: &mut NES) -> u16 {
-    nes.read_code() as u16
+fn addressing_zeropage_rd(nes: &mut NES) -> u8 {
+    let addr = nes.read_code() as u16;
+    nes.read8(addr)
 }
 
-fn addressing_zeropage_x(nes: &mut NES) -> u16 {
-    nes.read_code().wrapping_add(nes.X) as u16
+fn addressing_zeropage_x_rd(nes: &mut NES) -> u8 {
+    let base: u8 = nes.read_code();
+    nes.read8(base as u16); // Thrown away read
+    // The high byte of the effective address is always zero, i.e. page boundary crossings are not handled.
+    let addr: u8 = base.wrapping_add(nes.X);
+    nes.read8(addr as u16)
 }
 
-fn addressing_zeropage_y(nes: &mut NES) -> u16 {
-    nes.read_code().wrapping_add(nes.Y) as u16
+fn addressing_zeropage_y_rd(nes: &mut NES) -> u8 {
+    let base: u8 = nes.read_code();
+    nes.read8(base as u16); // Thrown away read
+    // The high byte of the effective address is always zero, i.e. page boundary crossings are not handled.
+    let addr: u8 = base.wrapping_add(nes.Y);
+    nes.read8(addr as u16)
 }
 
-fn addressing_absolute(nes: &mut NES) -> u16 {
-    nes.read_code_addr()
+fn addressing_absolute_rd(nes: &mut NES) -> u8 {
+    let addr: u16 = nes.read_code_addr();
+    nes.read8(addr)
 }
 
-fn addressing_absolute_x(nes: &mut NES) -> u16 {
+fn addressing_absolute_x_rd(nes: &mut NES) -> u8 {
     let base = nes.read_code_addr();
     let addr = base.wrapping_add(nes.X as u16);
+    // First we read from the effective address without handling crossing a page boundary
+    let mut result: u8 = nes.read8((base & 0xFF00) | (addr & 0xFF));
     if pages_differ(base, addr) {
-        nes.tick();
+        // If we crossed a page boundary, re-read with the high byte carry applied.
+        result = nes.read8(addr);
     }
-    addr
+    result
 }
 
-fn addressing_absolute_y(nes: &mut NES) -> u16 {
+fn addressing_absolute_y_rd(nes: &mut NES) -> u8 {
     let base = nes.read_code_addr();
     let addr = base.wrapping_add(nes.Y as u16);
+    // First we read from the effective address without handling crossing a page boundary
+    let mut result: u8 = nes.read8((base & 0xFF00) | (addr & 0xFF));
     if pages_differ(base, addr) {
-        nes.tick();
+        // If we crossed a page boundary, re-read with the high byte carry applied.
+        result = nes.read8(addr);
     }
-    addr
+    result
 }
 
-fn addressing_indirect_x(nes: &mut NES) -> u16 {
-    let zp_addr = nes.read_code().wrapping_add(nes.X);
+fn addressing_indirect_x_rd(nes: &mut NES) -> u8 {
+    let arg = nes.read_code();
+    nes.read8(arg as u16); // Dummy read
+    let zp_addr = arg.wrapping_add(nes.X);
     let low = nes.read8(zp_addr as u16);
     let high = nes.read8(zp_addr.wrapping_add(1) as u16);
-    (high as u16) << 8 | (low as u16)
+    let addr = (high as u16) << 8 | (low as u16);
+    nes.read8(addr)
 }
 
-fn addressing_indirect_y(nes: &mut NES) -> u16 {
+fn addressing_indirect_y_rd(nes: &mut NES) -> u8 {
     let zp_addr = nes.read_code();
     let low = nes.read8(zp_addr as u16);
     let high = nes.read8(zp_addr.wrapping_add(1) as u16);
     let base = (high as u16) << 8 | (low as u16);
     let addr = base.wrapping_add(nes.Y as u16);
+
+    // First we read from the effective address without handling crossing a page boundary
+    let mut result: u8 = nes.read8((base & 0xFF00) | (addr & 0xFF));
     if pages_differ(base, addr) {
-        nes.tick();
+        // If we crossed a page boundary, re-read with the high byte carry applied.
+        result = nes.read8(addr);
     }
-    addr
+    result
 }
 
-fn adc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+//
+// Write addressing modes
+//
+
+fn addressing_zeropage_wr(nes: &mut NES, result: u8) {
+    let addr = nes.read_code() as u16;
+    nes.write8(addr, result);
+}
+
+fn addressing_zeropage_x_wr(nes: &mut NES, result: u8) {
+    let base: u8 = nes.read_code();
+    nes.read8(base as u16); // Thrown away read
+    // The high byte of the effective address is always zero, i.e. page boundary crossings are not handled.
+    let addr: u8 = base.wrapping_add(nes.X);
+    nes.write8(addr as u16, result);
+}
+
+fn addressing_zeropage_y_wr(nes: &mut NES, result: u8) {
+    let base: u8 = nes.read_code();
+    nes.read8(base as u16); // Thrown away read
+    // The high byte of the effective address is always zero, i.e. page boundary crossings are not handled.
+    let addr: u8 = base.wrapping_add(nes.Y);
+    nes.write8(addr as u16, result);
+}
+
+fn addressing_absolute_wr(nes: &mut NES, result: u8) {
+    let addr: u16 = nes.read_code_addr();
+    nes.write8(addr, result);
+}
+
+fn addressing_absolute_x_wr(nes: &mut NES, result: u8) {
+    let base = nes.read_code_addr();
+    let addr = base.wrapping_add(nes.X as u16);
+    // Dummy read before we've calculated the full effective address
+    nes.read8((base & 0xFF00) | (addr & 0xFF));
+    nes.write8(addr, result);
+}
+
+fn addressing_absolute_y_wr(nes: &mut NES, result: u8) {
+    let base = nes.read_code_addr();
+    let addr = base.wrapping_add(nes.Y as u16);
+    // Dummy read before we've calculated the full effective address
+    nes.read8((base & 0xFF00) | (addr & 0xFF));
+    nes.write8(addr, result);
+}
+
+fn addressing_indirect_x_wr(nes: &mut NES, result: u8) {
+    let arg = nes.read_code();
+    nes.read8(arg as u16); // Dummy read
+    let zp_addr = arg.wrapping_add(nes.X);
+    let low = nes.read8(zp_addr as u16);
+    let high = nes.read8(zp_addr.wrapping_add(1) as u16);
+    let addr = (high as u16) << 8 | (low as u16);
+    nes.write8(addr, result);
+}
+
+fn addressing_indirect_y_wr(nes: &mut NES, result: u8) {
+    let zp_addr = nes.read_code();
+    let low = nes.read8(zp_addr as u16);
+    let high = nes.read8(zp_addr.wrapping_add(1) as u16);
+    let base = (high as u16) << 8 | (low as u16);
+    let addr = base.wrapping_add(nes.Y as u16);
+    // Dummy read before we've calculated the full effective address
+    nes.read8((base & 0xFF00) | (addr & 0xFF));
+    nes.write8(addr, result);
+}
+
+//
+// Read-modify-write addressing modes
+//
+
+fn addressing_zeropage_rmw(nes: &mut NES, op: RMWInstruction) {
+    let addr = nes.read_code() as u16;
+    let arg = nes.read8(addr);
+    nes.write8(addr, arg); // Redundant write-back
+    let result = op(nes, arg);
+    nes.write8(addr, result);
+}
+
+fn addressing_zeropage_x_rmw(nes: &mut NES, op: RMWInstruction) {
+    let mut addr: u8 = nes.read_code();
+    nes.read8(addr as u16); // Thrown away read
+    // The high byte of the effective address is always zero, i.e. page boundary crossings are not handled.
+    addr = addr.wrapping_add(nes.X);
+    let arg: u8 = nes.read8(addr as u16);
+    nes.write8(addr as u16, arg); // Redundant write-back
+    let result: u8 = op(nes, arg);
+    nes.write8(addr as u16, result);
+}
+
+fn addressing_absolute_rmw(nes: &mut NES, op: RMWInstruction) {
+    let addr: u16 = nes.read_code_addr();
+    let arg = nes.read8(addr);
+    nes.write8(addr, arg); // Redundant write-back
+    let result = op(nes, arg);
+    nes.write8(addr, result);
+}
+
+fn addressing_absolute_x_rmw(nes: &mut NES, op: RMWInstruction) {
+    let base = nes.read_code_addr();
+    let addr = base.wrapping_add(nes.X as u16);
+    // Dummy read before we've calculated the full effective address
+    nes.read8((base & 0xFF00) | (addr & 0xFF));
+    let arg: u8 = nes.read8(addr);
+    nes.write8(addr, arg); // Redundant write-back
+    let result: u8 = op(nes, arg);
+    nes.write8(addr, result);
+}
+
+//
+// Instruction implementations
+//
+
+fn adc(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     adc_inner(nes, arg);
 }
 
-fn sbc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = !read_with(nes, addressing);
+fn sbc(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = !addressing(nes);
     adc_inner(nes, arg)
 }
 
@@ -327,49 +469,46 @@ fn adc_inner(nes: &mut NES, arg: u8) {
     update_zn(nes, nes.A);
 }
 
-fn and(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+fn and(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     nes.A &= arg;
     update_zn(nes, nes.A);
 }
 
-fn eor(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+fn eor(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     nes.A ^= arg;
     update_zn(nes, nes.A);
 }
 
-fn ora(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+fn ora(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     nes.A |= arg;
     update_zn(nes, nes.A);
 }
 
-fn cmp(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+fn cmp(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     nes.SR.C = nes.A >= arg;
     update_zn(nes, nes.A.wrapping_sub(arg));
 }
 
-fn cpx(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+fn cpx(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     nes.SR.C = nes.X >= arg;
     update_zn(nes, nes.X.wrapping_sub(arg));
 }
 
-fn cpy(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+fn cpy(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     nes.SR.C = nes.Y >= arg;
     update_zn(nes, nes.Y.wrapping_sub(arg));
 }
 
-fn dec(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    let arg = nes.read8(addr);
+fn dec(nes: &mut NES, arg: u8) -> u8 {
     let result = arg.wrapping_sub(1);
-    nes.write8(addr, result);
     update_zn(nes, result);
-    alu_cycle(nes);
+    result
 }
 
 fn dey(nes: &mut NES) {
@@ -384,14 +523,10 @@ fn dex(nes: &mut NES) {
     nes.tick();
 }
 
-fn inc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    let arg = nes.read8(addr);
-    // Dummy write cycle of old value, relied on by some games, eg: https://www.nesdev.org/wiki/MMC1#Reset
-    nes.write8(addr, arg);
+fn inc(nes: &mut NES, arg: u8) -> u8 {
     let result = arg.wrapping_add(1);
-    nes.write8(addr, result);
     update_zn(nes, result);
+    result
 }
 
 fn iny(nes: &mut NES) {
@@ -406,44 +541,38 @@ fn inx(nes: &mut NES) {
     nes.tick();
 }
 
-fn lda(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    nes.A = read_with(nes, addressing);
+fn lda(nes: &mut NES, addressing: ReadAddressing) {
+    nes.A = addressing(nes);
     update_zn(nes, nes.A);
 }
 
-fn ldx(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    nes.X = read_with(nes, addressing);
+fn ldx(nes: &mut NES, addressing: ReadAddressing) {
+    nes.X = addressing(nes);
     update_zn(nes, nes.X);
 }
 
-fn ldy(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    nes.Y = read_with(nes, addressing);
+fn ldy(nes: &mut NES, addressing: ReadAddressing) {
+    nes.Y = addressing(nes);
     update_zn(nes, nes.Y);
 }
 
-fn sta(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    nes.write8(addr, nes.A);
+fn sta(nes: &mut NES, addressing: WriteAddressing) {
+    addressing(nes, nes.A);
 }
 
-fn stx(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    nes.write8(addr, nes.X);
+fn stx(nes: &mut NES, addressing: WriteAddressing) {
+    addressing(nes, nes.X);
 }
 
-fn sty(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    nes.write8(addr, nes.Y);
+fn sty(nes: &mut NES, addressing: WriteAddressing) {
+    addressing(nes, nes.Y);
 }
 
-fn lsr(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    let mut val = nes.read8(addr);
+fn lsr(nes: &mut NES, mut val: u8) -> u8 {
     nes.SR.C = val & 0x01 != 0;
     val >>= 1;
-    nes.write8(addr, val);
     update_zn(nes, val);
-    alu_cycle(nes);
+    val
 }
 
 fn lsr_acc(nes: &mut NES) {
@@ -453,14 +582,11 @@ fn lsr_acc(nes: &mut NES) {
     alu_cycle(nes);
 }
 
-fn asl(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    let mut val = nes.read8(addr);
+fn asl(nes: &mut NES, mut val: u8) -> u8 {
     nes.SR.C = val & 0x80 != 0;
     val <<= 1;
-    nes.write8(addr, val);
     update_zn(nes, val);
-    alu_cycle(nes);
+    val
 }
 
 fn asl_acc(nes: &mut NES) {
@@ -470,15 +596,12 @@ fn asl_acc(nes: &mut NES) {
     alu_cycle(nes);
 }
 
-fn rol(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    let mut val = nes.read8(addr);
+fn rol(nes: &mut NES, mut val: u8) -> u8 {
     let new_bit_0 = nes.SR.C as u8;
     nes.SR.C = val & 0x80 != 0;
     val = (val << 1) | new_bit_0;
-    nes.write8(addr, val);
     update_zn(nes, val);
-    alu_cycle(nes);
+    val
 }
 
 fn rol_acc(nes: &mut NES) {
@@ -489,15 +612,12 @@ fn rol_acc(nes: &mut NES) {
     alu_cycle(nes);
 }
 
-fn ror(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let addr = addressing(nes);
-    let mut val = nes.read8(addr);
+fn ror(nes: &mut NES, mut val: u8) -> u8 {
     let new_bit_7 = (nes.SR.C as u8) << 7;
     nes.SR.C = val & 0x01 != 0;
     val = (val >> 1) | new_bit_7;
-    nes.write8(addr, val);
     update_zn(nes, val);
-    alu_cycle(nes);
+    val
 }
 
 fn ror_acc(nes: &mut NES) {
@@ -508,12 +628,11 @@ fn ror_acc(nes: &mut NES) {
     alu_cycle(nes);
 }
 
-fn bit(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
-    let arg = read_with(nes, addressing);
+fn bit(nes: &mut NES, addressing: ReadAddressing) {
+    let arg = addressing(nes);
     nes.SR.Z = (arg & nes.A) == 0;
     nes.SR.N = arg & 0x80 != 0;
     nes.SR.V = arg & 0x40 != 0;
-    alu_cycle(nes);
 }
 
 fn branch_cond(nes: &mut NES, cond: bool) {
@@ -526,11 +645,6 @@ fn branch_cond(nes: &mut NES, cond: bool) {
             nes.tick();
         }
     }
-}
-
-fn read_with(nes: &mut NES, addressing: fn(&mut NES) -> u16) -> u8 {
-    let addr = addressing(nes);
-    nes.read8(addr)
 }
 
 fn update_zn(nes: &mut NES, value: u8) {
