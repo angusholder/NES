@@ -321,7 +321,6 @@ fn and(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let arg = read_with(nes, addressing);
     nes.A &= arg;
     update_zn(nes, nes.A);
-    alu_cycle(nes);
 }
 
 fn eor(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
