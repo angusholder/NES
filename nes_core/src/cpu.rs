@@ -127,20 +127,20 @@ pub fn emulate_instruction(nes: &mut NES) {
         STY_ZPX => sty(nes, addressing_zeropage_x),
         STY_ABS => sty(nes, addressing_absolute),
 
-        TAX => { nes.X = nes.A;  update_zn(nes, nes.X) }
-        TAY => { nes.Y = nes.A;  update_zn(nes, nes.Y) }
-        TSX => { nes.X = nes.SP; update_zn(nes, nes.X) }
-        TXA => { nes.A = nes.X;  update_zn(nes, nes.A) }
-        TXS => { nes.SP = nes.X; }
-        TYA => { nes.A = nes.Y;  update_zn(nes, nes.A) }
+        TAX => { nes.X = nes.A;  update_zn(nes, nes.X); nes.tick(); }
+        TAY => { nes.Y = nes.A;  update_zn(nes, nes.Y); nes.tick(); }
+        TSX => { nes.X = nes.SP; update_zn(nes, nes.X); nes.tick(); }
+        TXA => { nes.A = nes.X;  update_zn(nes, nes.A); nes.tick(); }
+        TXS => { nes.SP = nes.X; nes.tick(); }
+        TYA => { nes.A = nes.Y;  update_zn(nes, nes.A); nes.tick(); }
 
-        CLC => nes.SR.C = false,
-        CLD => nes.SR.D = false,
-        CLI => nes.SR.I = false,
-        CLV => nes.SR.V = false,
-        SEC => nes.SR.C = true,
-        SED => nes.SR.D = true,
-        SEI => nes.SR.I = true,
+        CLC => { nes.SR.C = false; nes.tick(); }
+        CLD => { nes.SR.D = false; nes.tick(); }
+        CLI => { nes.SR.I = false; nes.tick(); }
+        CLV => { nes.SR.V = false; nes.tick(); }
+        SEC => { nes.SR.C = true; nes.tick(); }
+        SED => { nes.SR.D = true; nes.tick(); }
+        SEI => { nes.SR.I = true; nes.tick(); }
 
         LSR_ZP => lsr(nes, addressing_zeropage),
         LSR_ZPX => lsr(nes, addressing_zeropage_x),
@@ -193,37 +193,49 @@ pub fn emulate_instruction(nes: &mut NES) {
         BRK => nes.interrupt(crate::nes::Interrupt::BRK),
 
         PHA => {
+            nes.read8(nes.PC); // Throwaway read
             nes.push8(nes.A);
         }
         PHP => {
+            nes.read8(nes.PC); // Throwaway read
             let sr = nes.get_status_register() | StatusRegister::FLAG_B;
             nes.push8(sr);
         }
         PLA => {
+            nes.read8(nes.PC); // Throwaway read
+            nes.tick(); // Tick to decrement S
             nes.A = nes.pop8();
             update_zn(nes, nes.A);
         }
         PLP => {
+            nes.read8(nes.PC); // Throwaway read
+            nes.tick(); // Tick to decrement S
             pop_status_register(nes);
         }
 
         JSR_ABS => {
             let addr = nes.read_code_addr();
+            nes.tick();
             nes.push16(nes.PC - 1);
             nes.PC = addr;
         }
 
         RTS => {
+            nes.read8(nes.PC); // Throwaway instruction byte
+            nes.tick(); // Increment S
             nes.PC = nes.pop16() + 1;
+            nes.tick(); // Increment PC
         }
 
         RTI => {
+            nes.read8(nes.PC); // Throwaway instruction byte
+            nes.tick(); // Increment S
             pop_status_register(nes);
             nes.PC = nes.pop16();
         }
 
         // This is the only official NOP instruction
-        NOP => {}
+        NOP => { nes.tick(); }
 
         _ => {
             unimplemented!("instruction {} (0x{op:02X}) at ${:04X}", disassemble::INSTRUCTION_NAMES[op as usize], nes.PC - 1);
@@ -313,8 +325,6 @@ fn adc_inner(nes: &mut NES, arg: u8) {
     nes.SR.C = (nes.A as u16) < sum_with_overflow;
     nes.SR.V = ((nes.A ^ arg) & (nes.A ^ acc) & 0x80) != 0;
     update_zn(nes, nes.A);
-
-    alu_cycle(nes);
 }
 
 fn and(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
@@ -327,35 +337,30 @@ fn eor(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let arg = read_with(nes, addressing);
     nes.A ^= arg;
     update_zn(nes, nes.A);
-    alu_cycle(nes);
 }
 
 fn ora(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let arg = read_with(nes, addressing);
     nes.A |= arg;
     update_zn(nes, nes.A);
-    alu_cycle(nes);
 }
 
 fn cmp(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let arg = read_with(nes, addressing);
     nes.SR.C = nes.A >= arg;
     update_zn(nes, nes.A.wrapping_sub(arg));
-    alu_cycle(nes);
 }
 
 fn cpx(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let arg = read_with(nes, addressing);
     nes.SR.C = nes.X >= arg;
     update_zn(nes, nes.X.wrapping_sub(arg));
-    alu_cycle(nes);
 }
 
 fn cpy(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
     let arg = read_with(nes, addressing);
     nes.SR.C = nes.Y >= arg;
     update_zn(nes, nes.Y.wrapping_sub(arg));
-    alu_cycle(nes);
 }
 
 fn dec(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
@@ -370,11 +375,13 @@ fn dec(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
 fn dey(nes: &mut NES) {
     nes.Y = nes.Y.wrapping_sub(1);
     update_zn(nes, nes.Y);
+    nes.tick();
 }
 
 fn dex(nes: &mut NES) {
     nes.X = nes.X.wrapping_sub(1);
     update_zn(nes, nes.X);
+    nes.tick();
 }
 
 fn inc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
@@ -390,11 +397,13 @@ fn inc(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
 fn iny(nes: &mut NES) {
     nes.Y = nes.Y.wrapping_add(1);
     update_zn(nes, nes.Y);
+    nes.tick();
 }
 
 fn inx(nes: &mut NES) {
     nes.X = nes.X.wrapping_add(1);
     update_zn(nes, nes.X);
+    nes.tick();
 }
 
 fn lda(nes: &mut NES, addressing: fn(&mut NES) -> u16) {
