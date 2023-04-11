@@ -248,7 +248,9 @@ impl NES {
             self.tick(); self.tick(); self.tick();
         }
 
-        self.SR.I = true;
+        if interrupt != Interrupt::NMI {
+            self.SR.I = true;
+        }
         self.PC = self.read_addr(interrupt.get_vector_address());
     }
 
