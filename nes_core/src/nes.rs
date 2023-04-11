@@ -102,6 +102,8 @@ pub struct StatusRegister {
     pub V: bool,
     /// Negative
     pub N: bool,
+    /// BRK
+    pub B: bool,
 }
 
 impl Display for StatusRegister {
@@ -113,6 +115,7 @@ impl Display for StatusRegister {
         f.write_char(if self.D { 'D' } else { 'd' })?;
         f.write_char(if self.V { 'V' } else { 'v' })?;
         f.write_char(if self.N { 'N' } else { 'n' })?;
+        f.write_char(if self.B { 'B' } else { 'b' })?;
         Ok(())
     }
 }
@@ -134,6 +137,7 @@ impl StatusRegister {
         ((self.Z as u8) << 1) |
         ((self.I as u8) << 2) |
         ((self.D as u8) << 3) |
+        ((self.B as u8) << 4) |
         StatusRegister::FLAG_U |
         ((self.V as u8) << 6) |
         ((self.N as u8) << 7)
@@ -145,6 +149,7 @@ impl StatusRegister {
             Z: value & StatusRegister::FLAG_Z != 0,
             I: value & StatusRegister::FLAG_I != 0,
             D: value & StatusRegister::FLAG_D != 0,
+            B: value & StatusRegister::FLAG_B != 0,
             V: value & StatusRegister::FLAG_V != 0,
             N: value & StatusRegister::FLAG_N != 0,
         }
@@ -233,11 +238,11 @@ impl NES {
     pub fn interrupt(&mut self, interrupt: Interrupt) {
         if interrupt != Interrupt::RESET {
             self.push16(self.PC);
-            let mut sr = self.SR.to_byte();
+            self.push8(self.SR.to_byte());
             if interrupt == Interrupt::BRK {
-                sr |= StatusRegister::FLAG_B; // B flag set to indicate software IRQ
+                self.SR.B = true;
+                self.tick();
             }
-            self.push8(sr);
         } else {
             self.SP = self.SP.wrapping_sub(3);
             self.tick(); self.tick(); self.tick();
