@@ -226,7 +226,7 @@ pub fn emulate_instruction(nes: &mut NES) {
         NOP => {}
 
         _ => {
-            unimplemented!("instruction {} (0x{op:02X})", disassemble::INSTRUCTION_NAMES[op as usize]);
+            unimplemented!("instruction {} (0x{op:02X}) at ${:04X}", disassemble::INSTRUCTION_NAMES[op as usize], nes.PC - 1);
         }
     }
 }
