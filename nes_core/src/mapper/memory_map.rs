@@ -81,6 +81,7 @@ impl MemoryMap {
         if page_index < 0 {
             base_addr = self.prg_rom.len() - base_addr;
         }
+        base_addr %= self.prg_rom.len();
 
         for (i, bank) in banks.enumerate() {
             let bank = bank as usize;
