@@ -1,3 +1,6 @@
 [workspace]
 members = ["nes_core", "frontend_sdl"]
 default-members = ["frontend_sdl"]
+
+[profile.release]
+panic = "abort"

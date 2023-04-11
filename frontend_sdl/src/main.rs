@@ -3,7 +3,6 @@ use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::BufWriter;
-use std::panic::catch_unwind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use log::info;
@@ -28,22 +27,28 @@ fn main() {
     }
     log_builder.init();
 
-    let result = catch_unwind(main_loop);
+    let default_panic_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        // The NES code panicked - probably an instruction/system not implemented yet, or a bug
+        let mut err_msg: String = "Unknown error".to_string();
+        if let Some(msg) = panic_info.payload().downcast_ref::<String>() {
+            err_msg = msg.clone();
+        } else if let Some(msg) = panic_info.payload().downcast_ref::<&str>() {
+            err_msg = msg.to_string();
+        }
+        display_error_dialog("Unexpected runtime error", &err_msg);
+        // Once the user dismisses our dialog, delegate to the default panic handler so it prints to
+        // stderr then kills the process.
+        default_panic_hook(panic_info);
+        std::process::exit(101);
+    }));
+
+    let result = main_loop();
     match result {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => {
+        Ok(()) => {}
+        Err(e) => {
             // An explicit error returned
             display_error_dialog("Unexpected error", &e.to_string());
-        }
-        Err(e) => {
-            // The NES code panicked - probably an instruction/system not implemented yet, or a bug
-            let mut err_msg: String = "Unknown error".to_string();
-            if let Some(msg) = e.downcast_ref::<String>() {
-                err_msg = msg.clone();
-            } else if let Some(msg) = e.downcast_ref::<&str>() {
-                err_msg = msg.to_string();
-            }
-            display_error_dialog("Unexpected runtime error", &err_msg);
         }
     }
 }
