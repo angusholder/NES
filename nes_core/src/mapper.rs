@@ -13,6 +13,7 @@ mod mmc2;
 mod mmc3;
 mod memory_map;
 mod axrom;
+mod dxrom;
 
 /// The mapper covers two address spaces - the CPU memory map, and the PPU memory map.
 /// The CPU memory map is 16-bit, and the PPU memory map is 14-bit.
@@ -46,6 +47,7 @@ static DESCRIPTORS: &[MapperDescriptor] = &[
     MapperDescriptor::MMC3,
     MapperDescriptor::AxROM,
     MapperDescriptor::MMC2,
+    MapperDescriptor::DxROM,
 ];
 
 fn wrap(raw_mapper: impl RawMapper) -> Rc<RefCell<dyn RawMapper>> {
@@ -97,6 +99,11 @@ impl MapperDescriptor {
         number: 9,
         name: "MMC2",
         new_mapper: |_| wrap(mmc2::MMC2Mapper::new()),
+    };
+    pub const DxROM: MapperDescriptor = MapperDescriptor {
+        number: 206,
+        name: "DxROM/Tengen MIMIC-1/Namcot 118",
+        new_mapper: |_| wrap(dxrom::DxROMMapper::new()),
     };
 }
 
