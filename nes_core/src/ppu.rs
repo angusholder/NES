@@ -589,7 +589,7 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
 
             // We've checked that start_x is less than or equal to x, so dx is always positive.
             let dx = x - sprite.start_x as u32;
-            let mut sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
+            let sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
             if sprite_color_index != 0 { // Sprite pixel not blank
                 // Background pixel is blank, or sprite takes priority
                 if bg_color_index == 0 || sprite.above_bg {
