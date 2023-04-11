@@ -694,11 +694,22 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
             }
             SpriteSize::Size8x16 => {
                 let mut y_offset = line - y;
-                if attrs & SPRITE_ATTR_FLIP_V != 0 {
-                    y_offset = 15 - y_offset;
-                }
                 let pattern_table = if tile_index & 1 == 1 { 0x1000 } else { 0x0000 };
-                let pattern_addr = pattern_table + (tile_index as u16 & !1) * 16 + (y_offset as u16);
+                let mut tile_index = tile_index & !1;
+                if attrs & SPRITE_ATTR_FLIP_V != 0 {
+                    if y_offset >= 8 {
+                        y_offset -= 8;
+                    } else {
+                        tile_index += 1;
+                    }
+                    y_offset = 7 - y_offset;
+                } else {
+                    if y_offset >= 8 {
+                        tile_index += 1;
+                        y_offset -= 8;
+                    }
+                }
+                let pattern_addr = pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
                 let mut pat_lower = ppu.mapper.read_ppu_bus(pattern_addr);
                 let mut pat_upper = ppu.mapper.read_ppu_bus(pattern_addr + 8);
                 if attrs & SPRITE_ATTR_FLIP_H == 0 {
