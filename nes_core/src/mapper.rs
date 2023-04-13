@@ -27,12 +27,14 @@ pub trait RawMapper : Any {
 
     fn write_main_bus(&mut self, memory: &mut MemoryMap, addr: u16, value: u8);
 
-    fn get_ppu_read_hook(&self) -> Option<Rc<PPUReadHook>> { None }
+    /// Returns a callback to be invoked after reading the PPU pattern table.
+    fn get_ppu_pattern_post_read_hook(&self) -> Option<Rc<PPUPatternPostReadHook>> { None }
 
     fn on_cycle_scanline(&mut self) {}
 }
 
-pub type PPUReadHook = dyn Fn(&mut MemoryMap, u16) -> u8;
+/// A callback to invoke after reading the PPU pattern table.
+pub type PPUPatternPostReadHook = dyn Fn(&mut MemoryMap, u16);
 
 #[derive(Copy, Clone)]
 pub struct MapperDescriptor {
@@ -113,7 +115,7 @@ impl MapperDescriptor {
 pub struct Mapper {
     raw_mapper: Rc<RefCell<dyn RawMapper>>,
     memory_map: Rc<RefCell<MemoryMap>>,
-    ppu_read_hook: Option<Rc<PPUReadHook>>,
+    ppu_pattern_post_read_hook: Option<Rc<PPUPatternPostReadHook>>,
 }
 
 impl Mapper {
@@ -124,12 +126,12 @@ impl Mapper {
 
         raw_mapper.borrow_mut().init_memory_map(&mut memory_map.borrow_mut());
 
-        let ppu_read_hook: Option<Rc<PPUReadHook>> = raw_mapper.borrow_mut().get_ppu_read_hook();
+        let ppu_pattern_post_read_hook: Option<Rc<PPUPatternPostReadHook>> = raw_mapper.borrow_mut().get_ppu_pattern_post_read_hook();
 
         Mapper {
             raw_mapper,
             memory_map,
-            ppu_read_hook,
+            ppu_pattern_post_read_hook,
         }
     }
 
@@ -142,10 +144,11 @@ impl Mapper {
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
-        if let Some(read_hook) = self.ppu_read_hook.as_ref() {
-            return read_hook(&mut self.memory_map.borrow_mut(), addr);
+        let result = self.memory_map.borrow().read_ppu_bus(mask_ppu_addr(addr));
+        if let Some(post_read_hook) = self.ppu_pattern_post_read_hook.as_ref() {
+            post_read_hook(&mut self.memory_map.borrow_mut(), addr);
         }
-        self.memory_map.borrow().read_ppu_bus(mask_ppu_addr(addr))
+        result
     }
 
     pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {

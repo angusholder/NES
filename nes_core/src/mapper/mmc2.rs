@@ -2,7 +2,7 @@ use std::cell::{Cell};
 use std::rc::Rc;
 use crate::cartridge::{NametableMirroring};
 use crate::mapper;
-use crate::mapper::{PPUReadHook, RawMapper};
+use crate::mapper::{PPUPatternPostReadHook, RawMapper};
 use crate::mapper::memory_map::MemoryMap;
 
 /// https://www.nesdev.org/wiki/MMC2
@@ -44,9 +44,7 @@ impl MMC2Inner {
         memory.map_chr_4k(1, self.chr_bank_1[self.chr_selector_1.get() as usize].get());
     }
 
-    fn read_ppu_bus(&self, memory: &mut MemoryMap, addr: u16) -> u8 {
-        let result: u8 = memory.read_ppu_bus(addr);
-
+    fn after_ppu_pattern_read(&self, memory: &mut MemoryMap, addr: u16) {
         // Update the selectors *after* performing the read/write
         match addr {
             0x0FD8 => {
@@ -67,8 +65,6 @@ impl MMC2Inner {
             }
             _ => {}
         }
-
-        result
     }
 }
 
@@ -84,10 +80,10 @@ impl RawMapper for MMC2Mapper {
         self.inner.sync_mappings(memory);
     }
 
-    fn get_ppu_read_hook(&self) -> Option<Rc<PPUReadHook>> {
+    fn get_ppu_pattern_post_read_hook(&self) -> Option<Rc<PPUPatternPostReadHook>> {
         let mmc2_inner: Rc<MMC2Inner> = self.inner.clone();
-        Some(Rc::new(move |memory: &mut MemoryMap, addr: u16| -> u8 {
-            mmc2_inner.read_ppu_bus(memory, addr)
+        Some(Rc::new(move |memory: &mut MemoryMap, addr: u16| {
+            mmc2_inner.after_ppu_pattern_read(memory, addr);
         }))
     }
 
