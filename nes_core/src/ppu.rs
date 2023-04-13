@@ -677,20 +677,14 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
 
         let attrs = sprite_data[SPRITE_ATTRIBUTES];
         let tile_index = sprite_data[SPRITE_TILE_INDEX];
-        let pattern2: u16 = match sprite_size {
+        let pattern_addr: u16;
+        match sprite_size {
             SpriteSize::Size8x8 => {
                 let mut y_offset = line - y;
                 if attrs & SPRITE_ATTR_FLIP_V != 0 {
                     y_offset = 7 - y_offset;
                 }
-                let pattern_addr = ppu.control.sprite_pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
-                let mut pat_lower = ppu.mapper.read_pattern_table(pattern_addr);
-                let mut pat_upper = ppu.mapper.read_pattern_table(pattern_addr + 8);
-                if attrs & SPRITE_ATTR_FLIP_H == 0 {
-                    pat_lower = pat_lower.reverse_bits();
-                    pat_upper = pat_upper.reverse_bits();
-                }
-                interleave_bits(pat_lower, pat_upper)
+                pattern_addr = ppu.control.sprite_pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
             }
             SpriteSize::Size8x16 => {
                 let mut y_offset = line - y;
@@ -709,16 +703,17 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
                         y_offset -= 8;
                     }
                 }
-                let pattern_addr = pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
-                let mut pat_lower = ppu.mapper.read_pattern_table(pattern_addr);
-                let mut pat_upper = ppu.mapper.read_pattern_table(pattern_addr + 8);
-                if attrs & SPRITE_ATTR_FLIP_H == 0 {
-                    pat_lower = pat_lower.reverse_bits();
-                    pat_upper = pat_upper.reverse_bits();
-                }
-                interleave_bits(pat_lower, pat_upper)
+                pattern_addr = pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
             }
         };
+
+        let mut pat_lower = ppu.mapper.read_pattern_table(pattern_addr);
+        let mut pat_upper = ppu.mapper.read_pattern_table(pattern_addr + 8);
+        if attrs & SPRITE_ATTR_FLIP_H == 0 {
+            pat_lower = pat_lower.reverse_bits();
+            pat_upper = pat_upper.reverse_bits();
+        }
+        let pattern2 = interleave_bits(pat_lower, pat_upper);
 
         let start_x: u8 = sprite_data[SPRITE_X];
         ppu.cur_line_sprites[dest_index] = SpriteRowSlice {
