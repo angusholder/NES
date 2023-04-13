@@ -20,7 +20,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 // Simulate a frame now that the NES system should be in steady-state
                 nes.simulate_frame();
             },
-            BatchSize::LargeInput,
+            BatchSize::SmallInput,
         )
     );
 
@@ -36,7 +36,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 // Simulate a frame now that the NES system should be in steady-state
                 nes.simulate_frame();
             },
-            BatchSize::LargeInput,
+            BatchSize::SmallInput,
         )
     );
 }
