@@ -3,10 +3,10 @@ use crate::nes::{NES, StatusRegister};
 use crate::cpu_ops::*;
 use crate::disassemble;
 
+#[inline(never)]
 pub fn emulate_instruction(nes: &mut NES) {
     if nes.trace_instructions {
-        let disassembly: String = disassemble::disassemble(nes);
-        trace!("{}", disassembly);
+        log_instruction(nes);
     }
 
     let op = nes.read_code();
@@ -238,9 +238,22 @@ pub fn emulate_instruction(nes: &mut NES) {
         NOP => { nes.tick(); }
 
         _ => {
-            unimplemented!("instruction {} (0x{op:02X}) at ${:04X}", disassemble::INSTRUCTION_NAMES[op as usize], nes.PC - 1);
+            unimplemented_instruction(nes, op);
         }
     }
+}
+
+#[cold]
+#[inline(never)]
+fn log_instruction(nes: &mut NES) {
+    let disassembly: String = disassemble::disassemble(nes);
+    trace!("{}", disassembly);
+}
+
+#[cold]
+#[inline(never)]
+fn unimplemented_instruction(nes: &mut NES, op: u8) {
+    unimplemented!("instruction {} (0x{op:02X}) at ${:04X}", disassemble::INSTRUCTION_NAMES[op as usize], nes.PC - 1);
 }
 
 fn pop_status_register(nes: &mut NES) {
