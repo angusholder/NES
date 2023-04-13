@@ -43,6 +43,33 @@ impl MMC2Inner {
         memory.map_chr_4k(0, self.chr_bank_0[self.chr_selector_0.get() as usize].get());
         memory.map_chr_4k(1, self.chr_bank_1[self.chr_selector_1.get() as usize].get());
     }
+
+    fn read_ppu_bus(&self, memory: &mut MemoryMap, addr: u16) -> u8 {
+        let result: u8 = memory.read_ppu_bus(addr);
+
+        // Update the selectors *after* performing the read/write
+        match addr {
+            0x0FD8 => {
+                self.chr_selector_0.set(BankSelector::FD);
+                self.sync_mappings(memory);
+            }
+            0x0FE8 => {
+                self.chr_selector_0.set(BankSelector::FE);
+                self.sync_mappings(memory);
+            }
+            0x1FD8..=0x1FDF => {
+                self.chr_selector_1.set(BankSelector::FD);
+                self.sync_mappings(memory);
+            }
+            0x1FE8..=0x1FEF => {
+                self.chr_selector_1.set(BankSelector::FE);
+                self.sync_mappings(memory);
+            }
+            _ => {}
+        }
+
+        result
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -58,32 +85,9 @@ impl RawMapper for MMC2Mapper {
     }
 
     fn get_ppu_read_hook(&self) -> Option<Rc<PPUReadHook>> {
-        let inner: Rc<MMC2Inner> = self.inner.clone();
+        let mmc2_inner: Rc<MMC2Inner> = self.inner.clone();
         Some(Rc::new(move |memory: &mut MemoryMap, addr: u16| -> u8 {
-            let result: u8 = memory.read_ppu_bus(addr);
-
-            // Update the selectors *after* performing the read/write
-            match addr {
-                0x0FD8 => {
-                    inner.chr_selector_0.set(BankSelector::FD);
-                    inner.sync_mappings(memory);
-                }
-                0x0FE8 => {
-                    inner.chr_selector_0.set(BankSelector::FE);
-                    inner.sync_mappings(memory);
-                }
-                0x1FD8..=0x1FDF => {
-                    inner.chr_selector_1.set(BankSelector::FD);
-                    inner.sync_mappings(memory);
-                }
-                0x1FE8..=0x1FEF => {
-                    inner.chr_selector_1.set(BankSelector::FE);
-                    inner.sync_mappings(memory);
-                }
-                _ => {}
-            }
-
-            result
+            mmc2_inner.read_ppu_bus(memory, addr)
         }))
     }
 
