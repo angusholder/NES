@@ -134,7 +134,7 @@ impl Mapper {
     }
 
     pub fn read_main_bus(&mut self, addr: u16) -> u8 {
-        self.memory_map.borrow_mut().read_main_bus(addr)
+        self.memory_map.borrow().read_main_bus(addr)
     }
 
     pub fn write_main_bus(&mut self, addr: u16, value: u8) {
@@ -145,7 +145,7 @@ impl Mapper {
         if let Some(read_hook) = self.ppu_read_hook.as_ref() {
             return read_hook(&mut self.memory_map.borrow_mut(), addr);
         }
-        self.memory_map.borrow_mut().read_ppu_bus(mask_ppu_addr(addr))
+        self.memory_map.borrow().read_ppu_bus(mask_ppu_addr(addr))
     }
 
     pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {

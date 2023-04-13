@@ -118,7 +118,7 @@ impl MemoryMap {
 }
 
 impl MemoryMap {
-    pub fn read_main_bus(&mut self, addr: u16) -> u8 {
+    pub fn read_main_bus(&self, addr: u16) -> u8 {
         match addr {
             0x8000..=0xFFFF => {
                 let bank_no = (addr as usize >> 0x1FFFu32.count_ones()) & 3;
@@ -156,7 +156,7 @@ impl MemoryMap {
         }
     }
 
-    pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
+    pub fn read_ppu_bus(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x1FFF => {
                 let bank_no = (addr as usize >> 0x3FFu32.count_ones()) & 7;
