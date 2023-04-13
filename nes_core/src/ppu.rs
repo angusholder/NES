@@ -450,7 +450,7 @@ fn ppu_step_scanline(ppu: &mut PPU) {
             if dot > 0 && dot % 8 == 0 {
                 // Cycles 1 & 2
                 let tile_addr = 0x2000 | (ppu.v_addr & 0x0FFF);
-                let tile_index: u8 = ppu.mapper.read_ppu_bus(tile_addr);
+                let tile_index: u8 = ppu.mapper.read_nametable(tile_addr);
 
                 // Cycles 3 & 4
                 let palette_index: u8 = read_next_palette_index(ppu);
@@ -458,10 +458,10 @@ fn ppu_step_scanline(ppu: &mut PPU) {
                 // Cycles 5 & 6
                 let fine_y: u16 = ppu.v_addr >> 12 & 0b111;
                 let pattern_addr = ppu.control.background_pattern_table + (tile_index as u16) * 16 + fine_y;
-                let next_tile_lo: u8 = ppu.mapper.read_ppu_bus(pattern_addr);
+                let next_tile_lo: u8 = ppu.mapper.read_pattern_table(pattern_addr);
 
                 // Cycles 7 & 0
-                let next_tile_hi: u8 = ppu.mapper.read_ppu_bus(pattern_addr + 8);
+                let next_tile_hi: u8 = ppu.mapper.read_pattern_table(pattern_addr + 8);
 
                 ppu.tiles_palette_lo = (ppu.tiles_palette_lo & 0xFF00) | if palette_index & 1 != 0 { 0x00FF } else { 0x0000 };
                 ppu.tiles_palette_hi = (ppu.tiles_palette_hi & 0xFF00) | if palette_index & 2 != 0 { 0x00FF } else { 0x0000 };
@@ -613,7 +613,7 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
 fn read_next_palette_index(ppu: &mut PPU) -> u8 {
     let v = ppu.v_addr as u32;
     let attr_addr = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-    let attr = ppu.mapper.read_ppu_bus(attr_addr as u16);
+    let attr = ppu.mapper.read_nametable(attr_addr as u16);
 
     let mut shift: u32 = 0;
     if (v >> 1 & 1) != 0 { // the 2nd bit of coarse X (the 16s digit of X)
@@ -684,8 +684,8 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
                     y_offset = 7 - y_offset;
                 }
                 let pattern_addr = ppu.control.sprite_pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
-                let mut pat_lower = ppu.mapper.read_ppu_bus(pattern_addr);
-                let mut pat_upper = ppu.mapper.read_ppu_bus(pattern_addr + 8);
+                let mut pat_lower = ppu.mapper.read_pattern_table(pattern_addr);
+                let mut pat_upper = ppu.mapper.read_pattern_table(pattern_addr + 8);
                 if attrs & SPRITE_ATTR_FLIP_H == 0 {
                     pat_lower = pat_lower.reverse_bits();
                     pat_upper = pat_upper.reverse_bits();
@@ -710,8 +710,8 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
                     }
                 }
                 let pattern_addr = pattern_table + (tile_index as u16) * 16 + (y_offset as u16);
-                let mut pat_lower = ppu.mapper.read_ppu_bus(pattern_addr);
-                let mut pat_upper = ppu.mapper.read_ppu_bus(pattern_addr + 8);
+                let mut pat_lower = ppu.mapper.read_pattern_table(pattern_addr);
+                let mut pat_upper = ppu.mapper.read_pattern_table(pattern_addr + 8);
                 if attrs & SPRITE_ATTR_FLIP_H == 0 {
                     pat_lower = pat_lower.reverse_bits();
                     pat_upper = pat_upper.reverse_bits();

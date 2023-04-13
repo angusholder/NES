@@ -144,7 +144,27 @@ impl Mapper {
     }
 
     pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
-        let result = self.memory_map.borrow().read_ppu_bus(mask_ppu_addr(addr));
+        match addr {
+            0x0000..=0x1FFF => {
+                self.read_pattern_table(addr)
+            }
+            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
+                self.read_nametable(addr)
+            }
+            _ => {
+                out_of_bounds_read("PPU memory space", addr)
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn read_nametable(&mut self, addr: u16) -> u8 {
+        self.memory_map.borrow().nametables.read(addr)
+    }
+
+    #[inline(always)]
+    pub fn read_pattern_table(&mut self, addr: u16) -> u8 {
+        let result = self.memory_map.borrow().read_pattern_table(addr);
         if let Some(post_read_hook) = self.ppu_pattern_post_read_hook.as_ref() {
             post_read_hook(&mut self.memory_map.borrow_mut(), addr);
         }
