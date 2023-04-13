@@ -64,19 +64,19 @@ impl RawMapper for MMC2Mapper {
 
             // Update the selectors *after* performing the read/write
             match addr {
-                0x0FD0..=0x0FDF => {
+                0x0FD8 => {
                     inner.chr_selector_0.set(BankSelector::FD);
                     inner.sync_mappings(memory);
                 }
-                0x0FE0..=0x0FEF => {
+                0x0FE8 => {
                     inner.chr_selector_0.set(BankSelector::FE);
                     inner.sync_mappings(memory);
                 }
-                0x1FD0..=0x1FDF => {
+                0x1FD8..=0x1FDF => {
                     inner.chr_selector_1.set(BankSelector::FD);
                     inner.sync_mappings(memory);
                 }
-                0x1FE0..=0x1FEF => {
+                0x1FE8..=0x1FEF => {
                     inner.chr_selector_1.set(BankSelector::FE);
                     inner.sync_mappings(memory);
                 }
