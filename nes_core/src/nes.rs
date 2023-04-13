@@ -12,7 +12,7 @@ use crate::ppu::PPU;
 
 #[allow(non_snake_case)]
 pub struct NES {
-    remaining_cycles: i64,
+    target_cycles: u64,
     total_cycles: u64,
 
     pub A: u8,
@@ -185,7 +185,7 @@ impl NES {
             PC: 0,
             SR: StatusRegister::from_byte(0),
             ram: [0; 0x800],
-            remaining_cycles: 0,
+            target_cycles: 0,
             total_cycles: 0,
             trace_instructions: log::log_enabled!(Trace),
             ppu: PPU::new(mapper.clone()),
@@ -204,7 +204,7 @@ impl NES {
     }
 
     pub fn power_on(&mut self) {
-        self.remaining_cycles = 0;
+        self.target_cycles = self.total_cycles;
 
         self.SR = StatusRegister::from_byte(0);
         self.A = 0;
@@ -221,8 +221,8 @@ impl NES {
     }
 
     pub fn simulate_frame(&mut self) {
-        self.remaining_cycles += CYCLES_PER_FRAME as i64;
-        while self.remaining_cycles > 0 {
+        self.target_cycles += CYCLES_PER_FRAME;
+        while self.target_cycles > self.total_cycles {
             if self.ppu.request_nmi {
                 self.interrupt(Interrupt::NMI);
                 self.ppu.request_nmi = false;
@@ -346,7 +346,6 @@ impl NES {
     }
 
     pub fn tick(&mut self) {
-        self.remaining_cycles -= 1;
         self.total_cycles += 1;
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
