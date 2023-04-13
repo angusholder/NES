@@ -32,8 +32,9 @@ pub struct PPU {
 
     oam_addr: u8,
     oam: [u8; NUM_SPRITES * 4],
-    cur_line_sprites: [SpriteRowSlice; 8],
-    cur_line_num_sprites: usize, // Between 0 and 8
+    cur_line_sprite_pixels: [u8; 256],
+    cur_line_sprite_above: [bool; 256],
+    cur_line_sprite_0: [bool; 256],
     sprite_0_hit: bool,
 
     palettes: [u8; 2 * 4 * 4],
@@ -72,8 +73,9 @@ impl PPU {
 
             oam_addr: 0,
             oam: [0; NUM_SPRITES * 4],
-            cur_line_sprites: [SpriteRowSlice::hidden(); 8],
-            cur_line_num_sprites: 0,
+            cur_line_sprite_pixels: [0; 256],
+            cur_line_sprite_above: [false; 256],
+            cur_line_sprite_0: [false; 256],
             sprite_0_hit: false,
 
             palettes: [0; 2 * 4 * 4],
@@ -575,35 +577,17 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
     let mut pixel_index = bg_color_index;
 
     if ppu.mask.show_sprites && (ppu.mask.show_sprites_left || x > 8) && ppu.scanline > 0 {
-        let mut i = 0;
-        while i < ppu.cur_line_num_sprites {
-            let sprite = &ppu.cur_line_sprites[i];
-            if sprite.start_x as u32 > x {
-                i += 1;
-                continue;
-            }
-            if x >= sprite.end_x as u32 {
-                i += 1;
-                continue;
+        let sprite_color = ppu.cur_line_sprite_pixels[x as usize];
+        if sprite_color != 0 { // Sprite pixel not blank
+            // Background pixel is blank, or sprite takes priority
+            if bg_color_index == 0 || ppu.cur_line_sprite_above[x as usize] {
+                pixel_index = sprite_color;
             }
 
-            // We've checked that start_x is less than or equal to x, so dx is always positive.
-            let dx = x - sprite.start_x as u32;
-            let sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
-            if sprite_color_index != 0 { // Sprite pixel not blank
-                // Background pixel is blank, or sprite takes priority
-                if bg_color_index == 0 || sprite.above_bg {
-                    pixel_index = sprite_color_index | sprite.palette_base_addr;
-                }
-
-                // Sprite 0 hit occurs when both sprite and background are non-transparent (regardless of priority).
-                if sprite.is_sprite_0 && bg_color_index != 0 && x != 255 {
-                    ppu.sprite_0_hit = true;
-                }
-
-                break;
+            // Sprite 0 hit occurs when both sprite and background are non-transparent (regardless of priority).
+            if ppu.cur_line_sprite_0[x as usize] && bg_color_index != 0 && x != 255 {
+                ppu.sprite_0_hit = true;
             }
-            i += 1;
         }
     }
 
@@ -631,12 +615,9 @@ const NUM_SPRITES: usize = 64;
 #[derive(Clone, Copy, Debug)]
 struct SpriteRowSlice {
     start_x: u8,
-    // Larger than start_x in case of overflow
-    end_x: u16,
     // two bits per pixel
     pattern2: u16,
     above_bg: bool,
-    palette_base_addr: u8,
     is_sprite_0: bool,
 }
 
@@ -644,10 +625,8 @@ impl SpriteRowSlice {
     fn hidden() -> SpriteRowSlice {
         SpriteRowSlice {
             start_x: 0xFF,
-            end_x: 0xFF,
             pattern2: 0x0000,
             above_bg: false,
-            palette_base_addr: 0,
             is_sprite_0: false,
         }
     }
@@ -667,6 +646,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
     let mut dest_index = 0usize;
     let sprite_size = ppu.control.sprite_size;
     let sprite_height = sprite_size.height();
+    let mut cur_line_sprites = [SpriteRowSlice::hidden(); 8];
     for src_index in 0..NUM_SPRITES {
         let sprite_data: [u8; 4] = ppu.oam[src_index * 4 .. (src_index + 1) * 4].try_into().unwrap();
         let y = sprite_data[SPRITE_Y] as u32;
@@ -677,7 +657,7 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
 
         let attrs = sprite_data[SPRITE_ATTRIBUTES];
         let tile_index = sprite_data[SPRITE_TILE_INDEX];
-        let pattern2: u16 = match sprite_size {
+        let mut pattern2: u16 = match sprite_size {
             SpriteSize::Size8x8 => {
                 let mut y_offset = line - y;
                 if attrs & SPRITE_ATTR_FLIP_V != 0 {
@@ -720,21 +700,46 @@ fn evaluate_sprites_for_line(ppu: &mut PPU, line: u32) {
             }
         };
 
-        let start_x: u8 = sprite_data[SPRITE_X];
-        ppu.cur_line_sprites[dest_index] = SpriteRowSlice {
-            start_x,
-            end_x: start_x as u16 + 8,
+        if pattern2 != 0 {
+            pattern2 |= 0x10 | ((attrs & SPRITE_ATTR_PALETTE) << 2) as u16;
+        }
+        cur_line_sprites[dest_index] = SpriteRowSlice {
+            start_x: sprite_data[SPRITE_X],
             pattern2,
             above_bg: (attrs & SPRITE_ATTR_BEHIND_BG) == 0,
-            palette_base_addr: 0x10 | ((attrs & SPRITE_ATTR_PALETTE) << 2),
             is_sprite_0: src_index == 0,
         };
         dest_index += 1;
-        if dest_index >= ppu.cur_line_sprites.len() {
+        if dest_index >= cur_line_sprites.len() {
             break;
         }
     }
-    ppu.cur_line_num_sprites = dest_index;
+
+    'outer: for x in 0usize..256 {
+        for i in 0..dest_index {
+            let sprite = &cur_line_sprites[i];
+            if sprite.start_x as u32 > x as u32 {
+                continue;
+            }
+            if x as u32 >= sprite.start_x as u32 + 8 {
+                continue;
+            }
+
+            // We've checked that start_x is less than or equal to x, so dx is always positive.
+            let dx = x as u32 - sprite.start_x as u32;
+
+            let sprite_color_index = (sprite.pattern2 >> (dx*2)) as u8 & 0b11;
+            if sprite_color_index != 0 {
+                ppu.cur_line_sprite_pixels[x] = sprite_color_index;
+                ppu.cur_line_sprite_above[x] = sprite.above_bg;
+                ppu.cur_line_sprite_0[x] = sprite.is_sprite_0;
+                continue 'outer;
+            }
+        }
+        ppu.cur_line_sprite_pixels[x] = 0;
+        ppu.cur_line_sprite_above[x] = false;
+        ppu.cur_line_sprite_0[x] = false;
+    }
 }
 
 /// Interleaves bits like so:
