@@ -2,27 +2,39 @@ use bitflags::bitflags;
 use log::{info};
 
 pub struct InputState {
-    pressed: JoypadButtons,
+    p1_pressed: JoypadButtons,
+    p2_pressed: JoypadButtons,
 
     is_polling: bool,
     joypad1_shift_register: u8,
+    joypad2_shift_register: u8,
 }
 
 impl InputState {
     pub fn new() -> Self {
         Self {
-            pressed: JoypadButtons::empty(),
+            p1_pressed: JoypadButtons::empty(),
+            p2_pressed: JoypadButtons::empty(),
             is_polling: false,
             joypad1_shift_register: 0,
+            joypad2_shift_register: 0,
         }
     }
 
-    pub fn update_key_state(&mut self, pressed: JoypadButtons) {
-        let prev_pressed = self.pressed;
-        self.pressed = pressed;
-        let button_diff = prev_pressed.difference(pressed);
+    pub fn update_p1_key_state(&mut self, pressed: JoypadButtons) {
+        Self::update_key_state(&mut self.p1_pressed, pressed, "P1");
+    }
+
+    pub fn update_p2_key_state(&mut self, pressed: JoypadButtons) {
+        Self::update_key_state(&mut self.p2_pressed, pressed, "P2");
+    }
+
+    fn update_key_state(pressed: &mut JoypadButtons, new_pressed: JoypadButtons, name: &str) {
+        let prev_pressed = *pressed;
+        *pressed = new_pressed;
+        let button_diff = prev_pressed.difference(new_pressed);
         if !button_diff.is_empty() {
-            info!("Pressed {button_diff:?}");
+            info!("{name} Pressed {button_diff:?}");
         }
     }
 
@@ -32,7 +44,8 @@ impl InputState {
         } else {
             if self.is_polling {
                 self.is_polling = false;
-                self.joypad1_shift_register = self.pressed.bits;
+                self.joypad1_shift_register = self.p1_pressed.bits;
+                self.joypad2_shift_register = self.p2_pressed.bits;
             }
         }
     }
@@ -44,8 +57,9 @@ impl InputState {
     }
 
     pub fn read_joypad_2(&mut self) -> u8 {
-        // Controller 2 is not implemented, always return 0
-        0
+        let next_bit = self.joypad2_shift_register & 1;
+        self.joypad2_shift_register >>= 1;
+        next_bit
     }
 }
 

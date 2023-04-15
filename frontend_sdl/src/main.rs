@@ -131,7 +131,8 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
         let has_focus = window.is_active();
         if !app.paused && has_focus {
             if let Some(nes) = app.nes.as_mut() {
-                nes.input.update_key_state(get_pressed_buttons(&window, game_controller.as_ref()));
+                nes.input.update_p1_key_state(get_pressed_buttons(&window, game_controller.as_ref()));
+                nes.input.update_p2_key_state(JoypadButtons::empty()); // Not implemented
 
                 nes.simulate_frame();
 
