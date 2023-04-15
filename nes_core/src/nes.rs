@@ -345,9 +345,9 @@ impl NES {
         self.total_cycles += 1;
 
         // 3 PPU cycles per CPU cycle
-        ppu::ppu_step(&mut self.ppu);
-        ppu::ppu_step(&mut self.ppu);
-        ppu::ppu_step(&mut self.ppu);
+        self.ppu.step_cycle();
+        self.ppu.step_cycle();
+        self.ppu.step_cycle();
 
         // 1 APU cycle every other CPU cycle
         if self.total_cycles & 1 == 0 {

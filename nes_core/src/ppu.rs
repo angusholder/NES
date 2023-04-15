@@ -393,54 +393,54 @@ const FIRST_SCANLINE: u32 = 0;
 const LAST_SCANLINE: u32 = 261;
 const DOTS_PER_SCANLINE: u32 = 341;
 
-pub fn ppu_step(ppu: &mut PPU) {
-    match ppu.scanline {
-        // Visible scanlines
-        0..=239 => {
-            ppu_step_scanline(ppu);
-        }
-        240 => {
-            if ppu.dot == 0 {
-                // A full frame has been rendered, make it visible
-                ppu.flip_frame();
+impl PPU {
+    pub fn step_cycle(&mut self) {
+        let ppu = self;
+
+        match ppu.scanline {
+            // Visible scanlines
+            0..=239 => {
+                do_scanline_rendering(ppu);
             }
-        }
-        241 => {
-            if ppu.dot == 1 {
-                ppu.vblank_started = true;
-                if ppu.control.enable_nmi {
-                    ppu.request_nmi = true;
+            241 => {
+                if ppu.dot == 1 {
+                    // A full frame has been rendered, make it visible
+                    ppu.flip_frame();
+                    ppu.vblank_started = true;
+                    if ppu.control.enable_nmi {
+                        ppu.request_nmi = true;
+                    }
                 }
             }
-        }
-        // Pre-render line - a dummy scanline to fill the shift registers ready for line 0
-        261 => {
-            if ppu.dot == 1 {
-                ppu.vblank_started = false;
-                ppu.sprite_0_hit = false;
-            }
-            ppu_step_scanline(ppu);
+            // Pre-render line - a dummy scanline to fill the shift registers ready for line 0
+            261 => {
+                if ppu.dot == 1 {
+                    ppu.vblank_started = false;
+                    ppu.sprite_0_hit = false;
+                }
+                do_scanline_rendering(ppu);
 
-            // Copy vertical bits from t to v
-            if matches!(ppu.dot, 280..=304) && ppu.rendering_enabled() {
-                update_y_from_temp(ppu);
+                // Copy vertical bits from t to v
+                if matches!(ppu.dot, 280..=304) && ppu.rendering_enabled() {
+                    update_y_from_temp(ppu);
+                }
             }
+            _ => {}
         }
-        _ => {}
-    }
 
-    ppu.dot += 1;
-    if ppu.dot >= DOTS_PER_SCANLINE {
-        ppu.dot = 0;
-        ppu.scanline += 1;
-        if ppu.scanline > LAST_SCANLINE {
-            ppu.scanline = FIRST_SCANLINE;
-            ppu.frame_num += 1;
+        ppu.dot += 1;
+        if ppu.dot >= DOTS_PER_SCANLINE {
+            ppu.dot = 0;
+            ppu.scanline += 1;
+            if ppu.scanline > LAST_SCANLINE {
+                ppu.scanline = FIRST_SCANLINE;
+                ppu.frame_num += 1;
+            }
         }
     }
 }
 
-fn ppu_step_scanline(ppu: &mut PPU) {
+fn do_scanline_rendering(ppu: &mut PPU) {
     let dot = ppu.dot;
 
     // See the cycles here https://www.nesdev.org/wiki/PPU_rendering#Visible_scanlines_(0-239)
