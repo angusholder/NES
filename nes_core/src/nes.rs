@@ -343,10 +343,16 @@ impl NES {
 
     pub fn tick(&mut self) {
         self.total_cycles += 1;
+
+        // 3 PPU cycles per CPU cycle
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
         ppu::ppu_step(&mut self.ppu);
-        self.apu.step_cycle(self.total_cycles);
+
+        // 1 APU cycle every other CPU cycle
+        if self.total_cycles & 1 == 0 {
+            self.apu.step_cycle();
+        }
     }
 
     pub fn get_cycles(&self) -> u64 {

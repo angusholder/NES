@@ -143,11 +143,7 @@ impl APU {
         self.output_buffer = Some(output_buffer);
     }
 
-    pub fn step_cycle(&mut self, cpu_cycle: u64) {
-        if cpu_cycle & 1 == 1 {
-            return;
-        }
-
+    pub fn step_cycle(&mut self) {
         self.apu_cycle += 1;
 
         // See https://www.nesdev.org/wiki/APU_Frame_Counter
