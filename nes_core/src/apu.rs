@@ -19,7 +19,7 @@ use crate::apu::noise::Noise;
 use crate::apu::square::{SquareUnit, SquareWave};
 use crate::apu::triangle::TriangleWave;
 use crate::mapper;
-use crate::nes::{IRQSource, Signals};
+use crate::nes::{InterruptSource, Signals};
 
 pub struct APU {
     output_buffer: Option<SampleBuffer>,
@@ -194,7 +194,7 @@ impl APU {
         if self.irq_inhibit {
             return;
         }
-        self.signals.request_irq(IRQSource::APU_FRAME_COUNTER);
+        self.signals.request_interrupt(InterruptSource::APU_FRAME_COUNTER);
     }
 
     pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {
@@ -293,11 +293,11 @@ impl APU {
 
         let mut status = 0u8;
 
-        if self.signals.is_active(IRQSource::APU_FRAME_COUNTER) {
+        if self.signals.is_active(InterruptSource::APU_FRAME_COUNTER) {
             status |= 0x40;
-            self.signals.acknowledge_irq(IRQSource::APU_FRAME_COUNTER);
+            self.signals.acknowledge_interrupt(InterruptSource::APU_FRAME_COUNTER);
         }
-        if self.signals.is_active(IRQSource::APU_DMC) {
+        if self.signals.is_active(InterruptSource::APU_DMC) {
             status |= 0x80;
         }
         if !self.square_wave1.length_counter.is_zero() {
@@ -361,7 +361,7 @@ impl APU {
         self.noise.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::NOISE));
         self.dmc.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::DMC));
         // Writing to this register clears the DMC interrupt flag.
-        self.signals.acknowledge_irq(IRQSource::APU_DMC);
+        self.signals.acknowledge_interrupt(InterruptSource::APU_DMC);
     }
 
     fn write_frame_counter(&mut self, value: u8) {

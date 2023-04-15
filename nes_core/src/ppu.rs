@@ -1,5 +1,6 @@
+use std::rc::Rc;
 use crate::mapper::Mapper;
-use crate::nes::{NES};
+use crate::nes::{InterruptSource, NES, Signals};
 
 const PPUCTRL: u16 = 0x2000;
 const PPUMASK: u16 = 0x2001;
@@ -40,7 +41,7 @@ pub struct PPU {
     mapper: Mapper,
 
     vblank_started: bool,
-    pub request_nmi: bool,
+    signals: Rc<Signals>,
 
     /// Filled with values 0-63, which are indices into "ntscpalette_24bpp.pal".
     /// This is the in-progress frame that is being drawn.
@@ -59,7 +60,7 @@ pub struct PPU {
 }
 
 impl PPU {
-    pub fn new(mapper: Mapper) -> PPU {
+    pub fn new(mapper: Mapper, signals: Rc<Signals>) -> PPU {
         PPU {
             control: PPUControl::from_bits(0),
             mask: PPUMask::from_bits(0),
@@ -80,7 +81,7 @@ impl PPU {
             mapper,
 
             vblank_started: true,
-            request_nmi: false,
+            signals,
 
             cur_display_buffer: Box::new([0; 256 * 240]),
             finished_display_buffer: Box::new([0; 256 * 240]),
@@ -408,7 +409,7 @@ impl PPU {
                     ppu.flip_frame();
                     ppu.vblank_started = true;
                     if ppu.control.enable_nmi {
-                        ppu.request_nmi = true;
+                        ppu.signals.request_interrupt(InterruptSource::VBLANK_NMI);
                     }
                 }
             }

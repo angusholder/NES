@@ -41,45 +41,46 @@ pub struct NES {
 bitflags! {
     /// The CPU IRQ will continually trigger until the IRQ handler acknowledges all active IRQ sources.
     /// See https://www.nesdev.org/wiki/IRQ
-    pub struct IRQSource : u32 {
+    pub struct InterruptSource : u32 {
         const APU_DMC = 0x01;
         const APU_FRAME_COUNTER = 0x02;
         const MMC3 = 0x04;
+        const VBLANK_NMI = 0x08;
     }
 }
 
-/// Holds all the IRQ signals for the whole console.
+/// Holds all the IRQ/NMI signals for the whole console.
 /// Any subsystem can raise an IRQ, and it will continue until the IRQ handler acknowledges
 /// that specific subsystem's IRQ signal.
 /// See https://www.nesdev.org/wiki/IRQ
 pub struct Signals {
-    signal: Cell<IRQSource>,
+    signal: Cell<InterruptSource>,
 }
 
 impl Signals {
     pub fn new() -> Rc<Signals> {
         Rc::new(Signals {
-            signal: Cell::new(IRQSource::empty()),
+            signal: Cell::new(InterruptSource::empty()),
         })
     }
 
-    /// Is any IRQ signal active
+    /// Is any interrupt signal active
     pub fn is_any_active(&self) -> bool {
         !self.signal.get().is_empty()
     }
 
-    /// A subsystem is requesting IRQ
-    pub fn request_irq(&self, source: IRQSource) {
+    /// A subsystem is requesting interrupt
+    pub fn request_interrupt(&self, source: InterruptSource) {
         self.signal.set(self.signal.get() | source);
     }
 
-    /// A subsystem's IRQ signal has been acknowledged, and can be dismissed now.
-    pub fn acknowledge_irq(&self, source: IRQSource) {
+    /// A subsystem's interrupt signal has been acknowledged, and can be dismissed now.
+    pub fn acknowledge_interrupt(&self, source: InterruptSource) {
         self.signal.set(self.signal.get() - source);
     }
 
-    /// Is a specific IRQ source active
-    pub fn is_active(&self, source: IRQSource) -> bool {
+    /// Is a specific interrupt source active
+    pub fn is_active(&self, source: InterruptSource) -> bool {
         self.signal.get().contains(source)
     }
 }
@@ -188,7 +189,7 @@ impl NES {
             target_cycles: 0,
             total_cycles: 0,
             trace_instructions: log::log_enabled!(Trace),
-            ppu: PPU::new(mapper.clone()),
+            ppu: PPU::new(mapper.clone(), signals.clone()),
 
             input: InputState::new(),
             apu: APU::new(signals.clone()),
@@ -223,16 +224,22 @@ impl NES {
     pub fn simulate_frame(&mut self) {
         self.target_cycles += CYCLES_PER_FRAME;
         while self.target_cycles > self.total_cycles {
-            if self.ppu.request_nmi {
-                self.interrupt(Interrupt::NMI);
-                self.ppu.request_nmi = false;
-            } else if self.signals.is_any_active() && !self.SR.I {
-                self.interrupt(Interrupt::IRQ);
+            if self.signals.is_any_active() {
+                self.handle_interrupt();
             }
             cpu::emulate_instruction(self);
         }
         // At the end of the frame, flush any remaining audio samples.
         self.apu.run_until_cycle(self.total_cycles);
+    }
+
+    fn handle_interrupt(&mut self) {
+        if self.signals.is_active(InterruptSource::VBLANK_NMI) {
+            self.signals.acknowledge_interrupt(InterruptSource::VBLANK_NMI);
+            self.interrupt(Interrupt::NMI);
+        } else if self.signals.is_any_active() && !self.SR.I {
+            self.interrupt(Interrupt::IRQ);
+        }
     }
 
     pub fn interrupt(&mut self, interrupt: Interrupt) {
