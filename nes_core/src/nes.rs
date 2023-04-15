@@ -312,10 +312,6 @@ impl NES {
         }
     }
 
-    pub fn reset_state(&mut self) {
-        self.SP = 0xFD;
-    }
-
     pub fn set_status_register(&mut self, value: u8) {
         self.SR = StatusRegister::from_byte(value);
     }
