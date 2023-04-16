@@ -224,6 +224,10 @@ impl NES {
     }
 
     pub fn do_reset_interrupt(&mut self) {
+        // https://www.nesdev.org/wiki/CPU_interrupts
+        self.read8(self.PC); // fetch opcode (and discard it)
+        self.read8(self.PC); // read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
+
         // The push of PC and SP is suppressed for RESET, but the cycles and SP decrement still occur.
         self.SP = self.SP.wrapping_sub(3);
         self.tick(); self.tick(); self.tick();
@@ -233,21 +237,31 @@ impl NES {
     }
 
     pub fn do_nmi_interrupt(&mut self) {
+        // https://www.nesdev.org/wiki/CPU_interrupts
+        self.read8(self.PC); // fetch opcode (and discard it)
+        self.read8(self.PC); // read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
+
         self.push16(self.PC);
         self.push8(self.SR.to_byte());
         self.PC = self.read_addr(0xFFFA);
     }
 
     pub fn do_brk_interrupt(&mut self) {
+        // https://www.nesdev.org/wiki/CPU_interrupts
+        self.read8(self.PC); // read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
+
         self.push16(self.PC);
         self.push8(self.SR.to_byte());
         self.SR.B = true;
-        self.tick();
         self.SR.I = true;
         self.PC = self.read_addr(0xFFFE);
     }
 
     pub fn do_irq_interrupt(&mut self) {
+        // https://www.nesdev.org/wiki/CPU_interrupts
+        self.read8(self.PC); // fetch opcode (and discard it)
+        self.read8(self.PC); // read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
+
         self.push16(self.PC);
         self.push8(self.SR.to_byte());
         self.SR.I = true;
