@@ -38,11 +38,6 @@ impl SquareWave {
         let current_period = self.period;
         let target_period = self.sweep.calculate_target_period(current_period);
         let mute = self.sweep.should_mute(current_period);
-        if mute {
-            output.fill(0);
-            // All zeroes
-            return;
-        }
 
         let period_s: f64 = (16 * (target_period + 1)) as f64 / CPU_FREQ as f64;
         let time_step = step_duration_s / output.len() as f64;
@@ -51,6 +46,9 @@ impl SquareWave {
             let phase = (now_s / period_s) % 1.0;
 
             let mut volume = self.envelope.get_volume();
+            if mute {
+                volume = 0;
+            }
             if self.length_counter.is_zero() {
                 volume = 0;
             }

@@ -23,12 +23,6 @@ impl TriangleWave {
         step_duration_s: f64,
         output: &mut [u8],
     ) {
-        if self.period < 2 {
-            output.fill(0);
-            // All zeroes
-            return;
-        }
-
         let period_s: f64 = (32 * (self.period + 1)) as f64 / CPU_FREQ as f64;
         let time_step = step_duration_s / output.len() as f64;
         for (i, sample) in output.iter_mut().enumerate() {
@@ -55,6 +49,9 @@ impl TriangleWave {
                 (step_0_1 * 16.0).floor() as u8
             };
 
+            if self.period < 2 {
+                volume = 0;
+            }
             if self.length_counter.is_zero() {
                 volume = 0;
             }
