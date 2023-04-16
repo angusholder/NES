@@ -30,8 +30,6 @@ pub struct APU {
     noise: Noise,
     dmc: DMC,
 
-    /// Which channels the game wants enabled currently.
-    guest_enabled_channels: AudioChannels,
     /// The user can override to mute a channel that the game has enabled.
     host_enabled_channels: AudioChannels,
 
@@ -120,7 +118,6 @@ impl APU {
             noise: Noise::new(),
             dmc: DMC::new(),
 
-            guest_enabled_channels: AudioChannels::empty(),
             host_enabled_channels: AudioChannels::all(),
 
             irq_inhibit: false,
@@ -214,19 +211,21 @@ impl APU {
         self.mixed_samples.resize(samples_to_output, 0f32);
         self.mixed_samples.fill(0.0);
 
-        if self.channel_enabled(AudioChannels::SQUARE1) {
+        let enabled: AudioChannels = self.host_enabled_channels;
+
+        if enabled.contains(AudioChannels::SQUARE1) {
             self.square_wave1.output_samples(start_time_s, step_duration_s, &mut self.sq1_samples);
         }
-        if self.channel_enabled(AudioChannels::SQUARE2) {
+        if enabled.contains(AudioChannels::SQUARE2) {
             self.square_wave2.output_samples(start_time_s, step_duration_s, &mut self.sq2_samples);
         }
-        if self.channel_enabled(AudioChannels::TRIANGLE) {
+        if enabled.contains(AudioChannels::TRIANGLE) {
             self.triangle_wave.output_samples(start_time_s, step_duration_s, &mut self.tri_samples);
         }
-        if self.channel_enabled(AudioChannels::NOISE) {
+        if enabled.contains(AudioChannels::NOISE) {
             self.noise.output_samples(samples_per_second, &mut self.noise_samples);
         }
-        if self.host_enabled_channels.contains(AudioChannels::DMC) {
+        if enabled.contains(AudioChannels::DMC) {
             self.dmc.output_samples(&mut self.dmc_samples);
         }
 
@@ -354,12 +353,12 @@ impl APU {
     }
 
     pub fn write_status_register(&mut self, value: u8) {
-        self.guest_enabled_channels = AudioChannels::from_bits_truncate(value);
-        self.square_wave1.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE1));
-        self.square_wave2.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::SQUARE2));
-        self.triangle_wave.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::TRIANGLE));
-        self.noise.length_counter.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::NOISE));
-        self.dmc.set_channel_enabled(self.guest_enabled_channels.contains(AudioChannels::DMC));
+        let channels = AudioChannels::from_bits_truncate(value);
+        self.square_wave1.length_counter.set_channel_enabled(channels.contains(AudioChannels::SQUARE1));
+        self.square_wave2.length_counter.set_channel_enabled(channels.contains(AudioChannels::SQUARE2));
+        self.triangle_wave.length_counter.set_channel_enabled(channels.contains(AudioChannels::TRIANGLE));
+        self.noise.length_counter.set_channel_enabled(channels.contains(AudioChannels::NOISE));
+        self.dmc.set_channel_enabled(channels.contains(AudioChannels::DMC));
         // Writing to this register clears the DMC interrupt flag.
         self.signals.acknowledge_interrupt(InterruptSource::APU_DMC);
     }
@@ -373,11 +372,6 @@ impl APU {
             self.tick_envelope_and_triangle();
             self.tick_length_counters_and_sweep();
         }
-    }
-
-    fn channel_enabled(&self, channel: AudioChannels) -> bool {
-        let enabled = self.host_enabled_channels & self.guest_enabled_channels;
-        enabled.contains(channel)
     }
 
     pub fn toggle_channel(&mut self, channel: AudioChannels) {
