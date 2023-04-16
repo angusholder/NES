@@ -198,7 +198,7 @@ pub fn emulate_instruction(nes: &mut NES) {
         }
         PHP => {
             nes.read8(nes.PC); // Throwaway read
-            let sr = nes.get_status_register() | StatusRegister::FLAG_B;
+            let sr = nes.SR.to_byte() | StatusRegister::FLAG_B;
             nes.push8(sr);
         }
         PLA => {
@@ -257,7 +257,7 @@ fn unimplemented_instruction(nes: &mut NES, op: u8) {
 }
 
 fn pop_status_register(nes: &mut NES) {
-    let new_sr = nes.pop8() & !StatusRegister::FLAG_B | StatusRegister::FLAG_U;
+    let new_sr = nes.pop8() | StatusRegister::FLAG_U;
     nes.set_status_register(new_sr);
 }
 

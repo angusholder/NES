@@ -103,8 +103,6 @@ pub struct StatusRegister {
     pub V: bool,
     /// Negative
     pub N: bool,
-    /// BRK
-    pub B: bool,
 }
 
 impl Display for StatusRegister {
@@ -116,7 +114,6 @@ impl Display for StatusRegister {
         f.write_char(if self.D { 'D' } else { 'd' })?;
         f.write_char(if self.V { 'V' } else { 'v' })?;
         f.write_char(if self.N { 'N' } else { 'n' })?;
-        f.write_char(if self.B { 'B' } else { 'b' })?;
         Ok(())
     }
 }
@@ -126,6 +123,8 @@ impl StatusRegister {
     pub const FLAG_Z: u8 = 0b00000010;
     pub const FLAG_I: u8 = 0b00000100;
     pub const FLAG_D: u8 = 0b00001000;
+    /// The B status flag doesn't physically exist inside the CPU, and only appears as different values being pushed for bit 4 of the saved status bits by PHP, BRK, and NMI/IRQ.
+    /// https://www.nesdev.org/wiki/CPU_interrupts
     pub const FLAG_B: u8 = 0b00010000;
     pub const FLAG_U: u8 = 0b00100000;
     pub const FLAG_V: u8 = 0b01000000;
@@ -138,7 +137,6 @@ impl StatusRegister {
         ((self.Z as u8) << 1) |
         ((self.I as u8) << 2) |
         ((self.D as u8) << 3) |
-        ((self.B as u8) << 4) |
         StatusRegister::FLAG_U |
         ((self.V as u8) << 6) |
         ((self.N as u8) << 7)
@@ -150,7 +148,6 @@ impl StatusRegister {
             Z: value & StatusRegister::FLAG_Z != 0,
             I: value & StatusRegister::FLAG_I != 0,
             D: value & StatusRegister::FLAG_D != 0,
-            B: value & StatusRegister::FLAG_B != 0,
             V: value & StatusRegister::FLAG_V != 0,
             N: value & StatusRegister::FLAG_N != 0,
         }
@@ -251,8 +248,7 @@ impl NES {
         self.read8(self.PC); // read next instruction byte (actually the same as above, since PC increment is suppressed. Also discarded.)
 
         self.push16(self.PC);
-        self.push8(self.SR.to_byte());
-        self.SR.B = true;
+        self.push8(self.SR.to_byte() | StatusRegister::FLAG_B);
         self.SR.I = true;
         self.PC = self.read_addr(0xFFFE);
     }
@@ -328,10 +324,6 @@ impl NES {
 
     pub fn set_status_register(&mut self, value: u8) {
         self.SR = StatusRegister::from_byte(value);
-    }
-
-    pub fn get_status_register(&mut self) -> u8 {
-        self.SR.to_byte()
     }
 
     pub fn push8(&mut self, value: u8) {
