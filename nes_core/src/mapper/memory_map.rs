@@ -162,24 +162,14 @@ impl MemoryMap {
         self.chr_storage[base_addr + (addr as usize & 0x3FF)]
     }
 
-    pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {
-        match addr {
-            0x0000..=0x1FFF => {
-                let bank_no = (addr as usize >> 0x3FFu32.count_ones()) & 7;
-                let base_addr = self.chr_base_addrs[bank_no];
+    pub fn write_pattern_table(&mut self, addr: u16, value: u8) {
+        let bank_no = (addr as usize >> 0x3FFu32.count_ones()) & 7;
+        let base_addr = self.chr_base_addrs[bank_no];
 
-                if self.chr_writeable {
-                    self.chr_storage[base_addr + (addr as usize & 0x3FF)] = value;
-                } else {
-                    mapper::out_of_bounds_write("CHR ROM", addr, value);
-                }
-            }
-            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.nametables.write(addr, value);
-            }
-            _ => {
-                mapper::out_of_bounds_write("PPU memory space", addr, value)
-            }
+        if self.chr_writeable {
+            self.chr_storage[base_addr + (addr as usize & 0x3FF)] = value;
+        } else {
+            mapper::out_of_bounds_write("CHR ROM", addr, value);
         }
     }
 }

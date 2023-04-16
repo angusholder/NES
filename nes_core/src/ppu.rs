@@ -101,18 +101,34 @@ impl PPU {
     }
 
     fn write_mem(&mut self, addr: u16, val: u8) {
-        if addr >= 0x3F00 && addr < 0x4000 {
-            self.palettes[mask_palette_addr(addr)] = val & 0b11_1111;
-        } else {
-            self.mapper.write_ppu_bus(addr, val);
+        // PPU address bus is 14 bits, mask out the upper bits
+        match addr & 0x3FFF {
+            0x0000..=0x1FFF => {
+                self.mapper.write_pattern_table(addr, value)
+            }
+            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
+                self.mapper.write_nametable(addr, value);
+            }
+            0x3F00..=0x3FFF => {
+                self.palettes[mask_palette_addr(addr)] = val & 0b11_1111;
+            }
+            _ => unreachable!(),
         }
     }
 
     fn read_mem(&mut self, addr: u16) -> u8 {
-        if addr >= 0x3F00 && addr < 0x4000 {
-            self.palettes[mask_palette_addr(addr)]
-        } else {
-            self.mapper.read_ppu_bus(addr)
+        // PPU address bus is 14 bits, mask out the upper bits
+        match addr & 0x3FFF {
+            0x0000..=0x1FFF => {
+                self.mapper.read_pattern_table(addr)
+            }
+            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
+                self.mapper.read_nametable(addr)
+            }
+            0x3F00..=0x3FFF => {
+                self.palettes[mask_palette_addr(addr)]
+            }
+            _ => unreachable!(),
         }
     }
 

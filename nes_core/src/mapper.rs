@@ -143,20 +143,6 @@ impl Mapper {
         self.memory_map.borrow_mut().write_main_bus(&mut *self.raw_mapper.borrow_mut(), addr, value);
     }
 
-    pub fn read_ppu_bus(&mut self, addr: u16) -> u8 {
-        match addr {
-            0x0000..=0x1FFF => {
-                self.read_pattern_table(addr)
-            }
-            0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.read_nametable(addr)
-            }
-            _ => {
-                out_of_bounds_read("PPU memory space", addr)
-            }
-        }
-    }
-
     #[inline(always)]
     pub fn read_nametable(&mut self, addr: u16) -> u8 {
         self.memory_map.borrow().nametables.read(addr)
@@ -171,8 +157,12 @@ impl Mapper {
         result
     }
 
-    pub fn write_ppu_bus(&mut self, addr: u16, value: u8) {
-        self.memory_map.borrow_mut().write_ppu_bus(mask_ppu_addr(addr), value);
+    pub fn write_nametable(&mut self, addr: u16, value: u8) {
+        self.memory_map.borrow_mut().nametables.write(addr, value);
+    }
+
+    pub fn write_pattern_table(&mut self, addr: u16, value: u8) {
+        self.memory_map.borrow_mut().write_pattern_table(mask_ppu_addr(addr), value);
     }
 
     pub fn on_cycle_scanline(&mut self) {
