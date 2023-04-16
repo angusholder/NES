@@ -240,6 +240,7 @@ impl NES {
 
         self.push16(self.PC);
         self.push8(self.SR.to_byte());
+        self.SR.I = true;
         self.PC = self.read_addr(0xFFFA);
     }
 
