@@ -157,25 +157,6 @@ impl StatusRegister {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Interrupt {
-    RESET,
-    NMI,
-    IRQ,
-    BRK,
-}
-
-impl Interrupt {
-    pub fn get_vector_address(self) -> u16 {
-        match self {
-            Interrupt::RESET => 0xFFFC,
-            Interrupt::NMI => 0xFFFA,
-            Interrupt::IRQ => 0xFFFE,
-            Interrupt::BRK => 0xFFFE,
-        }
-    }
-}
-
 impl NES {
     fn new(mapper: Mapper, signals: Rc<Signals>) -> NES {
         NES {
@@ -215,7 +196,7 @@ impl NES {
 
         self.ram.fill(0xCC);
 
-        self.interrupt(Interrupt::RESET);
+        self.do_reset_interrupt();
 
         // Power-up and reset have the effect of writing $00, silencing all channels.
         self.apu.write_status_register(0x00);
@@ -236,29 +217,41 @@ impl NES {
     fn handle_interrupt(&mut self) {
         if self.signals.is_active(InterruptSource::VBLANK_NMI) {
             self.signals.acknowledge_interrupt(InterruptSource::VBLANK_NMI);
-            self.interrupt(Interrupt::NMI);
+            self.do_nmi_interrupt();
         } else if self.signals.is_any_active() && !self.SR.I {
-            self.interrupt(Interrupt::IRQ);
+            self.do_irq_interrupt();
         }
     }
 
-    pub fn interrupt(&mut self, interrupt: Interrupt) {
-        if interrupt != Interrupt::RESET {
-            self.push16(self.PC);
-            self.push8(self.SR.to_byte());
-            if interrupt == Interrupt::BRK {
-                self.SR.B = true;
-                self.tick();
-            }
-        } else {
-            self.SP = self.SP.wrapping_sub(3);
-            self.tick(); self.tick(); self.tick();
-        }
+    pub fn do_reset_interrupt(&mut self) {
+        // The push of PC and SP is suppressed for RESET, but the cycles and SP decrement still occur.
+        self.SP = self.SP.wrapping_sub(3);
+        self.tick(); self.tick(); self.tick();
 
-        if interrupt != Interrupt::NMI {
-            self.SR.I = true;
-        }
-        self.PC = self.read_addr(interrupt.get_vector_address());
+        self.SR.I = true;
+        self.PC = self.read_addr(0xFFFC);
+    }
+
+    pub fn do_nmi_interrupt(&mut self) {
+        self.push16(self.PC);
+        self.push8(self.SR.to_byte());
+        self.PC = self.read_addr(0xFFFA);
+    }
+
+    pub fn do_brk_interrupt(&mut self) {
+        self.push16(self.PC);
+        self.push8(self.SR.to_byte());
+        self.SR.B = true;
+        self.tick();
+        self.SR.I = true;
+        self.PC = self.read_addr(0xFFFE);
+    }
+
+    pub fn do_irq_interrupt(&mut self) {
+        self.push16(self.PC);
+        self.push8(self.SR.to_byte());
+        self.SR.I = true;
+        self.PC = self.read_addr(0xFFFE);
     }
 
     pub fn read8(&mut self, addr: u16) -> u8 {

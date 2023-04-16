@@ -190,7 +190,7 @@ pub fn emulate_instruction(nes: &mut NES) {
         BVC_REL => branch_cond(nes, nes.SR.V == false),
         BVS_REL => branch_cond(nes, nes.SR.V == true),
 
-        BRK => nes.interrupt(crate::nes::Interrupt::BRK),
+        BRK => nes.do_brk_interrupt(),
 
         PHA => {
             nes.read8(nes.PC); // Throwaway read

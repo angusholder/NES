@@ -15,7 +15,7 @@ use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_me
 use nes_core::apu::{AudioChannels, SampleBuffer};
 use nes_core::cartridge;
 use nes_core::input::JoypadButtons;
-use nes_core::nes::{Interrupt, NES};
+use nes_core::nes::{NES};
 use nes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_PIXELS};
 
 const TRACE_FILE: bool = false;
@@ -210,7 +210,7 @@ impl App {
 
     fn reset(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
-            nes.interrupt(Interrupt::RESET);
+            nes.do_reset_interrupt();
         }
     }
 
