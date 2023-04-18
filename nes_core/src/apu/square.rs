@@ -105,31 +105,4 @@ impl SquareWave {
         self.sweep.shift_count = value & 0b111;
         self.sweep.set_reload_flag();
     }
-
-    fn get_target_period_and_volume(&self) -> (u32, u8) {
-        let current_period = self.period;
-        let target_period = self.sweep.calculate_target_period(current_period);
-        let mut volume = self.envelope.get_volume();
-        if self.sweep.should_mute(current_period) {
-            volume = 0;
-        }
-        return (target_period, volume);
-    }
-
-    pub fn get_snapshot(&self) -> SquareWaveStateSnapshot {
-        let (period, volume) = self.get_target_period_and_volume();
-        SquareWaveStateSnapshot {
-            duty_cycle: self.duty_cycle,
-            period,
-            volume,
-        }
-    }
-}
-
-/// Emit one of these whenever any parameters of the square wave change.
-/// We don't currently track the phase of the wave, hopefully it's inconsequential?
-pub struct SquareWaveStateSnapshot {
-    duty_cycle: f32,
-    period: u32,
-    volume: u8, // 0-15
 }
