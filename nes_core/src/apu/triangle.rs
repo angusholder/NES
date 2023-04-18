@@ -27,20 +27,15 @@ impl TriangleWave {
         let time_step = step_duration_s / output.len() as f64;
         for (i, sample) in output.iter_mut().enumerate() {
             let now_s = step_start_time_s + time_step * i as f64;
-            let scaled: f64  = now_s / period_s * 4.0;
-            // Number between 0 and 3 - which of the 4 sections of the triangle wave are we in
-            let cycle_phase = scaled as i64 % 4;
+            let scaled: f64  = now_s / period_s * 2.0;
             // Number between 0 and 1 - how far through a single section are we
             let cycle_offset = (scaled % 1.0) as f32;
 
-            let step_m1_1 = match cycle_phase {
+            let step_0_1 = match scaled as i64 % 2 {
                 0 => cycle_offset, // 0 to 1
                 1 => 1.0 - cycle_offset, // 1 to 0
-                2 => -cycle_offset, // 0 to -1
-                3 => -1.0 + cycle_offset, // -1 to 0
                 _ => unreachable!(),
             };
-            let step_0_1 = (step_m1_1 + 1.0) / 2.0;
             let mut volume = if step_0_1 >= 1.0 {
                 15
             } else if step_0_1 <= 0.0 {
