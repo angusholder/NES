@@ -104,10 +104,10 @@ impl PPU {
         // PPU address bus is 14 bits, mask out the upper bits
         match addr & 0x3FFF {
             0x0000..=0x1FFF => {
-                self.mapper.write_pattern_table(addr, value)
+                self.mapper.write_pattern_table(addr, val)
             }
             0x2000..=0x2FFF | 0x3000..=0x3EFF => {
-                self.mapper.write_nametable(addr, value);
+                self.mapper.write_nametable(addr, val);
             }
             0x3F00..=0x3FFF => {
                 self.palettes[mask_palette_addr(addr)] = val & 0b11_1111;
