@@ -62,9 +62,7 @@ impl SquareWave {
 
     pub fn tick_length_and_swap(&mut self) {
         self.length_counter.tick();
-        if let Some(target_period) = self.sweep.tick(self.period) {
-            self.period = target_period;
-        }
+        self.sweep.tick(&mut self.period);
     }
 
     // $4003/$4007

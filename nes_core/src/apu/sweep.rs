@@ -32,24 +32,22 @@ impl Sweep {
         }
     }
 
-    pub fn tick(&mut self, current_period: u32) -> Option<u32> {
+    pub fn tick(&mut self, period: &mut u32) {
         // When the frame counter sends a half-frame clock (at 120 or 96 Hz), two things happen
 
         // If the divider's counter is zero or the reload flag is true: The divider counter is set to P and the reload flag is cleared. Otherwise, the divider counter is decremented.
         if self.reload_flag {
             self.divider.reset(self.divider_period);
             self.reload_flag = false;
-            return None;
+            return;
         }
 
         // If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the channel: The pulse's period is set to the target period.
         if self.divider.tick(self.divider_period) {
-            if self.enabled && !self.should_mute(current_period) {
-                return Some(self.calculate_target_period(current_period));
+            if self.enabled && !self.should_mute(*period) {
+                *period = self.calculate_target_period(*period);
             }
         }
-
-        None
     }
 
     // $4001/$4005
