@@ -85,7 +85,7 @@ impl Signals {
     }
 }
 
-pub const CYCLES_PER_FRAME: u64 = 29781;
+pub const CYCLES_PER_FRAME: u64 = 29829;
 
 /// https://www.nesdev.org/wiki/Status_flags
 #[allow(non_snake_case)]
