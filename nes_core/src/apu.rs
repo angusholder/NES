@@ -211,7 +211,8 @@ impl APU {
         let pulse_out = PULSE_OUT[(pulse1 + pulse2) as usize];
         let tnd_out = TND_OUT[(3 * triangle + 2 * noise + dmc) as usize];
         let output = pulse_out + tnd_out;
-        output * 2.0 - 1.0
+        // Output is between 0 and 1
+        output
     }
 
     pub fn read_register(&mut self, addr: u16) -> u8 {
