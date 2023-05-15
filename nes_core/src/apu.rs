@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use bitflags::bitflags;
-use log::{info, warn};
+use log::{info};
 use crate::apu::dmc::DMC;
 
 mod square;
@@ -319,9 +319,10 @@ impl APU {
     }
 
     pub fn output_samples(&mut self, output: impl FnOnce(&[f32])) {
-        if self.mixed_samples.len() != SAMPLES_PER_FRAME as usize {
-            warn!("Expected {SAMPLES_PER_FRAME} samples, got {}", self.mixed_samples.len());
-        }
+        // TODO: Find out why some frames have one fewer or one more sample than they should.
+        // if self.mixed_samples.len() != SAMPLES_PER_FRAME as usize {
+        //     warn!("Expected {SAMPLES_PER_FRAME} samples, got {}", self.mixed_samples.len());
+        // }
         output(&self.mixed_samples[..]);
         self.mixed_samples.clear();
     }
