@@ -136,6 +136,9 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
                 nes.simulate_frame();
 
+                let mut sample_buffer = app.audio_device.lock().get_output_buffer();
+                nes.apu.output_samples(|samples| sample_buffer.write_samples(samples));
+
                 let mut display_buffer = [0u32; SCREEN_PIXELS];
                 nes.ppu.output_display_buffer_u32_argb(&mut display_buffer);
                 window.update_with_buffer(&display_buffer, SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
@@ -187,10 +190,9 @@ impl App {
 
     fn load_rom(&mut self, rom_filename: PathBuf) {
         match load_nes_system(&rom_filename) {
-            Ok(mut nes) => {
+            Ok(nes) => {
                 let mut sample_buffer = self.audio_device.lock().get_output_buffer();
                 sample_buffer.clear();
-                nes.apu.attach_output_device(sample_buffer);
                 self.audio_device.resume();
                 self.nes = Some(nes);
                 self.rom_filename = Some(rom_filename);

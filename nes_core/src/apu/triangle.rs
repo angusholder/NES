@@ -1,9 +1,10 @@
-use crate::apu::CPU_FREQ;
 use crate::apu::length_counter::LengthCounter;
 use crate::apu::linear_counter::LinearCounter;
 
 pub struct TriangleWave {
     period: u32,
+    timer: u32,
+    sequence_pos: usize,
     pub length_counter: LengthCounter,
     pub linear_counter: LinearCounter,
 }
@@ -12,50 +13,46 @@ impl TriangleWave {
     pub fn new() -> TriangleWave {
         TriangleWave {
             period: 0,
+            timer: 0,
+            sequence_pos: 0,
             length_counter: LengthCounter::new(),
             linear_counter: LinearCounter::new(),
         }
     }
 
-    pub fn output_samples(
-        &mut self,
-        step_start_time_s: f64,
-        step_duration_s: f64,
-        output: &mut [u8],
-    ) {
-        let period_s: f64 = (32 * (self.period + 1)) as f64 / CPU_FREQ as f64;
-        let time_step = step_duration_s / output.len() as f64;
-        for (i, sample) in output.iter_mut().enumerate() {
-            let now_s = step_start_time_s + time_step * i as f64;
-            let scaled: f64  = now_s / period_s * 2.0;
-            // Number between 0 and 1 - how far through a single section are we
-            let cycle_offset = (scaled % 1.0) as f32;
-
-            let step_0_1 = match scaled as i64 % 2 {
-                0 => cycle_offset, // 0 to 1
-                1 => 1.0 - cycle_offset, // 1 to 0
-                _ => unreachable!(),
-            };
-            let mut volume = if step_0_1 >= 1.0 {
-                15
-            } else if step_0_1 <= 0.0 {
-                0
-            } else {
-                (step_0_1 * 16.0).floor() as u8
-            };
-
-            if self.period < 2 {
-                volume = 0;
-            }
-            if self.length_counter.is_zero() {
-                volume = 0;
-            }
-            if self.linear_counter.is_zero() {
-                volume = 0;
-            }
-
-            *sample = volume;
+    pub fn tick(&mut self) {
+        if self.timer != 0 {
+            self.timer -= 1;
+        } else {
+            self.clock_waveform_generator();
+            self.timer = self.period;
         }
+    }
+
+    fn clock_waveform_generator(&mut self) {
+        self.sequence_pos = (self.sequence_pos + 1) % Self::OUTPUT_SEQUENCE.len();
+    }
+
+    const OUTPUT_SEQUENCE: [u8; 32] = [
+        15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0,
+        0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
+    ];
+
+    pub fn get_current_output(&self) -> u8 {
+        let mut volume = Self::OUTPUT_SEQUENCE[self.sequence_pos];
+
+        // At the expense of accuracy, [popping] can be eliminated in an emulator e.g. by halting the triangle channel when an ultrasonic frequency is set (a timer value less than 2).
+        if self.period < 2 {
+            volume = 0;
+        }
+        if self.length_counter.is_zero() {
+            volume = 0;
+        }
+        if self.linear_counter.is_zero() {
+            volume = 0;
+        }
+
+        volume
     }
 
     // $4008

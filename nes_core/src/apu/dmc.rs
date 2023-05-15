@@ -35,10 +35,12 @@ impl DMC {
         }
     }
 
-    pub fn output_samples(&self, samples: &mut [u8]) {
-        for sample in samples.iter_mut() {
-            *sample = self.output_level;
-        }
+    pub fn tick(&mut self) {
+        // TODO: Implement delta DMC
+    }
+
+    pub fn get_current_output(&self) -> u8 {
+        self.output_level
     }
 
     pub fn set_channel_enabled(&mut self, enabled: bool) {

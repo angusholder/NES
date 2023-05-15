@@ -19,11 +19,9 @@ use crate::apu::noise::Noise;
 use crate::apu::square::{SquareUnit, SquareWave};
 use crate::apu::triangle::TriangleWave;
 use crate::mapper;
-use crate::nes::{InterruptSource, Signals};
+use crate::nes::{CYCLES_PER_FRAME, InterruptSource, Signals};
 
 pub struct APU {
-    output_buffer: Option<SampleBuffer>,
-
     square_wave1: SquareWave,
     square_wave2: SquareWave,
     triangle_wave: TriangleWave,
@@ -36,14 +34,11 @@ pub struct APU {
     irq_inhibit: bool,
     frame_counter_mode: FrameCountMode,
 
-    sq1_samples: Vec<u8>,
-    sq2_samples: Vec<u8>,
-    tri_samples: Vec<u8>,
-    noise_samples: Vec<u8>,
-    dmc_samples: Vec<u8>,
     mixed_samples: Vec<f32>,
+    cycles_between_samples: f64,
+    next_cycle_to_sample: u64,
+    sample_count: u64,
 
-    last_cpu_cycles: u64,
     apu_cycle: u64,
     signals: Rc<Signals>,
 }
@@ -88,7 +83,7 @@ impl SampleBuffer {
         let mut buffer = self.buffer.lock().unwrap();
         // Don't bother logging warning if the buffer is totally empty;
         // that probably means the emulator is paused...
-        if buffer.len() < out.len() && buffer.len() > 0 {
+        if buffer.len() < out.len() {
             warn!("Not enough samples in buffer - needed {}, got {}", out.len(), buffer.len());
         }
         for x in out.iter_mut() {
@@ -107,11 +102,10 @@ impl SampleBuffer {
     }
 }
 
+const SAMPLES_PER_FRAME: u32 = 735;
 impl APU {
     pub fn new(signals: Rc<Signals>) -> APU {
         APU {
-            output_buffer: None,
-
             square_wave1: SquareWave::new(SquareUnit::Pulse1),
             square_wave2: SquareWave::new(SquareUnit::Pulse2),
             triangle_wave: TriangleWave::new(),
@@ -123,24 +117,30 @@ impl APU {
             irq_inhibit: false,
             frame_counter_mode: FrameCountMode::Step4,
 
-            sq1_samples: Vec::new(),
-            sq2_samples: Vec::new(),
-            tri_samples: Vec::new(),
-            noise_samples: Vec::new(),
-            dmc_samples: Vec::new(),
-            mixed_samples: Vec::new(),
+            mixed_samples: Vec::with_capacity(SAMPLES_PER_FRAME as usize),
 
-            last_cpu_cycles: 0,
+            cycles_between_samples: (CYCLES_PER_FRAME as f64 / SAMPLES_PER_FRAME as f64),
+            next_cycle_to_sample: 0,
+            sample_count: 0,
+
             apu_cycle: 0,
             signals,
         }
     }
 
-    pub fn attach_output_device(&mut self, output_buffer: SampleBuffer) {
-        self.output_buffer = Some(output_buffer);
-    }
+    pub fn step_cycle(&mut self, cpu_cycles: u64) {
+        self.triangle_wave.tick();
 
-    pub fn step_cycle(&mut self) {
+        // All APU components other than triangle run at half the CPU clock rate, so skip them every other call.
+        if cpu_cycles & 1 == 1 {
+            return;
+        }
+
+        self.square_wave1.tick();
+        self.square_wave2.tick();
+        self.noise.tick();
+        self.dmc.tick();
+
         self.apu_cycle += 1;
 
         // See https://www.nesdev.org/wiki/APU_Frame_Counter
@@ -167,10 +167,21 @@ impl APU {
                 self.apu_cycle = 0;
             }
             _ => {
-                // Nothing changed, don't call run_until_cycle
-                return;
             }
         }
+
+        if cpu_cycles >= self.next_cycle_to_sample {
+            self.record_sample();
+        }
+    }
+
+    fn record_sample(&mut self) {
+        let sample: f32 = self.get_current_output();
+        self.mixed_samples.push(sample);
+        self.sample_count += 1;
+
+        let next_cycle_to_sample: f64 = self.sample_count as f64 * self.cycles_between_samples;
+        self.next_cycle_to_sample = next_cycle_to_sample.floor() as u64;
     }
 
     fn tick_envelope_and_triangle(&mut self) {
@@ -194,40 +205,30 @@ impl APU {
         self.signals.request_interrupt(InterruptSource::APU_FRAME_COUNTER);
     }
 
-    pub fn run_until_cycle(&mut self, end_cpu_cycle: u64) {
-        let start_cpu_cycle = self.last_cpu_cycles;
-        // If we have no output, don't bother generating any samples
-        let samples_per_second = self.output_buffer.as_ref().map(|b| b.samples_per_second).unwrap_or(0);
+    fn get_current_output(&self) -> f32 {
+        Self::mix_channels(
+            self.square_wave1.get_current_output(),
+            self.square_wave2.get_current_output(),
+            self.triangle_wave.get_current_output(),
+            self.noise.get_current_output(),
+            self.dmc.get_current_output(),
+            self.host_enabled_channels,
+        )
+    }
 
-        let start_time_s = start_cpu_cycle as f64 / CPU_FREQ as f64;
-        let step_duration_s = (end_cpu_cycle - start_cpu_cycle) as f64 / CPU_FREQ as f64;
-        let samples_to_output = (samples_per_second as f64 * step_duration_s) as usize;
-
-        self.sq1_samples.resize(samples_to_output, 0);
-        self.sq2_samples.resize(samples_to_output, 0);
-        self.tri_samples.resize(samples_to_output, 0);
-        self.noise_samples.resize(samples_to_output, 0);
-        self.dmc_samples.resize(samples_to_output, 0);
-        self.mixed_samples.resize(samples_to_output, 0f32);
-        self.mixed_samples.fill(0.0);
-
-        let enabled: AudioChannels = self.host_enabled_channels;
-
-        if enabled.contains(AudioChannels::SQUARE1) {
-            self.square_wave1.output_samples(start_time_s, step_duration_s, &mut self.sq1_samples);
-        }
-        if enabled.contains(AudioChannels::SQUARE2) {
-            self.square_wave2.output_samples(start_time_s, step_duration_s, &mut self.sq2_samples);
-        }
-        if enabled.contains(AudioChannels::TRIANGLE) {
-            self.triangle_wave.output_samples(start_time_s, step_duration_s, &mut self.tri_samples);
-        }
-        if enabled.contains(AudioChannels::NOISE) {
-            self.noise.output_samples(samples_per_second, &mut self.noise_samples);
-        }
-        if enabled.contains(AudioChannels::DMC) {
-            self.dmc.output_samples(&mut self.dmc_samples);
-        }
+    fn mix_channels(
+        mut pulse1: u8, // 0 to 15 (4-bit)
+        mut pulse2: u8, // 0 to 15 (4-bit)
+        mut triangle: u8, // 0 to 15 (4-bit)
+        mut noise: u8, // 0 to 15 (4-bit)
+        mut dmc: u8, // 0 to 127 (7-bit)
+        enabled: AudioChannels,
+    ) -> f32 {
+        if !enabled.contains(AudioChannels::SQUARE1) { pulse1 = 0; }
+        if !enabled.contains(AudioChannels::SQUARE2) { pulse2 = 0; }
+        if !enabled.contains(AudioChannels::TRIANGLE) { triangle = 0; }
+        if !enabled.contains(AudioChannels::NOISE) { noise = 0; }
+        if !enabled.contains(AudioChannels::DMC) { dmc = 0; }
 
         // Lookup table from https://www.nesdev.org/wiki/APU_Mixer
         static PULSE_OUT: [f32; 31] = {
@@ -251,33 +252,17 @@ impl APU {
             result
         };
 
-        for i in 0..samples_to_output {
-            // Mixing formula from here: https://www.nesdev.org/wiki/APU_Mixer
-            let pulse1: u8 = self.sq1_samples[i] & 15; // 0 to 15 (4-bit)
-            let pulse2: u8 = self.sq2_samples[i] & 15; // 0 to 15 (4-bit)
-            let triangle: u8 = self.tri_samples[i] & 15; // 0 to 15 (4-bit)
-            let noise: u8 = self.noise_samples[i] & 15; // 0 to 15 (4-bit)
-            let dmc: u8 = self.dmc_samples[i] & 127; // 0 to 127 (7-bit)
-
-            let pulse_out = PULSE_OUT[(pulse1 + pulse2) as usize];
-            let tnd_out = TND_OUT[(3 * triangle + 2 * noise + dmc) as usize];
-            let output = pulse_out + tnd_out;
-            self.mixed_samples[i] = output * 2.0 - 1.0;
-        }
-
-        if !self.mixed_samples.is_empty() {
-            if let Some(output_buffer) = self.output_buffer.as_mut() {
-                output_buffer.write_samples(&self.mixed_samples);
-            }
-        }
-
-        self.last_cpu_cycles = end_cpu_cycle;
+        // Mixing formula from here: https://www.nesdev.org/wiki/APU_Mixer
+        let pulse_out = PULSE_OUT[(pulse1 + pulse2) as usize];
+        let tnd_out = TND_OUT[(3 * triangle + 2 * noise + dmc) as usize];
+        let output = pulse_out + tnd_out;
+        output * 2.0 - 1.0
     }
 
-    pub fn read_register(&mut self, addr: u16, cpu_cycle: u64) -> u8 {
+    pub fn read_register(&mut self, addr: u16) -> u8 {
         match addr {
             0x4015 => {
-                self.read_status_register(cpu_cycle)
+                self.read_status_register()
             }
             _ => {
                 mapper::out_of_bounds_read("APU", addr)
@@ -285,10 +270,8 @@ impl APU {
         }
     }
 
-    fn read_status_register(&mut self, cpu_cycle: u64) -> u8 {
+    fn read_status_register(&mut self) -> u8 {
         // https://www.nesdev.org/wiki/APU#Status_($4015)
-
-        self.run_until_cycle(cpu_cycle);
 
         let mut status = 0u8;
 
@@ -318,9 +301,7 @@ impl APU {
         status
     }
 
-    pub fn write_register(&mut self, addr: u16, value: u8, cpu_cycle: u64) {
-        self.run_until_cycle(cpu_cycle);
-
+    pub fn write_register(&mut self, addr: u16, value: u8) {
         match addr {
             0x4000 => self.square_wave1.write_control(value),
             0x4001 => self.square_wave1.write_ramp(value),
@@ -379,6 +360,12 @@ impl APU {
         let state = if self.host_enabled_channels.contains(channel) { "on" } else { "off" };
         info!("Toggled channel {channel:?} to {state}")
     }
-}
 
-const CPU_FREQ: u32 = 1_789_773; // 1.789773 MHz
+    pub fn output_samples(&mut self, output: impl FnOnce(&[f32])) {
+        if self.mixed_samples.len() != SAMPLES_PER_FRAME as usize {
+            warn!("Expected {SAMPLES_PER_FRAME} samples, got {}", self.mixed_samples.len());
+        }
+        output(&self.mixed_samples[..]);
+        self.mixed_samples.clear();
+    }
+}

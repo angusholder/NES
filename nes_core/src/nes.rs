@@ -207,8 +207,6 @@ impl NES {
             }
             cpu::emulate_instruction(self);
         }
-        // At the end of the frame, flush any remaining audio samples.
-        self.apu.run_until_cycle(self.total_cycles);
     }
 
     fn handle_interrupt(&mut self) {
@@ -283,7 +281,7 @@ impl NES {
             0x4017 =>
                 self.input.read_joypad_2(),
             0x4000..=0x401F =>
-                self.apu.read_register(addr, self.total_cycles),
+                self.apu.read_register(addr),
         }
     }
 
@@ -319,7 +317,7 @@ impl NES {
             0x4014 =>
                 ppu::do_oam_dma(self, val),
             0x4000..=0x401F =>
-                self.apu.write_register(addr, val, self.total_cycles),
+                self.apu.write_register(addr, val),
         }
     }
 
@@ -356,10 +354,8 @@ impl NES {
         self.ppu.step_cycle();
         self.ppu.step_cycle();
 
-        // 1 APU cycle every other CPU cycle
-        if self.total_cycles & 1 == 0 {
-            self.apu.step_cycle();
-        }
+        // Most APU components run at half the CPU clock rate, but one needs the full clock rate
+        self.apu.step_cycle(self.total_cycles);
     }
 
     pub fn get_cycles(&self) -> u64 {

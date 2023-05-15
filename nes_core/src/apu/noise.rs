@@ -1,10 +1,10 @@
-use crate::apu::CPU_FREQ;
 use crate::apu::envelope::Envelope;
 use crate::apu::length_counter::LengthCounter;
 
 /// https://www.nesdev.org/wiki/APU_Noise
 pub struct Noise {
     period: u32,
+    timer: u32,
     feedback_bit_6: bool,
     shift_register: u16, // 15 bits
 
@@ -18,6 +18,7 @@ impl Noise {
     pub fn new() -> Noise {
         Noise {
             period: Self::PERIOD_LUT[0],
+            timer: 0,
             feedback_bit_6: false,
             shift_register: 1,
 
@@ -43,34 +44,29 @@ impl Noise {
         self.envelope.set_start_flag();
     }
 
-    pub fn output_samples(
-        &mut self,
-        samples_per_second: u32,
-        output: &mut [u8],
-    ) {
-        let mut cycles_until_feedback: i64 = 0;
-        let sample_gap_s = 1.0 / samples_per_second as f64;
-        let apu_freq = CPU_FREQ / 2;
-        let apu_cycle_len_s = 1.0 / apu_freq as f64;
-        let apu_cycles_per_sample = (sample_gap_s / apu_cycle_len_s) as i64;
-        for sample in output.iter_mut() {
-            cycles_until_feedback -= apu_cycles_per_sample;
-            while cycles_until_feedback <= 0 {
-                self.do_feedback();
-                cycles_until_feedback += self.period as i64;
-            }
-            let mut volume = self.envelope.get_volume();
-            if self.shift_register & 1 == 1 {
-                volume = 0;
-            }
-            if self.length_counter.is_zero() {
-                volume = 0;
-            }
-            *sample = volume;
+    pub fn get_current_output(&self) -> u8 {
+        let mut volume = self.envelope.get_volume();
+
+        if self.shift_register & 1 == 1 {
+            volume = 0;
+        }
+        if self.length_counter.is_zero() {
+            volume = 0;
+        }
+
+        volume
+    }
+
+    pub fn tick(&mut self) {
+        if self.timer != 0 {
+            self.timer -= 1;
+        } else {
+            self.clock_shift_register();
+            self.timer = self.period;
         }
     }
 
-    fn do_feedback(&mut self) {
+    fn clock_shift_register(&mut self) {
         let mut sr = self.shift_register;
 
         let shift_amt = if self.feedback_bit_6 { 6 } else { 1 };

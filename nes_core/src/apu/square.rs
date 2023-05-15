@@ -1,10 +1,11 @@
-use crate::apu::CPU_FREQ;
 use crate::apu::envelope::Envelope;
 use crate::apu::length_counter::LengthCounter;
 use crate::apu::sweep::Sweep;
 
 pub struct SquareWave {
-    duty_cycle: f32,
+    timer: u32,
+    duty_cycle_pos: u8,
+    duty_cycle_mask: u8,
     period: u32,
     pub envelope: Envelope,
     pub sweep: Sweep,
@@ -21,7 +22,9 @@ impl SquareWave {
     pub fn new(unit: SquareUnit) -> SquareWave {
         let ones_complement = if unit == SquareUnit::Pulse1 { true } else { false };
         SquareWave {
-            duty_cycle: 0.5,
+            timer: 0,
+            duty_cycle_pos: 1,
+            duty_cycle_mask: 0b00000001,
             period: 0, // Range: 0-0x7FF / 0-2047 / 12.428KHz-54Hz
             envelope: Envelope::new(),
             sweep: Sweep::new(ones_complement),
@@ -29,35 +32,33 @@ impl SquareWave {
         }
     }
 
-    pub fn output_samples(
-        &mut self,
-        step_start_time_s: f64,
-        step_duration_s: f64,
-        output: &mut [u8],
-    ) {
-        let current_period = self.period;
-        let target_period = self.sweep.calculate_target_period(current_period);
-        let mute = self.sweep.should_mute(current_period);
+    pub fn get_current_output(&self) -> u8 {
+        let mut volume: u8 = self.envelope.get_volume();
 
-        let period_s: f64 = (16 * (target_period + 1)) as f64 / CPU_FREQ as f64;
-        let time_step = step_duration_s / output.len() as f64;
-        for (i, sample) in output.iter_mut().enumerate() {
-            let now_s = step_start_time_s + time_step * i as f64;
-            let phase = (now_s / period_s) % 1.0;
-
-            let mut volume = self.envelope.get_volume();
-            if mute {
-                volume = 0;
-            }
-            if self.length_counter.is_zero() {
-                volume = 0;
-            }
-            if phase > self.duty_cycle as f64 {
-                volume = 0;
-            }
-
-            *sample = volume;
+        if self.sweep.should_mute(self.period) {
+            volume = 0;
         }
+        if self.length_counter.is_zero() {
+            volume = 0;
+        }
+        if self.duty_cycle_pos & self.duty_cycle_mask == 0 {
+            volume = 0;
+        }
+
+        volume
+    }
+
+    pub fn tick(&mut self) {
+        if self.timer != 0 {
+            self.timer -= 1;
+        } else {
+            self.clock_sequencer();
+            self.timer = self.sweep.calculate_target_period(self.period);
+        }
+    }
+
+    fn clock_sequencer(&mut self) {
+        self.duty_cycle_pos = self.duty_cycle_pos.rotate_right(1);
     }
 
     pub fn tick_length_and_swap(&mut self) {
@@ -83,11 +84,11 @@ impl SquareWave {
     // $4000/$4004
     // DDLC VVVV
     pub fn write_control(&mut self, value: u8) {
-        self.duty_cycle = match value >> 6 {
-            0 => 0.125,
-            1 => 0.25,
-            2 => 0.5,
-            3 => 0.75,
+        self.duty_cycle_mask = match value >> 6 {
+            0 => 0b00000001, // 0 1 0 0 0 0 0 0 (12.5%)
+            1 => 0b00000011, // 0 1 1 0 0 0 0 0 (25%)
+            2 => 0b00001111, // 0 1 1 1 1 0 0 0 (50%)
+            3 => 0b11111100, // 1 0 0 1 1 1 1 1 (25% negated)
             _ => unreachable!(),
         };
 
