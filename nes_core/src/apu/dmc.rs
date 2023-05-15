@@ -65,7 +65,7 @@ impl DMC {
     }
 
     pub fn write_direct_load(&mut self, value: u8) {
-        self.output_level = value;
+        self.output_level = value & 0b111_1111;
     }
 
     // DMC samples are from the address range $C000-$FFFF
