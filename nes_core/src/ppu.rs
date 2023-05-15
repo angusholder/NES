@@ -126,7 +126,7 @@ impl PPU {
                 self.mapper.read_nametable(addr)
             }
             0x3F00..=0x3FFF => {
-                self.palettes[mask_palette_addr(addr)]
+                self.palettes[mask_palette_addr(addr)] & self.mask.grayscale_mask
             }
             _ => unreachable!(),
         }
@@ -248,7 +248,12 @@ impl PPUControl {
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 struct PPUMask {
-    grayscale: bool,
+    /// Bit 0 controls a greyscale mode, which causes the palette to use only the colors from the
+    /// grey column: $00, $10, $20, $30. This is implemented as a bitwise AND with $30 on any value
+    /// read from PPU $3F00-$3FFF, both on the display and through PPUDATA. Writes to the palette
+    /// through PPUDATA are not affected. Also note that black colours like $0F will be replaced
+    /// by a non-black grey $00.
+    grayscale_mask: u8,
     show_background_left: bool,
     show_sprites_left: bool,
     show_background: bool,
@@ -262,7 +267,7 @@ struct PPUMask {
 impl PPUMask {
     fn from_bits(val: u8) -> PPUMask {
          PPUMask {
-            grayscale: val & 0b0000_0001 != 0,
+            grayscale_mask: if val & 0b0000_0001 != 0 { 0x30 } else { 0xFF },
             show_background_left: val & 0b0000_0010 != 0,
             show_sprites_left: val & 0b0000_0100 != 0,
             show_background: val & 0b0000_1000 != 0,
@@ -624,7 +629,7 @@ fn render_pixel(ppu: &mut PPU, x: u32) {
         }
     }
 
-    ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = ppu.palettes[pixel_index as usize];
+    ppu.cur_display_buffer[(ppu.scanline * 256 + x) as usize] = ppu.palettes[pixel_index as usize] & ppu.mask.grayscale_mask;
 }
 
 fn read_next_palette_index(ppu: &mut PPU) -> u8 {
