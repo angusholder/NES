@@ -133,8 +133,15 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
             if let Some(nes) = app.nes.as_mut() {
                 app.audio_device.resume();
                 loop {
+                    let buffered_audio_frames = app.audio_device.lock().buffered_frames as usize;
+
+                    // Prevent the display buffering getting ahead of the audio buffering.
+                    while buffered_audio_frames < app.display_buffer.buffered_frames.len() {
+                        app.display_buffer.buffered_frames.pop_front();
+                    }
+
                     // Buffer two frames worth of audio
-                    if app.audio_device.lock().buffered_frames >= 2 {
+                    if buffered_audio_frames >= 2 {
                         if let Some(frame) = app.display_buffer.buffered_frames.pop_front() {
                             window.update_with_buffer(&frame, SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
                             break;
