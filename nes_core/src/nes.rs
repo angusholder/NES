@@ -170,7 +170,7 @@ impl NES {
             ppu: PPU::new(mapper.clone(), signals.clone()),
 
             input: InputState::new(),
-            apu: APU::new(signals.clone()),
+            apu: APU::new(mapper.clone(), signals.clone()),
             signals,
             mapper,
         }

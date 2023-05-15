@@ -17,6 +17,7 @@ use crate::apu::noise::Noise;
 use crate::apu::square::{SquareUnit, SquareWave};
 use crate::apu::triangle::TriangleWave;
 use crate::mapper;
+use crate::mapper::Mapper;
 use crate::nes::{CYCLES_PER_FRAME, InterruptSource, Signals};
 
 pub struct APU {
@@ -59,13 +60,13 @@ bitflags! {
 
 const SAMPLES_PER_FRAME: u32 = 735;
 impl APU {
-    pub fn new(signals: Rc<Signals>) -> APU {
+    pub fn new(mapper: Mapper, signals: Rc<Signals>) -> APU {
         APU {
             square_wave1: SquareWave::new(SquareUnit::Pulse1),
             square_wave2: SquareWave::new(SquareUnit::Pulse2),
             triangle_wave: TriangleWave::new(),
             noise: Noise::new(),
-            dmc: DMC::new(),
+            dmc: DMC::new(mapper, signals.clone()),
 
             host_enabled_channels: AudioChannels::all(),
 

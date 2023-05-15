@@ -1,16 +1,29 @@
+use std::rc::Rc;
+use crate::mapper::Mapper;
+use crate::nes::{InterruptSource, Signals};
+
 pub struct DMC {
     irq_enabled: bool,
     loop_flag: bool,
     rate: u32, //
+    timer: u32,
 
+    // Output unit
+    shift_register: u8,
+    bits_remaining: u8,
     output_level: u8, // 0-127
+    silence: bool,
 
     sample_address: u16,
     sample_length: u32,
-    sample_buffer: u8,
+    sample_buffer: Option<u8>,
 
+    // Memory reader
     reader_address_buffer: u16,
     reader_bytes_remaining: u32,
+
+    signals: Rc<Signals>,
+    mapper: Mapper,
 }
 
 static DMC_RATE_PERIODS: [u32; 16] = [
@@ -18,25 +31,104 @@ static DMC_RATE_PERIODS: [u32; 16] = [
 ];
 
 impl DMC {
-    pub fn new() -> DMC {
+    pub fn new(mapper: Mapper, signals: Rc<Signals>) -> DMC {
         DMC {
             irq_enabled: false,
             loop_flag: false,
             rate: DMC_RATE_PERIODS[0],
+            timer: 0,
 
+            shift_register: 0,
+            bits_remaining: 0,
             output_level: 0,
+            silence: false,
 
             sample_address: 0xC000,
             sample_length: 0,
-            sample_buffer: 0x00,
+            sample_buffer: None,
 
             reader_address_buffer: 0x0000,
             reader_bytes_remaining: 0,
+
+            signals,
+            mapper,
         }
     }
 
     pub fn tick(&mut self) {
-        // TODO: Implement delta DMC
+        if self.timer != 0 {
+            self.timer -= 1;
+        } else {
+            self.clock_output_unit();
+            self.timer = self.rate;
+        }
+    }
+
+    // https://www.nesdev.org/wiki/APU_DMC#Output_unit
+    fn clock_output_unit(&mut self) {
+        if !self.silence {
+            if self.shift_register & 1 == 1 {
+                if self.output_level + 2 <= 127 {
+                    self.output_level += 2;
+                }
+            } else {
+                if self.output_level >= 2 {
+                    self.output_level -= 2;
+                }
+            }
+        }
+        self.shift_register >>= 1;
+        self.bits_remaining -= 1;
+
+        if self.bits_remaining == 0 {
+            self.start_new_output_cycle();
+        }
+    }
+
+    // https://www.nesdev.org/wiki/APU_DMC#Output_unit
+    fn start_new_output_cycle(&mut self) {
+        self.bits_remaining = 8;
+        if let Some(sample) = self.sample_buffer.take() {
+            self.silence = false;
+            self.shift_register = sample;
+            if self.reader_bytes_remaining > 0 {
+                self.perform_memory_read();
+            }
+        } else {
+            self.silence = true;
+        }
+    }
+
+    // https://www.nesdev.org/wiki/APU_DMC#Memory_reader
+    fn perform_memory_read(&mut self) {
+        if self.reader_bytes_remaining == 0 {
+            return;
+        }
+
+        // TODO: Stall CPU
+
+        self.sample_buffer = Some(self.mapper.read_main_bus(self.reader_address_buffer));
+
+        if self.reader_address_buffer < 0xFFFF {
+            self.reader_address_buffer += 1;
+        } else {
+            // Wrap back around to the bottom address.
+            self.reader_address_buffer = 0x8000;
+        }
+
+        self.reader_bytes_remaining -= 1;
+        if self.reader_bytes_remaining == 0 {
+            if self.loop_flag {
+                self.restart_sample();
+            } else if self.irq_enabled {
+                self.signals.request_interrupt(InterruptSource::APU_DMC);
+            }
+        }
+    }
+
+    fn restart_sample(&mut self) {
+        self.reader_address_buffer = self.sample_address;
+        self.reader_bytes_remaining = self.sample_length;
     }
 
     pub fn get_current_output(&self) -> u8 {
@@ -47,11 +139,12 @@ impl DMC {
         if !enabled {
             // If the DMC bit is clear, the DMC bytes remaining will be set to 0 and the DMC will silence when it empties.
             self.reader_bytes_remaining = 0;
-            // TODO: Do we need to do anything else here?
         } else {
             // If the DMC bit is set, the DMC sample will be restarted only if its bytes remaining is 0.
             // If there are bits remaining in the 1-byte sample buffer, these will finish playing before the next sample is fetched.
-            // TODO
+            if self.reader_bytes_remaining == 0 {
+                self.restart_sample();
+            }
         }
     }
 
