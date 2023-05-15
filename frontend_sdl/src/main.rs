@@ -131,16 +131,25 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
         let has_focus = window.is_active();
         if !app.paused && has_focus {
             if let Some(nes) = app.nes.as_mut() {
-                nes.input.update_p1_key_state(get_pressed_buttons(&window, game_controller.as_ref()));
-                nes.input.update_p2_key_state(JoypadButtons::empty()); // Not implemented
+                loop {
+                    nes.input.update_p1_key_state(get_pressed_buttons(&window, game_controller.as_ref()));
+                    nes.input.update_p2_key_state(JoypadButtons::empty()); // Not implemented
 
-                nes.simulate_frame();
+                    nes.simulate_frame();
 
-                nes.apu.output_samples(|samples| app.audio_device.lock().write_samples(samples));
+                    nes.apu.output_samples(|samples| app.audio_device.lock().write_samples(samples));
 
-                let mut display_buffer = [0u32; SCREEN_PIXELS];
-                nes.ppu.output_display_buffer_u32_argb(&mut display_buffer);
-                window.update_with_buffer(&display_buffer, SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
+                    app.display_buffer.buffer_frame(|frame| nes.ppu.output_display_buffer_u32_argb(frame));
+
+                    // Buffer two frames worth of audio
+                    if app.audio_device.lock().buffered_frames >= 2 {
+                        if let Some(frame) = app.display_buffer.buffered_frames.pop_front() {
+                            window.update_with_buffer(&frame, SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
+                            break;
+                        }
+                    }
+                }
+
             } else {
                 window.update_with_buffer(&[0; SCREEN_PIXELS], SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
             }
@@ -166,6 +175,7 @@ struct App {
     nes: Option<Box<NES>>,
     rom_filename: Option<PathBuf>,
     paused: bool,
+    display_buffer: DisplayBuffering,
 }
 
 impl App {
@@ -175,6 +185,7 @@ impl App {
             nes: None,
             rom_filename: None,
             paused: false,
+            display_buffer: DisplayBuffering::new(),
         }
     }
 
@@ -216,6 +227,26 @@ impl App {
 
     fn toggle_pause(&mut self) {
         self.paused = !self.paused;
+    }
+}
+
+type DisplayFrame = [u32; SCREEN_PIXELS];
+
+struct DisplayBuffering {
+    buffered_frames: VecDeque<DisplayFrame>,
+}
+
+impl DisplayBuffering {
+    fn new() -> DisplayBuffering {
+        DisplayBuffering {
+            buffered_frames: VecDeque::new(),
+        }
+    }
+
+    fn buffer_frame(&mut self, output_pixels: impl FnOnce(&mut DisplayFrame)) {
+        let mut buffer: DisplayFrame = [0; SCREEN_PIXELS];
+        output_pixels(&mut buffer);
+        self.buffered_frames.push_back(buffer);
     }
 }
 
@@ -310,14 +341,17 @@ impl FrameStats {
 
 pub struct NesAudioCallback {
     buffer: VecDeque<f32>,
+    buffered_frames: u32,
 }
 
 impl NesAudioCallback {
     pub fn write_samples(&mut self, samples: &[f32]) {
+        self.buffered_frames += 1;
         self.buffer.extend(samples);
     }
 
     pub fn clear_samples(&mut self) {
+        self.buffered_frames = 0;
         self.buffer.clear();
     }
 }
@@ -332,6 +366,7 @@ impl AudioCallback for NesAudioCallback {
         for x in out.iter_mut() {
             *x = self.buffer.pop_front().unwrap_or(-1.0);
         }
+        self.buffered_frames -= 1;
     }
 }
 
@@ -345,6 +380,7 @@ pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
     audio_subsystem.open_playback(None, &audio_spec, |_spec: AudioSpec| {
         NesAudioCallback {
             buffer: VecDeque::new(),
+            buffered_frames: 0,
         }
     }).unwrap()
 }
