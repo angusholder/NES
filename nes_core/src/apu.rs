@@ -1,6 +1,4 @@
-use std::collections::VecDeque;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use bitflags::bitflags;
 use log::{info, warn};
 use crate::apu::dmc::DMC;
@@ -56,49 +54,6 @@ bitflags! {
         const TRIANGLE = 0x04;
         const NOISE = 0x08;
         const DMC = 0x10;
-    }
-}
-
-pub struct SampleBuffer {
-    buffer: Arc<Mutex<VecDeque<f32>>>,
-    samples_per_second: u32,
-}
-
-impl SampleBuffer {
-    pub fn new(freq: u32) -> SampleBuffer {
-        SampleBuffer {
-            buffer: Arc::new(Mutex::new(VecDeque::new())),
-            samples_per_second: freq,
-        }
-    }
-
-    pub fn clone_ref(&self) -> SampleBuffer {
-        SampleBuffer {
-            buffer: self.buffer.clone(),
-            samples_per_second: self.samples_per_second,
-        }
-    }
-
-    pub fn output_samples(&mut self, out: &mut [f32]) {
-        let mut buffer = self.buffer.lock().unwrap();
-        // Don't bother logging warning if the buffer is totally empty;
-        // that probably means the emulator is paused...
-        if buffer.len() < out.len() {
-            warn!("Not enough samples in buffer - needed {}, got {}", out.len(), buffer.len());
-        }
-        for x in out.iter_mut() {
-            *x = buffer.pop_front().unwrap_or(-1.0);
-        }
-    }
-
-    pub fn write_samples(&mut self, samples: &[f32]) {
-        let mut buffer = self.buffer.lock().unwrap();
-        buffer.extend(samples);
-    }
-
-    pub fn clear(&mut self) {
-        let mut buffer = self.buffer.lock().unwrap();
-        buffer.clear();
     }
 }
 

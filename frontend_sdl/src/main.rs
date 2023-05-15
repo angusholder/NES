@@ -5,14 +5,14 @@ use std::io;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use log::info;
+use log::{info, warn};
 use minifb::{Key, KeyRepeat, Menu, MENU_KEY_CTRL, Scale, ScaleMode, Window, WindowOptions};
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpec, AudioSpecDesired};
 use sdl2::controller::{Button, GameController};
 use sdl2::event::Event;
 use sdl2::EventPump;
 use sdl2::messagebox::{ButtonData, MessageBoxButtonFlag, MessageBoxFlag, show_message_box};
-use nes_core::apu::{AudioChannels, SampleBuffer};
+use nes_core::apu::{AudioChannels};
 use nes_core::cartridge;
 use nes_core::input::JoypadButtons;
 use nes_core::nes::{NES};
@@ -136,8 +136,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
 
                 nes.simulate_frame();
 
-                let mut sample_buffer = app.audio_device.lock().get_output_buffer();
-                nes.apu.output_samples(|samples| sample_buffer.write_samples(samples));
+                nes.apu.output_samples(|samples| app.audio_device.lock().write_samples(samples));
 
                 let mut display_buffer = [0u32; SCREEN_PIXELS];
                 nes.ppu.output_display_buffer_u32_argb(&mut display_buffer);
@@ -191,8 +190,7 @@ impl App {
     fn load_rom(&mut self, rom_filename: PathBuf) {
         match load_nes_system(&rom_filename) {
             Ok(nes) => {
-                let mut sample_buffer = self.audio_device.lock().get_output_buffer();
-                sample_buffer.clear();
+                self.audio_device.lock().clear_samples();
                 self.audio_device.resume();
                 self.nes = Some(nes);
                 self.rom_filename = Some(rom_filename);
@@ -207,7 +205,7 @@ impl App {
         self.nes = None;
         self.rom_filename = None;
         self.audio_device.pause();
-        self.audio_device.lock().get_output_buffer().clear();
+        self.audio_device.lock().clear_samples();
     }
 
     fn reset(&mut self) {
@@ -311,12 +309,16 @@ impl FrameStats {
 }
 
 pub struct NesAudioCallback {
-    output_buffer: SampleBuffer,
+    buffer: VecDeque<f32>,
 }
 
 impl NesAudioCallback {
-    pub fn get_output_buffer(&self) -> SampleBuffer {
-        self.output_buffer.clone_ref()
+    pub fn write_samples(&mut self, samples: &[f32]) {
+        self.buffer.extend(samples);
+    }
+
+    pub fn clear_samples(&mut self) {
+        self.buffer.clear();
     }
 }
 
@@ -324,7 +326,12 @@ impl AudioCallback for NesAudioCallback {
     type Channel = f32;
 
     fn callback(&mut self, out: &mut [f32]) {
-        self.output_buffer.output_samples(out);
+        if self.buffer.len() < out.len() {
+            warn!("Not enough samples in buffer - needed {}, got {}", out.len(), self.buffer.len());
+        }
+        for x in out.iter_mut() {
+            *x = self.buffer.pop_front().unwrap_or(-1.0);
+        }
     }
 }
 
@@ -335,9 +342,9 @@ pub fn create_audio_device(sdl: &sdl2::Sdl) -> AudioDevice<NesAudioCallback> {
         channels: Some(1),
         samples: Some(735), // Each frame should output 735 audio samples (44_100 / 60)
     };
-    audio_subsystem.open_playback(None, &audio_spec, |spec: AudioSpec| {
+    audio_subsystem.open_playback(None, &audio_spec, |_spec: AudioSpec| {
         NesAudioCallback {
-            output_buffer: SampleBuffer::new(spec.freq as u32),
+            buffer: VecDeque::new(),
         }
     }).unwrap()
 }
