@@ -88,41 +88,38 @@ impl APU {
         self.triangle_wave.tick();
 
         // All APU components other than triangle run at half the CPU clock rate, so skip them every other call.
-        if cpu_cycles & 1 == 1 {
-            return;
-        }
+        if cpu_cycles & 1 == 0 {
+            self.square_wave1.tick();
+            self.square_wave2.tick();
+            self.noise.tick();
+            self.dmc.tick();
 
-        self.square_wave1.tick();
-        self.square_wave2.tick();
-        self.noise.tick();
-        self.dmc.tick();
+            self.apu_cycle += 1;
 
-        self.apu_cycle += 1;
-
-        // See https://www.nesdev.org/wiki/APU_Frame_Counter
-        match self.apu_cycle {
-            3728 => {
-                self.tick_envelope_and_triangle();
-            }
-            7456 => {
-                self.tick_envelope_and_triangle();
-                self.tick_length_counters_and_sweep();
-            }
-            11185 => {
-                self.tick_envelope_and_triangle();
-            }
-            14914 if self.frame_counter_mode == FrameCountMode::Step4 => {
-                self.tick_envelope_and_triangle();
-                self.tick_length_counters_and_sweep();
-                self.trigger_irq();
-                self.apu_cycle = 0;
-            }
-            18640 if self.frame_counter_mode == FrameCountMode::Step5 => {
-                self.tick_envelope_and_triangle();
-                self.tick_length_counters_and_sweep();
-                self.apu_cycle = 0;
-            }
-            _ => {
+            // See https://www.nesdev.org/wiki/APU_Frame_Counter
+            match self.apu_cycle {
+                3728 => {
+                    self.tick_envelope_and_triangle();
+                }
+                7456 => {
+                    self.tick_envelope_and_triangle();
+                    self.tick_length_counters_and_sweep();
+                }
+                11185 => {
+                    self.tick_envelope_and_triangle();
+                }
+                14914 if self.frame_counter_mode == FrameCountMode::Step4 => {
+                    self.tick_envelope_and_triangle();
+                    self.tick_length_counters_and_sweep();
+                    self.trigger_irq();
+                    self.apu_cycle = 0;
+                }
+                18640 if self.frame_counter_mode == FrameCountMode::Step5 => {
+                    self.tick_envelope_and_triangle();
+                    self.tick_length_counters_and_sweep();
+                    self.apu_cycle = 0;
+                }
+                _ => {}
             }
         }
 
@@ -137,7 +134,7 @@ impl APU {
         self.sample_count += 1;
 
         let next_cycle_to_sample: f64 = self.sample_count as f64 * self.cycles_between_samples;
-        self.next_cycle_to_sample = next_cycle_to_sample.floor() as u64;
+        self.next_cycle_to_sample = next_cycle_to_sample.round() as u64;
     }
 
     fn tick_envelope_and_triangle(&mut self) {
