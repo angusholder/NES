@@ -162,19 +162,12 @@ impl Mapper {
     }
 
     pub fn write_pattern_table(&mut self, addr: u16, value: u8) {
-        self.memory_map.borrow_mut().write_pattern_table(mask_ppu_addr(addr), value);
+        self.memory_map.borrow_mut().write_pattern_table(addr, value);
     }
 
     pub fn on_cycle_scanline(&mut self) {
         self.raw_mapper.borrow_mut().on_cycle_scanline();
     }
-}
-
-/// The PPU address space is 14 bits, but the CPU address space is 16 bits.
-/// "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
-#[inline(always)]
-fn mask_ppu_addr(addr: u16) -> u16 {
-    addr & 0x3FFF
 }
 
 /// See https://www.nesdev.org/wiki/Mirroring#Nametable_Mirroring
