@@ -32,7 +32,7 @@ static DMC_RATE_PERIODS: [u32; 16] = [
 
 impl DMC {
     pub fn new(mapper: Mapper, signals: Rc<Signals>) -> DMC {
-        DMC {
+        let mut dmc = DMC {
             irq_enabled: false,
             loop_flag: false,
             rate: DMC_RATE_PERIODS[0],
@@ -52,7 +52,9 @@ impl DMC {
 
             signals,
             mapper,
-        }
+        };
+        dmc.start_new_output_cycle();
+        dmc
     }
 
     pub fn tick(&mut self) {
