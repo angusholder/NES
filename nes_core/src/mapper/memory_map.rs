@@ -2,7 +2,8 @@ use std::ops::Range;
 use log::{warn};
 use crate::cartridge::{Cartridge, CHR, NametableMirroring};
 use crate::mapper;
-use crate::mapper::{NameTables, RawMapper};
+use crate::mapper::{RawMapper};
+use crate::mapper::nametables::NameTables;
 
 pub struct MemoryMap {
     /// Covers 8 x 1K banks (0x400) between 0x0000 and 0x1FFF.
