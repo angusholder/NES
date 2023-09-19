@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use serde::{Deserialize, Serialize};
 use crate::mapper::Mapper;
 use crate::nes::{InterruptSource, Signals};
 
@@ -24,6 +25,28 @@ pub struct DMC {
 
     signals: Rc<Signals>,
     mapper: Mapper,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DMCSnapshot {
+    pub irq_enabled: bool,
+    pub loop_flag: bool,
+    pub rate: u32, //
+    pub timer: u32,
+
+    // Output unit
+    pub shift_register: u8,
+    pub bits_remaining: u8,
+    pub output_level: u8, // 0-127
+    pub silence: bool,
+
+    pub sample_address: u16,
+    pub sample_length: u32,
+    pub sample_buffer: Option<u8>,
+
+    // Memory reader
+    pub reader_address_buffer: u16,
+    pub reader_bytes_remaining: u32,
 }
 
 static DMC_RATE_PERIODS: [u32; 16] = [

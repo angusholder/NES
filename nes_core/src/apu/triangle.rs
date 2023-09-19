@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
 use crate::apu::length_counter::LengthCounter;
 use crate::apu::linear_counter::LinearCounter;
 
+#[derive(Serialize, Deserialize)]
 pub struct TriangleWave {
     period: u32,
     timer: u32,

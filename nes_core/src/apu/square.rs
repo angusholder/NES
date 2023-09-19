@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
 use crate::apu::envelope::Envelope;
 use crate::apu::length_counter::LengthCounter;
 use crate::apu::sweep::Sweep;
 
+#[derive(Serialize, Deserialize)]
 pub struct SquareWave {
     timer: u32,
     duty_cycle_pos: u8,

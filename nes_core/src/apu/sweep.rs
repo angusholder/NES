@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
 use crate::apu::divider::Divider;
 
 /// https://www.nesdev.org/wiki/APU_Sweep
+#[derive(Serialize, Deserialize)]
 pub struct Sweep {
     // Params (EPPP.NSSS):
     pub enabled: bool,

@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
 use crate::apu::divider::Divider;
 
+#[derive(Serialize, Deserialize)]
 pub struct Envelope {
     // Parameters:
     pub constant_volume_flag: bool,

@@ -3,12 +3,13 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use bitflags::bitflags;
 use log::Level::Trace;
+use serde::{Deserialize, Serialize};
 use crate::mapper::{Mapper};
 use crate::{cpu, ppu};
-use crate::apu::APU;
+use crate::apu::{APU, APUSnapshot};
 use crate::cartridge::Cartridge;
 use crate::input::InputState;
-use crate::ppu::PPU;
+use crate::ppu::{PPU, PPUSnapshot};
 
 #[allow(non_snake_case)]
 pub struct NES {
@@ -36,6 +37,36 @@ pub struct NES {
     pub input: InputState,
     pub apu: APU,
     signals: Rc<Signals>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct NESSnapshot {
+    pub cpu: CPUSnapshot,
+    pub input: InputState,
+    pub ppu: PPUSnapshot,
+    pub apu: APUSnapshot,
+    // signals
+    // mapper
+}
+
+#[derive(Serialize, Deserialize)]
+#[allow(non_snake_case)]
+pub struct CPUSnapshot {
+    pub target_cycles: u64,
+    pub total_cycles: u64,
+
+    pub A: u8,
+    pub X: u8,
+    pub Y: u8,
+    /// An 'empty' stack that grows downwards, in memory area 0x0100 - 0x01FF.
+    /// SP points to the next free location.
+    /// See https://www.nesdev.org/wiki/Stack
+    pub SP: u8,
+    pub SR: StatusRegister,
+
+    pub PC: u16,
+
+    pub ram: Box<[u8]>, // 2048 elements (serde doesn't support fixed-size arrays over 16 elems)
 }
 
 bitflags! {
@@ -89,7 +120,7 @@ pub const CYCLES_PER_FRAME: u64 = 29829;
 
 /// https://www.nesdev.org/wiki/Status_flags
 #[allow(non_snake_case)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct StatusRegister {
     /// Carry
     pub C: bool,

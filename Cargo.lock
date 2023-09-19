@@ -735,6 +735,7 @@ dependencies = [
  "bitflags",
  "criterion",
  "log",
+ "serde",
 ]
 
 [[package]]

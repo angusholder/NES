@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use serde::{Deserialize, Serialize};
 use crate::mapper::Mapper;
 use crate::nes::{InterruptSource, NES, Signals};
 
@@ -49,6 +50,48 @@ pub struct PPU {
     /// Filled with values 0-63, which are indices into "ntscpalette_24bpp.pal".
     /// This is the finished frame, ready to be displayed.
     finished_display_buffer: Box<[u8; SCREEN_PIXELS]>,
+    frame_num: u64,
+
+    dot: u32, // 0-340
+    scanline: u32, // 0-261
+    tiles_palette_lo: u16,
+    tiles_palette_hi: u16,
+    tiles_lo: u16,
+    tiles_hi: u16,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PPUSnapshot {
+    control: PPUControl,
+    mask: PPUMask,
+
+    /*
+    During rendering:
+
+    yyy NN YYYYY XXXXX
+    ||| || ||||| +++++-- coarse X scroll
+    ||| || +++++-------- coarse Y scroll
+    ||| ++-------------- nametable select
+    +++----------------- fine Y scroll
+     */
+    v_addr: u16,
+    t_addr: u16,
+    // https://www.nesdev.org/wiki/PPU_scrolling
+    fine_x: u8,
+    write_toggle_w: bool,
+    data_bus_latch: u8,
+
+    oam_addr: u8,
+    oam: Box<[u8]>, // NUM_SPRITES * 4
+    cur_line_sprites: [SpriteRowSlice; 8],
+    cur_line_num_sprites: usize, // Between 0 and 8
+    sprite_0_hit: bool,
+
+    palettes: [u8; 2 * 4 * 4],
+
+    vblank_started: bool,
+
+    // For now we're not serializing the display buffers
     frame_num: u64,
 
     dot: u32, // 0-340
@@ -196,7 +239,7 @@ fn mask_palette_addr(addr: u16) -> usize {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct PPUControl {
     enable_nmi: bool,
     sprite_size: SpriteSize,
@@ -207,7 +250,7 @@ struct PPUControl {
     base_nametable_addr: u16,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 enum SpriteSize {
     Size8x8,
     Size8x16,
@@ -246,7 +289,7 @@ impl PPUControl {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct PPUMask {
     /// Bit 0 controls a greyscale mode, which causes the palette to use only the colors from the
     /// grey column: $00, $10, $20, $30. This is implemented as a bitwise AND with $30 on any value
@@ -650,7 +693,7 @@ fn read_next_palette_index(ppu: &mut PPU) -> u8 {
 
 const NUM_SPRITES: usize = 64;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct SpriteRowSlice {
     start_x: u8,
     // Larger than start_x in case of overflow

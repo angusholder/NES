@@ -1,6 +1,8 @@
 use bitflags::bitflags;
 use log::{info};
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct InputState {
     p1_pressed: JoypadButtons,
     p2_pressed: JoypadButtons,
@@ -66,6 +68,7 @@ impl InputState {
 bitflags! {
     /// The current state of the joypad as a bitmask.
     /// https://www.nesdev.org/wiki/Standard_controller
+    #[derive(Serialize, Deserialize)]
     pub struct JoypadButtons : u8 {
         const A = 1 << 0;
         const B = 1 << 1;

@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct LinearCounter {
     counter: u8,
     pub counter_reload_value: u8,

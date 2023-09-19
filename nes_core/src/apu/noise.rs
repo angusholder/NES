@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
 use crate::apu::envelope::Envelope;
 use crate::apu::length_counter::LengthCounter;
 
 /// https://www.nesdev.org/wiki/APU_Noise
+#[derive(Serialize, Deserialize)]
 pub struct Noise {
     period: u32,
     timer: u32,

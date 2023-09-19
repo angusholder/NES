@@ -1,7 +1,8 @@
 use std::rc::Rc;
 use bitflags::bitflags;
 use log::{info};
-use crate::apu::dmc::DMC;
+use serde::{Deserialize, Serialize};
+use crate::apu::dmc::{DMC, DMCSnapshot};
 
 mod square;
 mod triangle;
@@ -42,8 +43,23 @@ pub struct APU {
     signals: Rc<Signals>,
 }
 
-#[derive(PartialEq, Debug)]
-enum FrameCountMode {
+#[derive(Serialize, Deserialize)]
+pub struct APUSnapshot {
+    pub square_wave1: SquareWave,
+    pub square_wave2: SquareWave,
+    pub triangle_wave: TriangleWave,
+    pub noise: Noise,
+    pub dmc: DMCSnapshot,
+
+    pub irq_inhibit: bool,
+    pub frame_counter_mode: FrameCountMode,
+
+    pub next_cycle_to_sample: u64,
+    pub sample_count: u64,
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
+pub enum FrameCountMode {
     Step4,
     Step5,
 }
