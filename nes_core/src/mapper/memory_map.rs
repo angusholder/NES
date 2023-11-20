@@ -158,14 +158,14 @@ impl MemoryMap {
     }
 
     pub fn read_pattern_table(&self, addr: u16) -> u8 {
-        /// The PPU address space is 14 bits - "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
+        // The PPU address space is 14 bits - "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
         let bank_no = (addr as usize >> 0x3FFu32.count_ones()) & 7;
         let base_addr = self.chr_base_addrs[bank_no];
         self.chr_storage[base_addr + (addr as usize & 0x3FF)]
     }
 
     pub fn write_pattern_table(&mut self, addr: u16, value: u8) {
-        /// The PPU address space is 14 bits - "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
+        // The PPU address space is 14 bits - "Valid addresses are $0000–$3FFF; higher addresses will be mirrored down" - https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
         let bank_no = (addr as usize >> 0x3FFu32.count_ones()) & 7;
         let base_addr = self.chr_base_addrs[bank_no];
 

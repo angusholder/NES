@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::cartridge::{Cartridge, NametableMirroring};
+use crate::cartridge::Cartridge;
 use crate::mapper::memory_map::MemoryMap;
 use crate::nes::Signals;
 
