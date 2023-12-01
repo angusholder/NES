@@ -385,7 +385,7 @@ impl AudioCallback for NesAudioCallback {
         for x in out.iter_mut() {
             *x = self.buffer.pop_front().unwrap_or(0.0);
         }
-        self.buffered_frames -= 1;
+        self.buffered_frames = self.buffered_frames.saturating_sub(1);
     }
 }
 
