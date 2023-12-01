@@ -49,24 +49,40 @@ impl MMC3Mapper {
     }
 
     fn sync_mappings(&self, memory: &mut MemoryMap) {
-        // Swap 0x0000-0x0FFF with 0x1000-0x1FFF
-        let flip = if self.chr_a12_inversion { 4 } else { 0 };
-
         // CHR memory is 8 banks of 0x400/1KB each:
-        // 0x0000-0x07FF
-        memory.map_chr_1k(0 ^ flip, self.bank_reg[0]);
-        memory.map_chr_1k(1 ^ flip, self.bank_reg[0]+1);
-        // 0x0800-0x0FFF
-        memory.map_chr_1k(2 ^ flip, self.bank_reg[1]);
-        memory.map_chr_1k(3 ^ flip, self.bank_reg[1]+1);
-        // 0x1000-0x13FF
-        memory.map_chr_1k(4 ^ flip, self.bank_reg[2]);
-        // 0x1400-0x17FF
-        memory.map_chr_1k(5 ^ flip, self.bank_reg[3]);
-        // 0x1800-0x1BFF
-        memory.map_chr_1k(6 ^ flip, self.bank_reg[4]);
-        // 0x1C00-0x1FFF
-        memory.map_chr_1k(7 ^ flip, self.bank_reg[5]);
+
+        // Swap 0x0000-0x0FFF with 0x1000-0x1FFF
+        if self.chr_a12_inversion {
+            // 0x1000-0x17FF
+            memory.map_chr_1k(4, self.bank_reg[0]);
+            memory.map_chr_1k(5, self.bank_reg[0]+1);
+            // 0x1800-0x1FFF
+            memory.map_chr_1k(6, self.bank_reg[1]);
+            memory.map_chr_1k(7, self.bank_reg[1]+1);
+            // 0x0000-0x03FF
+            memory.map_chr_1k(0, self.bank_reg[2]);
+            // 0x0400-0x07FF
+            memory.map_chr_1k(1, self.bank_reg[3]);
+            // 0x0800-0x0BFF
+            memory.map_chr_1k(2, self.bank_reg[4]);
+            // 0x0C00-0x0FFF
+            memory.map_chr_1k(3, self.bank_reg[5]);
+        } else {
+            // 0x0000-0x07FF
+            memory.map_chr_1k(0, self.bank_reg[0]);
+            memory.map_chr_1k(1, self.bank_reg[0]+1);
+            // 0x0800-0x0FFF
+            memory.map_chr_1k(2, self.bank_reg[1]);
+            memory.map_chr_1k(3, self.bank_reg[1]+1);
+            // 0x1000-0x13FF
+            memory.map_chr_1k(4, self.bank_reg[2]);
+            // 0x1400-0x17FF
+            memory.map_chr_1k(5, self.bank_reg[3]);
+            // 0x1800-0x1BFF
+            memory.map_chr_1k(6, self.bank_reg[4]);
+            // 0x1C00-0x1FFF
+            memory.map_chr_1k(7, self.bank_reg[5]);
+        }
 
         match self.prg_bank_mode {
             PRGBankMode::Swappable89 => {
