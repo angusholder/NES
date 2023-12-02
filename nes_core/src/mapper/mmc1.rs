@@ -139,7 +139,7 @@ impl MMC1Mapper {
         match self.chr_mode {
             CHRMode::Switch8KiB => {
                 // low bit ignored in 8 KB mode
-                memory.map_chr_8k((self.chr_bank_0 & !1) as usize * 8192);
+                memory.map_chr_8k((self.chr_bank_0 & !1) as usize * 4096);
             }
             CHRMode::SwitchTwo4KiB => {
                 memory.map_chr_4k(0, self.chr_bank_0 as usize * 4096);
