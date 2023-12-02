@@ -143,7 +143,7 @@ fn main_loop() -> Result<(), Box<dyn Error>> {
                     // Buffer two frames worth of audio
                     if buffered_audio_frames >= 2 {
                         if let Some(frame) = app.display_buffer.buffered_frames.pop_front() {
-                            window.update_with_buffer(&frame, SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
+                            window.update_with_buffer(&frame.pixels[..], SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize)?;
                             break;
                         }
                     }
@@ -245,7 +245,15 @@ impl App {
     }
 }
 
-type DisplayFrame = [u32; SCREEN_PIXELS];
+struct DisplayFrame {
+    pixels: Box<[u32; SCREEN_PIXELS]>,
+}
+
+impl DisplayFrame {
+    fn new() -> DisplayFrame {
+        DisplayFrame { pixels: vec![0u32; SCREEN_PIXELS].try_into().unwrap() }
+    }
+}
 
 struct DisplayBuffering {
     buffered_frames: VecDeque<DisplayFrame>,
@@ -258,9 +266,9 @@ impl DisplayBuffering {
         }
     }
 
-    fn buffer_frame(&mut self, output_pixels: impl FnOnce(&mut DisplayFrame)) {
-        let mut buffer: DisplayFrame = [0; SCREEN_PIXELS];
-        output_pixels(&mut buffer);
+    fn buffer_frame(&mut self, output_pixels: impl FnOnce(&mut [u32; SCREEN_PIXELS])) {
+        let mut buffer: DisplayFrame = DisplayFrame::new();
+        output_pixels(&mut buffer.pixels);
         self.buffered_frames.push_back(buffer);
     }
 
