@@ -21,17 +21,17 @@ impl DxROMMapper {
     fn sync_mappings(&self, memory: &mut MemoryMap) {
         // CHR memory is 8 banks of 0x400/1KB each:
         // 0x0000-0x07FF
-        memory.map_chr_2k(0, self.bank_reg[0]);
+        memory.map_chr_2k(0, self.bank_reg[0] as usize * 2048);
         // 0x0800-0x0FFF
-        memory.map_chr_2k(1, self.bank_reg[1]);
+        memory.map_chr_2k(2, self.bank_reg[1] as usize * 2048);
         // 0x1000-0x13FF
-        memory.map_chr_1k(4, self.bank_reg[2]);
+        memory.map_chr_1k(4, self.bank_reg[2] as usize * 1024);
         // 0x1400-0x17FF
-        memory.map_chr_1k(5, self.bank_reg[3]);
+        memory.map_chr_1k(5, self.bank_reg[3] as usize * 1024);
         // 0x1800-0x1BFF
-        memory.map_chr_1k(6, self.bank_reg[4]);
+        memory.map_chr_1k(6, self.bank_reg[4] as usize * 1024);
         // 0x1C00-0x1FFF
-        memory.map_chr_1k(7, self.bank_reg[5]);
+        memory.map_chr_1k(7, self.bank_reg[5] as usize * 1024);
 
         memory.map_prg_8k(0, self.bank_reg[6] as i32); // R6
         memory.map_prg_8k(1, self.bank_reg[7] as i32); // R7

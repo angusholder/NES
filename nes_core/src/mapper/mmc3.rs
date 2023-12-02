@@ -49,39 +49,36 @@ impl MMC3Mapper {
     }
 
     fn sync_mappings(&self, memory: &mut MemoryMap) {
-        // CHR memory is 8 banks of 0x400/1KB each:
+        // CHR memory is 8 banks of 0x400/1KB each.
+        // 2KB banks may only select even numbered CHR banks. (The lowest bit is ignored.)
 
         // Swap 0x0000-0x0FFF with 0x1000-0x1FFF
         if self.chr_a12_inversion {
             // 0x1000-0x17FF
-            memory.map_chr_1k(4, self.bank_reg[0]);
-            memory.map_chr_1k(5, self.bank_reg[0]+1);
+            memory.map_chr_2k(4, (self.bank_reg[0] & !1) as usize * 1024);
             // 0x1800-0x1FFF
-            memory.map_chr_1k(6, self.bank_reg[1]);
-            memory.map_chr_1k(7, self.bank_reg[1]+1);
+            memory.map_chr_2k(6, (self.bank_reg[1] & !1) as usize * 1024);
             // 0x0000-0x03FF
-            memory.map_chr_1k(0, self.bank_reg[2]);
+            memory.map_chr_1k(0, self.bank_reg[2] as usize * 1024);
             // 0x0400-0x07FF
-            memory.map_chr_1k(1, self.bank_reg[3]);
+            memory.map_chr_1k(1, self.bank_reg[3] as usize * 1024);
             // 0x0800-0x0BFF
-            memory.map_chr_1k(2, self.bank_reg[4]);
+            memory.map_chr_1k(2, self.bank_reg[4] as usize * 1024);
             // 0x0C00-0x0FFF
-            memory.map_chr_1k(3, self.bank_reg[5]);
+            memory.map_chr_1k(3, self.bank_reg[5] as usize * 1024);
         } else {
             // 0x0000-0x07FF
-            memory.map_chr_1k(0, self.bank_reg[0]);
-            memory.map_chr_1k(1, self.bank_reg[0]+1);
+            memory.map_chr_2k(0, (self.bank_reg[0] & !1) as usize * 1024);
             // 0x0800-0x0FFF
-            memory.map_chr_1k(2, self.bank_reg[1]);
-            memory.map_chr_1k(3, self.bank_reg[1]+1);
+            memory.map_chr_2k(2, (self.bank_reg[1] & !1) as usize * 1024);
             // 0x1000-0x13FF
-            memory.map_chr_1k(4, self.bank_reg[2]);
+            memory.map_chr_1k(4, self.bank_reg[2] as usize * 1024);
             // 0x1400-0x17FF
-            memory.map_chr_1k(5, self.bank_reg[3]);
+            memory.map_chr_1k(5, self.bank_reg[3] as usize * 1024);
             // 0x1800-0x1BFF
-            memory.map_chr_1k(6, self.bank_reg[4]);
+            memory.map_chr_1k(6, self.bank_reg[4] as usize * 1024);
             // 0x1C00-0x1FFF
-            memory.map_chr_1k(7, self.bank_reg[5]);
+            memory.map_chr_1k(7, self.bank_reg[5] as usize * 1024);
         }
 
         match self.prg_bank_mode {
@@ -105,7 +102,7 @@ impl MMC3Mapper {
             // Bank select
             0x8000 => {
                 self.bank_reg_select = value & 0b111;
-                info!("Selected R{}", self.bank_reg_select);
+                // info!("Selected R{}", self.bank_reg_select);
                 self.chr_a12_inversion = value & 0x80 != 0;
                 self.prg_bank_mode = if value & 0x40 == 0 { PRGBankMode::Swappable89 } else { PRGBankMode::SwappableCD };
                 self.sync_mappings(memory);
@@ -114,15 +111,11 @@ impl MMC3Mapper {
             0x8001 => {
                 let sel = self.bank_reg_select as usize;
                 self.bank_reg[sel] = value;
-                if sel == 0 || sel == 1 {
-                    // Odd-numbered banks can't be selected by the 2KB bank slots.
-                    self.bank_reg[sel] &= !1;
-                }
                 if sel == 6 || sel == 7 {
                     // There's only 6 PRG ROM address lines
                     self.bank_reg[sel] &= 0b0011_1111;
                 }
-                info!("R{sel} = {}", self.bank_reg[sel]);
+                // info!("R{sel} = {}", self.bank_reg[sel]);
                 self.sync_mappings(memory);
             }
             // Mirroring

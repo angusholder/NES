@@ -30,6 +30,6 @@ impl RawMapper for CNRomMapper {
     }
 
     fn write_main_bus(&mut self, map: &mut MemoryMap, _addr: u16, value: u8) {
-        map.map_chr_8k(value);
+        map.map_chr_8k(value as usize * 8192);
     }
 }

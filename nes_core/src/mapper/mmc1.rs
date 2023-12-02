@@ -138,11 +138,11 @@ impl MMC1Mapper {
 
         match self.chr_mode {
             CHRMode::Switch8KiB => {
-                memory.map_chr_8k(self.chr_bank_0 >> 1);
+                memory.map_chr_8k((self.chr_bank_0 >> 1) as usize * 8192);
             }
             CHRMode::SwitchTwo4KiB => {
-                memory.map_chr_4k(0, self.chr_bank_0);
-                memory.map_chr_4k(1, self.chr_bank_1);
+                memory.map_chr_4k(0, self.chr_bank_0 as usize * 4096);
+                memory.map_chr_4k(4, self.chr_bank_1 as usize * 4096);
             }
         }
     }

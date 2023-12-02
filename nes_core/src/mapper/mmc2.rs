@@ -40,8 +40,8 @@ impl MMC2Inner {
         memory.map_prg_8k(2, -2);
         memory.map_prg_8k(3, -1);
 
-        memory.map_chr_4k(0, self.chr_bank_0[self.chr_selector_0.get() as usize].get());
-        memory.map_chr_4k(1, self.chr_bank_1[self.chr_selector_1.get() as usize].get());
+        memory.map_chr_4k(0, self.chr_bank_0[self.chr_selector_0.get() as usize].get() as usize * 4096);
+        memory.map_chr_4k(4, self.chr_bank_1[self.chr_selector_1.get() as usize].get() as usize * 4096);
     }
 
     fn after_ppu_pattern_read(&self, memory: &mut MemoryMap, addr: u16) {
