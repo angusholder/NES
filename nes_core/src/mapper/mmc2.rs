@@ -81,7 +81,7 @@ impl RawMapper for MMC2Mapper {
     }
 
     fn get_ppu_pattern_post_read_hook(&self) -> Option<Rc<PPUPatternPostReadHook>> {
-        let mmc2_inner: Rc<MMC2Inner> = self.inner.clone();
+        let mmc2_inner: Rc<MMC2Inner> = Rc::clone(&self.inner);
         Some(Rc::new(move |memory: &mut MemoryMap, addr: u16| {
             mmc2_inner.after_ppu_pattern_read(memory, addr);
         }))

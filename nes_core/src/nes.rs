@@ -31,7 +31,7 @@ pub struct NES {
     pub ram: [u8; 2048],
     pub ppu: PPU,
 
-    pub mapper: Mapper,
+    pub mapper: Rc<Mapper>,
 
     pub input: InputState,
     pub apu: APU,
@@ -155,7 +155,7 @@ impl StatusRegister {
 }
 
 impl NES {
-    fn new(mapper: Mapper, signals: Rc<Signals>) -> NES {
+    fn new(mapper: Rc<Mapper>, signals: Rc<Signals>) -> NES {
         NES {
             A: 0,
             X: 0,
@@ -167,10 +167,10 @@ impl NES {
             target_cycles: 0,
             total_cycles: 0,
             trace_instructions: log::log_enabled!(Trace),
-            ppu: PPU::new(mapper.clone(), signals.clone()),
+            ppu: PPU::new(Rc::clone(&mapper), Rc::clone(&signals)),
 
             input: InputState::new(),
-            apu: APU::new(mapper.clone(), signals.clone()),
+            apu: APU::new(Rc::clone(&mapper), Rc::clone(&signals)),
             signals,
             mapper,
         }
@@ -178,7 +178,7 @@ impl NES {
 
     pub fn from_cart(cart: Cartridge) -> NES {
         let signals = Signals::new();
-        let mapper = Mapper::new(cart, signals.clone());
+        let mapper = Rc::new(Mapper::new(cart, Rc::clone(&signals)));
         NES::new(mapper, signals)
     }
 

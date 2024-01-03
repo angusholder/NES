@@ -60,13 +60,13 @@ bitflags! {
 
 const SAMPLES_PER_FRAME: u32 = 735;
 impl APU {
-    pub fn new(mapper: Mapper, signals: Rc<Signals>) -> APU {
+    pub fn new(mapper: Rc<Mapper>, signals: Rc<Signals>) -> APU {
         APU {
             square_wave1: SquareWave::new(SquareUnit::Pulse1),
             square_wave2: SquareWave::new(SquareUnit::Pulse2),
             triangle_wave: TriangleWave::new(),
             noise: Noise::new(),
-            dmc: DMC::new(mapper, signals.clone()),
+            dmc: DMC::new(mapper, Rc::clone(&signals)),
 
             host_enabled_channels: AudioChannels::all(),
 

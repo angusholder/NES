@@ -1,5 +1,5 @@
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use crate::cartridge::Cartridge;
 use crate::mapper::memory_map::MemoryMap;
@@ -41,7 +41,7 @@ pub type PPUPatternPostReadHook = dyn Fn(&mut MemoryMap, u16);
 pub struct MapperDescriptor {
     pub number: u32,
     pub name: &'static str,
-    pub new_mapper: fn(Rc<Signals>) -> Rc<RefCell<dyn RawMapper>>,
+    pub new_mapper: fn(Rc<Signals>) -> Box<RefCell<dyn RawMapper>>,
 }
 
 static DESCRIPTORS: &[MapperDescriptor] = &[
@@ -55,8 +55,8 @@ static DESCRIPTORS: &[MapperDescriptor] = &[
     MapperDescriptor::DxROM,
 ];
 
-fn wrap(raw_mapper: impl RawMapper) -> Rc<RefCell<dyn RawMapper>> {
-    Rc::new(RefCell::new(raw_mapper))
+fn wrap(raw_mapper: impl RawMapper) -> Box<RefCell<dyn RawMapper>> {
+    Box::new(RefCell::new(raw_mapper))
 }
 
 #[allow(non_upper_case_globals)]
@@ -93,7 +93,7 @@ impl MapperDescriptor {
     pub const MMC3: MapperDescriptor = MapperDescriptor {
         number: 4,
         name: "MMC3",
-        new_mapper: |signals| wrap(mmc3::MMC3Mapper::new(signals.clone())),
+        new_mapper: |signals| wrap(mmc3::MMC3Mapper::new(signals)),
     };
     pub const AxROM: MapperDescriptor = MapperDescriptor {
         number: 7,
@@ -112,45 +112,68 @@ impl MapperDescriptor {
     };
 }
 
-#[derive(Clone)]
 pub struct Mapper {
-    raw_mapper: Rc<RefCell<dyn RawMapper>>,
-    memory_map: Rc<RefCell<MemoryMap>>,
+    raw_mapper: Box<RefCell<dyn RawMapper>>,
+    memory_map: RefCell<MemoryMap>,
     ppu_pattern_post_read_hook: Option<Rc<PPUPatternPostReadHook>>,
+    /// 0x6000-0x7FFF
+    wram: Box<[Cell<u8>; 0x2000]>,
 }
 
 impl Mapper {
     pub fn new(cart: Cartridge, signals: Rc<Signals>) -> Mapper {
-        let raw_mapper: Rc<RefCell<dyn RawMapper>> = (cart.mapper_descriptor.new_mapper)(signals);
+        let raw_mapper: Box<RefCell<dyn RawMapper>> = (cart.mapper_descriptor.new_mapper)(signals);
 
-        let memory_map = Rc::new(RefCell::new(MemoryMap::new(cart)));
+        let memory_map = RefCell::new(MemoryMap::new(cart));
 
         raw_mapper.borrow_mut().init_memory_map(&mut memory_map.borrow_mut());
 
         let ppu_pattern_post_read_hook: Option<Rc<PPUPatternPostReadHook>> = raw_mapper.borrow_mut().get_ppu_pattern_post_read_hook();
 
+        const U8_0: Cell<u8> = Cell::new(0);
         Mapper {
             raw_mapper,
             memory_map,
             ppu_pattern_post_read_hook,
+            wram: Box::new([U8_0; 0x2000]),
         }
     }
 
-    pub fn read_main_bus(&mut self, addr: u16) -> u8 {
-        self.memory_map.borrow().read_main_bus(addr)
+    pub fn read_main_bus(&self, addr: u16) -> u8 {
+        match addr {
+            0x8000..=0xFFFF => {
+                self.memory_map.borrow().read_prg(addr)
+            }
+            0x6000..=0x7FFF => {
+                self.wram[addr as usize & 0x1FFF].get()
+            }
+            _ => {
+                out_of_bounds_read("CPU memory space", addr)
+            }
+        }
     }
 
-    pub fn write_main_bus(&mut self, addr: u16, value: u8) {
-        self.memory_map.borrow_mut().write_main_bus(&mut *self.raw_mapper.borrow_mut(), addr, value);
+    pub fn write_main_bus(&self, addr: u16, value: u8) {
+        match addr {
+            0x8000..=0xFFFF => {
+                self.raw_mapper.borrow_mut().write_main_bus(&mut self.memory_map.borrow_mut(), addr, value);
+            }
+            0x6000..=0x7FFF => {
+                self.wram[addr as usize & 0x1FFF].set(value);
+            }
+            _ => {
+                out_of_bounds_write("CPU memory space", addr, value);
+            }
+        }
     }
 
     #[inline(always)]
-    pub fn read_nametable(&mut self, addr: u16) -> u8 {
+    pub fn read_nametable(&self, addr: u16) -> u8 {
         self.memory_map.borrow().nametables.read(addr)
     }
 
     #[inline(always)]
-    pub fn read_pattern_table(&mut self, addr: u16) -> u8 {
+    pub fn read_pattern_table(&self, addr: u16) -> u8 {
         let result = self.memory_map.borrow().read_pattern_table(addr);
         if let Some(post_read_hook) = self.ppu_pattern_post_read_hook.as_ref() {
             post_read_hook(&mut self.memory_map.borrow_mut(), addr);
@@ -158,15 +181,15 @@ impl Mapper {
         result
     }
 
-    pub fn write_nametable(&mut self, addr: u16, value: u8) {
+    pub fn write_nametable(&self, addr: u16, value: u8) {
         self.memory_map.borrow_mut().nametables.write(addr, value);
     }
 
-    pub fn write_pattern_table(&mut self, addr: u16, value: u8) {
+    pub fn write_pattern_table(&self, addr: u16, value: u8) {
         self.memory_map.borrow_mut().write_pattern_table(addr, value);
     }
 
-    pub fn on_cycle_scanline(&mut self) {
+    pub fn on_cycle_scanline(&self) {
         self.raw_mapper.borrow_mut().on_cycle_scanline();
     }
 }

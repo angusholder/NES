@@ -2,7 +2,6 @@ use std::ops::Range;
 use log::{warn};
 use crate::cartridge::{Cartridge, CHR, NametableMirroring};
 use crate::mapper;
-use crate::mapper::{RawMapper};
 use crate::mapper::nametables::NameTables;
 
 pub struct MemoryMap {
@@ -12,9 +11,6 @@ pub struct MemoryMap {
     chr_writeable: bool,
     /// RAM or ROM, depending on the cartridge.
     chr_storage: Box<[u8]>,
-
-    /// 0x6000-0x7FFF
-    wram: Option<Box<[u8; 0x2000]>>,
 
     /// Covers 4 x 8K banks (0x2000), between 0x8000 and 0xFFFF.
     prg_base_addrs: [usize; 4],
@@ -28,14 +24,6 @@ const CHR_PAGE: usize = 1024;
 
 impl MemoryMap {
     pub fn new(cart: Cartridge) -> MemoryMap {
-        let wram = match cart.prg_ram_size {
-            8192 => Some(Box::new([0; 8192])),
-            0 => None,
-            other => {
-                warn!("Unexpected PRG RAM size {other}");
-                None
-            }
-        };
         if cart.prg_ram_battery_backed {
             warn!("Battery-backed PRG RAM is not supported.");
         }
@@ -48,8 +36,6 @@ impl MemoryMap {
                 CHR::ROM(rom) => rom,
             },
 
-            wram,
-            
             prg_base_addrs: [0; 4],
             prg_rom: cart.prg_rom.into_boxed_slice(),
 
@@ -80,9 +66,9 @@ impl MemoryMap {
     fn map_prg_range(&mut self, banks: Range<u8>, page_index: i32, page_size: usize) {
         let mut base_addr: usize = page_index.unsigned_abs() as usize * page_size;
         if page_index < 0 {
-            base_addr = self.prg_rom.len() - base_addr;
+            base_addr = self.prg_rom_len() - base_addr;
         }
-        base_addr %= self.prg_rom.len();
+        base_addr %= self.prg_rom_len();
 
         for (i, bank) in banks.enumerate() {
             let bank = bank as usize;
@@ -119,42 +105,11 @@ impl MemoryMap {
 }
 
 impl MemoryMap {
-    pub fn read_main_bus(&self, addr: u16) -> u8 {
-        match addr {
-            0x8000..=0xFFFF => {
-                let bank_no = (addr as usize >> 0x1FFFu32.count_ones()) & 3;
-                let base_addr = self.prg_base_addrs[bank_no];
-                self.prg_rom[base_addr + (addr as usize & 0x1FFF)]
-            }
-            0x6000..=0x7FFF => {
-                if let Some(wram) = self.wram.as_ref() {
-                    wram[addr as usize & 0x1FFF]
-                } else {
-                    mapper::out_of_bounds_read("WRAM", addr)
-                }
-            }
-            _ => {
-                mapper::out_of_bounds_read("CPU memory space", addr)
-            }
-        }
-    }
-
-    pub fn write_main_bus(&mut self, mapper: &mut dyn RawMapper, addr: u16, value: u8) {
-        match addr {
-            0x8000..=0xFFFF => {
-                mapper.write_main_bus(self, addr, value);
-            }
-            0x6000..=0x7FFF => {
-                if let Some(wram) = self.wram.as_mut() {
-                    wram[addr as usize & 0x1FFF] = value;
-                } else {
-                    mapper::out_of_bounds_write("WRAM", addr, value);
-                }
-            }
-            _ => {
-                mapper::out_of_bounds_write("CPU memory space", addr, value);
-            }
-        }
+    /// [addr] expected to be in range 0x8000..0xFFFF
+    pub fn read_prg(&self, addr: u16) -> u8 {
+        let bank_no = (addr as usize >> 0x1FFFu32.count_ones()) & 3;
+        let base_addr = self.prg_base_addrs[bank_no];
+        self.prg_rom[base_addr + (addr as usize & 0x1FFF)]
     }
 
     pub fn read_pattern_table(&self, addr: u16) -> u8 {

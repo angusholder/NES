@@ -38,7 +38,7 @@ pub struct PPU {
     sprite_0_hit: bool,
 
     palettes: [u8; 2 * 4 * 4],
-    mapper: Mapper,
+    mapper: Rc<Mapper>,
 
     vblank_started: bool,
     signals: Rc<Signals>,
@@ -60,7 +60,7 @@ pub struct PPU {
 }
 
 impl PPU {
-    pub fn new(mapper: Mapper, signals: Rc<Signals>) -> PPU {
+    pub fn new(mapper: Rc<Mapper>, signals: Rc<Signals>) -> PPU {
         PPU {
             control: PPUControl::from_bits(0),
             mask: PPUMask::from_bits(0),

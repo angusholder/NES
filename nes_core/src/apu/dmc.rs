@@ -23,7 +23,7 @@ pub struct DMC {
     reader_bytes_remaining: u32,
 
     signals: Rc<Signals>,
-    mapper: Mapper,
+    mapper: Rc<Mapper>,
 }
 
 static DMC_RATE_PERIODS: [u32; 16] = [
@@ -31,7 +31,7 @@ static DMC_RATE_PERIODS: [u32; 16] = [
 ];
 
 impl DMC {
-    pub fn new(mapper: Mapper, signals: Rc<Signals>) -> DMC {
+    pub fn new(mapper: Rc<Mapper>, signals: Rc<Signals>) -> DMC {
         let mut dmc = DMC {
             irq_enabled: false,
             loop_flag: false,
