@@ -1,6 +1,7 @@
 [workspace]
 members = ["nes_core", "frontend_sdl"]
 default-members = ["frontend_sdl"]
+resolver = "2"
 
 [profile.release]
 panic = "abort"
