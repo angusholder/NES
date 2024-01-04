@@ -2,7 +2,6 @@ use std::ops::Range;
 use log::{warn};
 use crate::cartridge::{Cartridge, CHR, NametableMirroring};
 use crate::mapper;
-use crate::mapper::nametables::NameTables;
 
 pub struct MemoryMap {
     /// Covers 8 x 1K banks (0x400) between 0x0000 and 0x1FFF.
@@ -16,7 +15,17 @@ pub struct MemoryMap {
     prg_base_addrs: [usize; 4],
     prg_rom: Box<[u8]>,
 
-    pub nametables: NameTables,
+    nametable_storage: [u8; 0x1000],
+    nametable_base_addrs: [NtOffset; 4],
+}
+
+// This is an enum so the compiler can omit the bounds check when accessing `nametable_storage`.
+#[derive(Clone, Copy)]
+enum NtOffset {
+    Addr000 = 0x000,
+    Addr400 = 0x400,
+    Addr800 = 0x800,
+    AddrC00 = 0xC00,
 }
 
 const PRG_PAGE: usize = 8 * 1024;
@@ -28,7 +37,8 @@ impl MemoryMap {
             warn!("Battery-backed PRG RAM is not supported.");
         }
 
-        MemoryMap {
+        use self::NtOffset::Addr000;
+        let mut map = MemoryMap {
             chr_base_addrs: [0; 8],
             chr_writeable: matches!(cart.chr, CHR::RAM(_)),
             chr_storage: match cart.chr {
@@ -39,14 +49,35 @@ impl MemoryMap {
             prg_base_addrs: [0; 4],
             prg_rom: cart.prg_rom.into_boxed_slice(),
 
-            nametables: NameTables::new(cart.mirroring),
-        }
+            nametable_storage: [0; 0x1000],
+            nametable_base_addrs: [Addr000, Addr000, Addr000, Addr000],
+        };
+        map.set_nametable_mirroring(cart.mirroring);
+        map
     }
 
     pub fn prg_rom_len(&self) -> usize { self.prg_rom.len() }
 
     pub fn set_nametable_mirroring(&mut self, mirroring: NametableMirroring) {
-        self.nametables.update_mirroring(mirroring);
+        use self::NtOffset::*;
+
+        self.nametable_base_addrs = match mirroring {
+            NametableMirroring::Horizontal => {
+                [Addr000, Addr000, Addr400, Addr400]
+            }
+            NametableMirroring::Vertical => {
+                [Addr000, Addr400, Addr000, Addr400]
+            }
+            NametableMirroring::SingleScreenLowerBank => {
+                [Addr000, Addr000, Addr000, Addr000]
+            }
+            NametableMirroring::SingleScreenUpperBank => {
+                [Addr400, Addr400, Addr400, Addr400]
+            }
+            NametableMirroring::FourScreen => {
+                [Addr000, Addr400, Addr800, AddrC00]
+            }
+        };
     }
     
     pub fn map_prg_32k(&mut self, page_index: i32) {
@@ -130,4 +161,31 @@ impl MemoryMap {
             mapper::out_of_bounds_write("CHR ROM", addr, value);
         }
     }
+
+    pub fn read_nametable(&self, addr: u16) -> u8 {
+        let offset: NtOffset = self.nametable_base_addrs[nt_addr_to_offset(addr)];
+        self.nametable_storage[offset as usize + (addr as usize & 0x3FF)]
+    }
+
+    pub fn write_nametable(&mut self, addr: u16, value: u8) {
+        let offset: NtOffset = self.nametable_base_addrs[nt_addr_to_offset(addr)];
+        self.nametable_storage[offset as usize + (addr as usize & 0x3FF)] = value;
+    }
+}
+
+#[inline(always)]
+fn nt_addr_to_offset(addr: u16) -> usize {
+    (addr >> 10 & 0b11) as usize
+}
+
+#[test]
+fn test_nametable_addr_to_offset() {
+    assert_eq!(nt_addr_to_offset(0x2000), 0);
+    assert_eq!(nt_addr_to_offset(0x23FF), 0);
+    assert_eq!(nt_addr_to_offset(0x2400), 1);
+    assert_eq!(nt_addr_to_offset(0x27FF), 1);
+    assert_eq!(nt_addr_to_offset(0x2800), 2);
+    assert_eq!(nt_addr_to_offset(0x2BFF), 2);
+    assert_eq!(nt_addr_to_offset(0x2C00), 3);
+    assert_eq!(nt_addr_to_offset(0x2FFF), 3);
 }

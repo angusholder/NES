@@ -14,7 +14,6 @@ mod mmc3;
 mod memory_map;
 mod axrom;
 mod dxrom;
-mod nametables;
 
 const DEBUG_MAPPINGS: bool = false;
 
@@ -169,7 +168,7 @@ impl Mapper {
 
     #[inline(always)]
     pub fn read_nametable(&self, addr: u16) -> u8 {
-        self.memory_map.borrow().nametables.read(addr)
+        self.memory_map.borrow().read_nametable(addr)
     }
 
     #[inline(always)]
@@ -182,7 +181,7 @@ impl Mapper {
     }
 
     pub fn write_nametable(&self, addr: u16, value: u8) {
-        self.memory_map.borrow_mut().nametables.write(addr, value);
+        self.memory_map.borrow_mut().write_nametable(addr, value);
     }
 
     pub fn write_pattern_table(&self, addr: u16, value: u8) {
