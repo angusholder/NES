@@ -10,3 +10,4 @@ pub mod mapper;
 mod disassemble;
 pub mod input;
 pub mod apu;
+mod debugger;

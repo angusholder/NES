@@ -36,6 +36,8 @@ pub struct NES {
     pub input: InputState,
     pub apu: APU,
     signals: Rc<Signals>,
+
+    pub(crate) debugger: Option<Box<crate::debugger::Debugger>>,
 }
 
 bitflags! {
@@ -173,6 +175,7 @@ impl NES {
             apu: APU::new(Rc::clone(&mapper), Rc::clone(&signals)),
             signals,
             mapper,
+            debugger: None,
         }
     }
 
@@ -305,6 +308,10 @@ impl NES {
 
     pub fn write8(&mut self, addr: u16, val: u8) {
         self.tick();
+        self.write8_no_tick(addr, val);
+    }
+
+    pub fn write8_no_tick(&mut self, addr: u16, val: u8) {
         match addr {
             0x0000..=0x1FFF =>
                 self.ram[addr as usize % 0x800] = val,
