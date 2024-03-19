@@ -40,6 +40,8 @@ pub struct APU {
 
     apu_cycle: u64,
     signals: Rc<Signals>,
+
+    low_pass_filter: IIRFilter,
 }
 
 #[derive(PartialEq, Debug)]
@@ -59,6 +61,7 @@ bitflags! {
 }
 
 const SAMPLES_PER_FRAME: u32 = 735;
+const SAMPLES_PER_SECOND: u32 = SAMPLES_PER_FRAME * 60;
 impl APU {
     pub fn new(mapper: Rc<Mapper>, signals: Rc<Signals>) -> APU {
         APU {
@@ -81,6 +84,12 @@ impl APU {
 
             apu_cycle: 0,
             signals,
+
+            // The NES hardware follows the DACs with a surprisingly involved circuit that adds several low-pass and high-pass filters:
+            // - A first-order high-pass filter at 90 Hz
+            // - Another first-order high-pass filter at 440 Hz
+            // - A first-order low-pass filter at 14 kHz
+            low_pass_filter: IIRFilter::new(14_000.0, 1.0 / SAMPLES_PER_SECOND as f32),
         }
     }
 
@@ -129,7 +138,8 @@ impl APU {
     }
 
     fn record_sample(&mut self) {
-        let sample: f32 = self.get_current_output();
+        let mut sample: f32 = self.get_current_output();
+        sample = self.low_pass_filter.filter_sample(sample);
         self.mixed_samples.push(sample);
         self.sample_count += 1;
 
@@ -322,5 +332,34 @@ impl APU {
         // }
         output(&self.mixed_samples[..]);
         self.mixed_samples.clear();
+    }
+}
+
+// https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
+pub struct IIRFilter {
+    last_sample_output: f32,
+    cutoff_freq: f32,
+    sample_period: f32,
+    alpha: f32,
+}
+
+impl IIRFilter {
+    pub fn new(cutoff_freq: f32, sample_period: f32) -> IIRFilter {
+        use std::f32::consts::PI;
+        let alpha = (2.0 * PI * sample_period * cutoff_freq) / (2.0 * PI * sample_period * cutoff_freq + 1.0);
+        println!("Alpha = {alpha}");
+        IIRFilter {
+            last_sample_output: 0.0,
+            cutoff_freq,
+            sample_period,
+            alpha,
+        }
+    }
+
+    // sample is in range [0.0, 1.0]
+    pub fn filter_sample(&mut self, input: f32) -> f32 {
+        let output = self.last_sample_output + self.alpha * (input - self.last_sample_output);
+        self.last_sample_output = output;
+        output
     }
 }
